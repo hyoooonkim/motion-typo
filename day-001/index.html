@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 002 — 내 맘이란 추는 나를 더 깊게</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#f5f5f0;overflow:hidden;}
+  canvas{display:block;}
+  .back{position:fixed;top:24px;left:24px;color:#bbb;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:2px;text-decoration:none;text-transform:uppercase;z-index:10;transition:color 0.3s;}
+  .back:hover{color:#666;}
+  .info{position:fixed;bottom:24px;left:24px;color:#bbb;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;z-index:10;pointer-events:none;}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">← Gallery</a>
+<div class="info">Day 002 — 중력 침강</div>
+<canvas id="c"></canvas>
+<script>
+(function(){
+var c=document.getElementById('c'),ctx=c.getContext('2d');
+var W,H,time=0;
+var img=new Image();
+var ready=false;
+
+// 오프스크린: 원본 이미지 데이터
+var off=document.createElement('canvas'),octx=off.getContext('2d');
+
+function resize(){
+  W=c.width=innerWidth;
+  H=c.height=innerHeight;
+}
+
+img.onload=function(){
+  ready=true;
+  off.width=img.width;
+  off.height=img.height;
+  octx.drawImage(img,0,0);
+  resize();
+  animate();
+};
+img.src='text.png';
+
+function animate(){
+  if(!ready)return;
+  time+=0.01;
+  ctx.fillStyle='#f5f5f0';
+  ctx.fillRect(0,0,W,H);
+
+  // 이미지를 화면 중앙에 맞추기
+  var scale=Math.min(W*0.85/img.width, H*0.9/img.height);
+  var iw=img.width*scale;
+  var ih=img.height*scale;
+  var ix=(W-iw)/2;
+  var iy=(H-ih)/2;
+
+  // 압착 사이클
+  var crushCycle=(Math.sin(time*0.6-Math.PI/2)+1)/2;
+
+  // 슬라이스 기반 왜곡: 이미지를 가로 슬라이스로 잘라서 각각 변형
+  var sliceCount=Math.floor(ih);
+  var srcSliceH=img.height/sliceCount;
+
+  for(var i=0;i<sliceCount;i++){
+    var ratio=i/sliceCount; // 0(위)~1(아래)
+
+    // 아래로 갈수록 압착 강도 증가
+    var crushAmt=Math.pow(ratio,2.5)*crushCycle;
+
+    // 가로 스케일: 짓눌리면서 옆으로 퍼짐
+    var scaleX=1+crushAmt*0.8;
+
+    // 세로 스케일: 아래로 갈수록 찌그러짐
+    var scaleY=1-crushAmt*0.7;
+    if(scaleY<0.1)scaleY=0.1;
+
+    // y 위치: 압착되면서 위쪽 슬라이스는 그대로, 아래쪽은 위로 당겨짐
+    var compressY=crushAmt*ratio*ih*0.3;
+
+    // 미세한 x 흔들림
+    var shakeX=Math.sin(time*4+i*0.05)*crushAmt*6;
+
+    var srcY=i*srcSliceH;
+    var dstX=ix+(iw*(1-scaleX))/2+shakeX;
+    var dstY=iy+i-compressY;
+    var dstW=iw*scaleX;
+    var dstH=Math.max(1,scaleY*1.5);
+
+    ctx.drawImage(img,
+      0, srcY, img.width, Math.max(1,srcSliceH),
+      dstX, dstY, dstW, dstH
+    );
+  }
+
+  // 아래쪽에 파편 효과: 짓눌린 부분에서 픽셀이 튀어나감
+  if(crushCycle>0.4){
+    var debrisAlpha=(crushCycle-0.4)*0.5;
+    ctx.globalAlpha=debrisAlpha;
+    var bottomY=iy+ih-ih*crushCycle*0.25;
+    for(var d=0;d<15;d++){
+      var dx=ix+iw*0.2+Math.random()*iw*0.6;
+      var dy=bottomY+Math.random()*30;
+      var angle=Math.atan2(dy-(iy+ih/2),dx-W/2);
+      var dist=crushCycle*20*Math.random();
+      ctx.fillStyle='#2b2bff';
+      ctx.fillRect(dx+Math.cos(angle)*dist,dy+Math.sin(angle)*dist,
+        2+Math.random()*5, 1+Math.random()*3);
+    }
+    ctx.globalAlpha=1;
+  }
+
+  requestAnimationFrame(animate);
+}
+
+window.addEventListener('resize',resize);
+c.addEventListener('click',function(){time=0;});
+})();
+</script>
+</body>
+</html>
