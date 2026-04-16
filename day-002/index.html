@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 002 — 텍스트 힙의 시대</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#0a0a0a;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'Helvetica Neue',Arial,sans-serif;}
+  canvas{display:block;}
+  .back{position:fixed;top:24px;left:24px;color:#444;font-size:11px;letter-spacing:2px;text-decoration:none;text-transform:uppercase;z-index:10;transition:color 0.3s;}
+  .back:hover{color:#aaa;}
+  .info{position:fixed;bottom:24px;left:24px;color:#333;font-size:11px;letter-spacing:2px;text-transform:uppercase;z-index:10;pointer-events:none;}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">← Gallery</a>
+<div class="info">Day 002 — hover to disturb</div>
+<canvas id="c"></canvas>
+<script>
+(function(){
+var c=document.getElementById('c'),ctx=c.getContext('2d');
+var W,H;
+var mouse={x:-9999,y:-9999};
+var books=[];
+var SHELF_COLOR='#1a1a1a';
+var BG='#0a0a0a';
+
+// 선반 구성: 각 줄에 글자들 + 필러 책들
+var shelves=[
+  {chars:['텍','스','트'], y:0},
+  {chars:['힙','의'], y:0},
+  {chars:['시','대'], y:0}
+];
+
+var BOOK_COLORS=['#e8e8e8','#d0d0d0','#f0f0f0','#c8c8c8','#b8b8b8','#ffffff','#ddd','#bbb','#999','#eee'];
+var ACCENT_COLORS=['#e63946','#457b9d','#2a9d8f','#e9c46a','#f4a261'];
+
+function resize(){
+  // 세로 비율 포스터
+  var maxH=innerHeight*0.92;
+  var maxW=innerWidth*0.85;
+  var ratio=3/4;
+  if(maxW/maxH>ratio){H=Math.floor(maxH);W=Math.floor(H*ratio);}
+  else{W=Math.floor(maxW);H=Math.floor(W/ratio);}
+  c.width=W;c.height=H;
+  generateBooks();
+}
+
+function generateBooks(){
+  books=[];
+  var shelfH=H/shelves.length;
+  var shelfPad=shelfH*0.08;
+  var bookAreaH=shelfH-shelfPad*2-8; // 책 높이 영역
+  var padX=W*0.05;
+
+  shelves.forEach(function(shelf,si){
+    var shelfTop=si*shelfH+shelfPad;
+    var shelfBottom=shelfTop+bookAreaH;
+    shelf.y=shelfBottom;
+    shelf.top=shelfTop;
+
+    var chars=shelf.chars;
+    var totalChars=chars.length;
+    // 각 글자에 할당할 폭
+    var charAreaW=(W-padX*2)/totalChars;
+
+    chars.forEach(function(ch,ci){
+      var areaLeft=padX+ci*charAreaW;
+      var areaRight=areaLeft+charAreaW;
+
+      // 글자 책: 크고 두꺼운 책
+      var charBookW=charAreaW*0.5;
+      var charBookH=bookAreaH*0.85;
+      var charBookX=areaLeft+charAreaW*0.25;
+
+      books.push({
+        x:charBookX,
+        y:shelfBottom-charBookH,
+        w:charBookW,
+        h:charBookH,
+        origX:charBookX,
+        origY:shelfBottom-charBookH,
+        rotation:0,
+        origRotation:0,
+        color:'#f0f0f0',
+        char:ch,
+        charSize:Math.floor(charBookW*0.7),
+        isChar:true,
+        shelf:si
+      });
+
+      // 필러 책들: 글자 책 양옆에 얇은 책들
+      var fillerCount=2+Math.floor(Math.random()*3);
+      var leftSpace=charBookX-areaLeft;
+      var rightSpace=areaRight-charBookX-charBookW;
+
+      // 왼쪽 필러
+      var fx=areaLeft;
+      for(var f=0;f<fillerCount;f++){
+        var fw=4+Math.random()*12;
+        var fh=bookAreaH*(0.6+Math.random()*0.35);
+        var frot=(Math.random()-0.5)*0.08;
+        if(fx+fw>charBookX-2) break;
+        books.push({
+          x:fx,y:shelfBottom-fh,w:fw,h:fh,
+          origX:fx,origY:shelfBottom-fh,
+          rotation:frot,origRotation:frot,
+          color:BOOK_COLORS[Math.floor(Math.random()*BOOK_COLORS.length)],
+          char:null,isChar:false,shelf:si
+        });
+        fx+=fw+1+Math.random()*3;
+      }
+
+      // 오른쪽 필러
+      fx=charBookX+charBookW+2;
+      for(var f=0;f<fillerCount;f++){
+        var fw=4+Math.random()*12;
+        var fh=bookAreaH*(0.6+Math.random()*0.35);
+        var frot=(Math.random()-0.5)*0.08;
+        if(fx+fw>areaRight) break;
+        books.push({
+          x:fx,y:shelfBottom-fh,w:fw,h:fh,
+          origX:fx,origY:shelfBottom-fh,
+          rotation:frot,origRotation:frot,
+          color:BOOK_COLORS[Math.floor(Math.random()*BOOK_COLORS.length)],
+          char:null,isChar:false,shelf:si
+        });
+        fx+=fw+1+Math.random()*3;
+      }
+    });
+  });
+}
+
+function drawBook(b){
+  ctx.save();
+  ctx.translate(b.x+b.w/2,b.y+b.h);
+  ctx.rotate(b.rotation);
+
+  // 책 본체
+  ctx.fillStyle=b.color;
+  ctx.fillRect(-b.w/2,-b.h,b.w,b.h);
+
+  // 책등 라인 (세로 줄무늬)
+  if(!b.isChar){
+    ctx.strokeStyle='rgba(0,0,0,0.08)';
+    ctx.lineWidth=0.5;
+    for(var i=1;i<b.w;i+=3){
+      ctx.beginPath();
+      ctx.moveTo(-b.w/2+i,-b.h);
+      ctx.lineTo(-b.w/2+i,0);
+      ctx.stroke();
+    }
+  }
+
+  // 글자 책: 글자 그리기
+  if(b.isChar&&b.char){
+    ctx.fillStyle='#0a0a0a';
+    ctx.font='900 '+b.charSize+"px 'Helvetica Neue',Arial,sans-serif";
+    ctx.textAlign='center';
+    ctx.textBaseline='middle';
+    ctx.fillText(b.char,0,-b.h/2);
+
+    // 책등 양쪽 라인
+    ctx.strokeStyle='rgba(0,0,0,0.15)';
+    ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(-b.w/2+2,-b.h+4);ctx.lineTo(-b.w/2+2,-4);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(b.w/2-2,-b.h+4);ctx.lineTo(b.w/2-2,-4);ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function drawShelf(shelfIndex){
+  var shelfH=H/shelves.length;
+  var y=shelves[shelfIndex].y;
+
+  // 선반 판
+  ctx.fillStyle='#222';
+  ctx.fillRect(0,y,W,6);
+
+  // 선반 그림자
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.fillRect(0,y+6,W,4);
+}
+
+function update(){
+  // 마우스 근처 책들 기울이기
+  var RADIUS=120;
+  books.forEach(function(b){
+    var bx=b.origX+b.w/2;
+    var by=b.origY+b.h/2;
+    var dx=mouse.x-bx;
+    var dy=mouse.y-by;
+    var dist=Math.sqrt(dx*dx+dy*dy);
+
+    if(dist<RADIUS){
+      var force=(1-dist/RADIUS);
+      var angle=Math.atan2(dy,dx);
+
+      // 마우스 방향으로 기울어짐
+      var tiltTarget=force*0.25*(dx>0?-1:1);
+      b.rotation+=(tiltTarget-b.rotation)*0.1;
+
+      // 살짝 밀려남
+      var pushX=-Math.cos(angle)*force*3;
+      b.x+=(b.origX+pushX-b.x)*0.1;
+    }else{
+      // 원래 위치로 복귀
+      b.rotation+=(b.origRotation-b.rotation)*0.08;
+      b.x+=(b.origX-b.x)*0.08;
+    }
+  });
+}
+
+function draw(){
+  ctx.fillStyle=BG;
+  ctx.fillRect(0,0,W,H);
+
+  // 선반 배경
+  shelves.forEach(function(s,i){drawShelf(i);});
+
+  // 책 그리기
+  books.forEach(function(b){drawBook(b);});
+
+  update();
+  requestAnimationFrame(draw);
+}
+
+c.addEventListener('mousemove',function(e){
+  var rect=c.getBoundingClientRect();
+  mouse.x=e.clientX-rect.left;
+  mouse.y=e.clientY-rect.top;
+});
+c.addEventListener('mouseleave',function(){mouse.x=-9999;mouse.y=-9999;});
+
+window.addEventListener('resize',resize);
+resize();
+draw();
+})();
+</script>
+</body>
+</html>
