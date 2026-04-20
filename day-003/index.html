@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 003 — 세탁기와 AI가 벌어준 시간은 다 어디로 갔을까?</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#111;display:flex;align-items:center;justify-content:center;min-height:100vh;overflow:hidden;}
+  .wrap{position:relative;display:inline-block;}
+  .wrap img{display:block;max-width:95vw;max-height:95vh;width:auto;height:auto;}
+  .wrap canvas{position:absolute;top:0;left:0;pointer-events:auto;}
+  .back{position:fixed;top:24px;left:24px;color:#666;font-family:'Helvetica Neue',Arial,sans-serif;font-size:11px;letter-spacing:2px;text-decoration:none;text-transform:uppercase;z-index:10;transition:color 0.3s;}
+  .back:hover{color:#aaa;}
+  .hint{position:fixed;bottom:24px;right:24px;color:#888;font-family:'Helvetica Neue',Arial,sans-serif;font-size:12px;letter-spacing:1px;z-index:10;pointer-events:none;transition:opacity 2s;}
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">← Gallery</a>
+<div class="hint" id="hint">클릭하면 세탁 시작</div>
+<div class="wrap" id="wrap">
+  <img id="bgImg" src="image.png" alt="washing machine">
+  <canvas id="c"></canvas>
+</div>
+<script>
+(function(){
+var Engine=Matter.Engine,World=Matter.World,Bodies=Matter.Bodies,Body=Matter.Body,
+    Composite=Matter.Composite,Mouse=Matter.Mouse,MouseConstraint=Matter.MouseConstraint;
+
+var img=document.getElementById('bgImg');
+var canvas=document.getElementById('c');
+var ctx=canvas.getContext('2d');
+
+// 드럼 위치 (이미지 비율 기준, 0~1)
+// 이 값을 조정해서 드럼 유리 위치에 맞추세요
+var DRUM_CX_RATIO=2059.72/4096;
+var DRUM_CY_RATIO=1539.08/3186;
+var DRUM_R_RATIO=(827.44/2)/3186;
+
+var W,H,CX,CY,DRUM_R;
+var engine,world,mouse,mouseConstraint;
+var charBodies=[];
+var drumAngle=0,drumSpeed=0;
+var phase='idle';
+var phaseTimer=0;
+var WALL_SEGMENTS=48;
+var wallBodies=[];
+var bubbles=[];
+
+var FULL_TEXT='세탁기와 AI가 벌어준 시간은 다 어디로 갔을까?';
+var REMAIN_TEXT='시간은 다 어디로 갔을까?';
+var CHARS=FULL_TEXT.split('');
+
+function setup(){
+  W=canvas.width=img.clientWidth;
+  H=canvas.height=img.clientHeight;
+  CX=W*DRUM_CX_RATIO;
+  CY=H*DRUM_CY_RATIO;
+  DRUM_R=H*DRUM_R_RATIO;
+
+  engine=Engine.create({gravity:{x:0,y:1.5,scale:0.001}});
+  world=engine.world;
+
+  wallBodies=[];
+  for(var i=0;i<WALL_SEGMENTS;i++){
+    var angle=(i/WALL_SEGMENTS)*Math.PI*2;
+    var x=CX+Math.cos(angle)*DRUM_R;
+    var y=CY+Math.sin(angle)*DRUM_R;
+    var segLen=2*Math.PI*DRUM_R/WALL_SEGMENTS+4;
+    var wall=Bodies.rectangle(x,y,segLen,10,{
+      isStatic:true,angle:angle+Math.PI/2,restitution:0.3,friction:0.5
+    });
+    wallBodies.push(wall);
+    World.add(world,wall);
+  }
+
+  charBodies=[];
+  var fontSize=Math.max(14,Math.floor(DRUM_R*0.13));
+
+  CHARS.forEach(function(ch){
+    var a=Math.random()*Math.PI*2;
+    var d=Math.random()*DRUM_R*0.5;
+    var body=Bodies.rectangle(CX+Math.cos(a)*d,CY+Math.sin(a)*d-DRUM_R*0.2,
+      fontSize*0.8,fontSize,{
+        restitution:0.3,friction:0.2,frictionAir:0.02,density:0.003
+      });
+    body._char=ch;
+    body._size=fontSize*(0.8+Math.random()*0.4);
+    body._alive=true;
+    body._remainOrder=-1;
+    charBodies.push(body);
+    World.add(world,body);
+  });
+
+  // REMAIN_TEXT 위치 매칭: FULL_TEXT에서 정확한 위치 찾기
+  var startIdx=FULL_TEXT.indexOf(REMAIN_TEXT);
+  if(startIdx!==-1){
+    for(var ri=0;ri<REMAIN_TEXT.length;ri++){
+      charBodies[startIdx+ri]._remainOrder=ri;
+    }
+  }
+
+  mouse=Mouse.create(canvas);
+  mouseConstraint=MouseConstraint.create(engine,{
+    mouse:mouse,constraint:{stiffness:0.2,render:{visible:false}}
+  });
+  World.add(world,mouseConstraint);
+
+  phase='idle';phaseTimer=0;drumSpeed=0;bubbles=[];
+}
+
+function rotateDrum(speed){
+  drumAngle+=speed;
+  for(var i=0;i<WALL_SEGMENTS;i++){
+    var a=(i/WALL_SEGMENTS)*Math.PI*2+drumAngle;
+    Body.setPosition(wallBodies[i],{x:CX+Math.cos(a)*DRUM_R,y:CY+Math.sin(a)*DRUM_R});
+    Body.setAngle(wallBodies[i],a+Math.PI/2);
+  }
+}
+
+function addBubble(){
+  var a=Math.random()*Math.PI*2;
+  var d=Math.random()*DRUM_R*0.7;
+  bubbles.push({
+    x:CX+Math.cos(a)*d,y:CY+Math.sin(a)*d,
+    r:2+Math.random()*6,alpha:0.2+Math.random()*0.3,
+    vy:-0.3-Math.random()*0.6,vx:(Math.random()-0.5)*0.4,life:1
+  });
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // 드럼 영역만 그리기 (원형 클리핑)
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(CX,CY,DRUM_R-2,0,Math.PI*2);
+  ctx.clip();
+
+  // 드럼 내부 어두운 배경
+  ctx.fillStyle='rgba(10,10,15,0.85)';
+  ctx.fillRect(CX-DRUM_R,CY-DRUM_R,DRUM_R*2,DRUM_R*2);
+
+  // 거품
+  bubbles.forEach(function(b){
+    ctx.globalAlpha=b.alpha*b.life;
+    ctx.fillStyle='rgba(255,255,255,0.4)';
+    ctx.beginPath();ctx.arc(b.x,b.y,b.r,0,Math.PI*2);ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,0.7)';
+    ctx.beginPath();ctx.arc(b.x-b.r*0.25,b.y-b.r*0.25,b.r*0.25,0,Math.PI*2);ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // 글자들
+  charBodies.forEach(function(body){
+    if(!body._alive)return;
+    var pos=body.position;
+    var dx=pos.x-CX,dy=pos.y-CY;
+    if(Math.sqrt(dx*dx+dy*dy)>DRUM_R+20)return;
+    ctx.save();
+    ctx.translate(pos.x,pos.y);ctx.rotate(body.angle);
+    var speed=Math.sqrt(body.velocity.x*body.velocity.x+body.velocity.y*body.velocity.y);
+    ctx.fillStyle='hsl('+(190+speed*3)+',80%,'+(75+Math.min(speed*2,20))+'%)';
+    ctx.font='bold '+body._size+'px "Helvetica Neue",Arial,sans-serif';
+    ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText(body._char,0,0);
+    ctx.restore();
+  });
+
+  ctx.restore();
+
+  // done 텍스트
+  if(phase==='done'&&phaseTimer>60){
+    var alpha=Math.min((phaseTimer-60)/120,1);
+    ctx.globalAlpha=alpha;
+    ctx.fillStyle='#fff';
+    ctx.font='14px "Helvetica Neue",Arial,sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText('— click to restart —',CX,CY+DRUM_R+30);
+    ctx.globalAlpha=1;
+  }
+}
+
+function update(){
+  phaseTimer++;
+
+  if(phase==='spinning'){
+    drumSpeed=Math.min(drumSpeed+0.0003,0.02);
+    if(Math.random()<0.3)addBubble();
+    charBodies.forEach(function(body){
+      if(!body._alive)return;
+      var dx=body.position.x-CX,dy=body.position.y-CY;
+      var dist=Math.sqrt(dx*dx+dy*dy);
+      if(dist>0){
+        Body.applyForce(body,body.position,{
+          x:-dy/dist*drumSpeed*0.05,y:dx/dist*drumSpeed*0.05
+        });
+      }
+    });
+    if(phaseTimer>900){phase='draining';phaseTimer=0;}
+  }else if(phase==='draining'){
+    drumSpeed*=0.995;
+    if(phaseTimer%15===0){
+      for(var i=0;i<charBodies.length;i++){
+        if(charBodies[i]._alive&&charBodies[i]._remainOrder===-1){
+          charBodies[i]._alive=false;
+          World.remove(world,charBodies[i]);break;
+        }
+      }
+    }
+    var allGone=charBodies.every(function(b){return !b._alive||b._remainOrder!==-1;});
+    if(allGone){phase='done';phaseTimer=0;}
+  }else if(phase==='done'){
+    drumSpeed*=0.98;
+
+    // 남은 글자들의 x 순서만 보정 (왼→오 순서대로)
+    var remainBodies=charBodies.filter(function(b){return b._alive&&b._remainOrder!==-1;});
+    remainBodies.sort(function(a,b){return a._remainOrder-b._remainOrder;});
+
+    for(var i=0;i<remainBodies.length-1;i++){
+      var curr=remainBodies[i];
+      var next=remainBodies[i+1];
+      // 현재 글자가 다음 글자보다 오른쪽에 있으면 살짝 밀어줌
+      if(curr.position.x>next.position.x-curr._size*0.3){
+        Body.applyForce(curr,curr.position,{x:-0.0003,y:0});
+        Body.applyForce(next,next.position,{x:0.0003,y:0});
+      }
+    }
+  }
+
+  if(drumSpeed>0.0001)rotateDrum(drumSpeed);
+
+  for(var i=bubbles.length-1;i>=0;i--){
+    bubbles[i].x+=bubbles[i].vx;bubbles[i].y+=bubbles[i].vy;
+    bubbles[i].life-=0.005;
+    if(bubbles[i].life<=0)bubbles.splice(i,1);
+  }
+
+  Engine.update(engine,1000/60);
+  draw();
+  requestAnimationFrame(update);
+}
+
+canvas.addEventListener('click',function(){
+  if(phase==='idle'){phase='spinning';phaseTimer=0;document.getElementById('hint').style.opacity='0';}
+  else if(phase==='done'){Composite.clear(world);setup();}
+});
+
+img.onload=function(){setup();update();};
+if(img.complete){setup();update();}
+
+window.addEventListener('resize',function(){
+  Composite.clear(world);setup();
+});
+})();
+</script>
+</body>
+</html>

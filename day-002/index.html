@@ -51,9 +51,15 @@
     source.connect(filter);filter.connect(gain);gain.connect(ctx.destination);source.start();
   }
   var origTransforms=[];
-  books.forEach(function(el,i){origTransforms[i]=el.getAttribute('transform')||'';});
+  var origCenters=[];
+  books.forEach(function(el,i){
+    origTransforms[i]=el.getAttribute('transform')||'';
+    var bb=el.getBBox();
+    origCenters[i]={x:bb.x+bb.width/2,y:bb.y+bb.height/2};
+  });
   function getSVGPoint(e){var pt=svg.createSVGPoint();pt.x=e.clientX;pt.y=e.clientY;return pt.matrixTransform(svg.getScreenCTM().inverse());}
   function getCenter(el){var bb=el.getBBox();return{x:bb.x+bb.width/2,y:bb.y+bb.height/2};}
+  function getOrigCenter(i){return origCenters[i];}
   function hoverEffect(){
     books.forEach(function(el,i){
       if(el===dragging)return;
@@ -81,7 +87,7 @@
     var GAP_RADIUS=300,GAP_AMOUNT=160;
     books.forEach(function(el,i){
       if(el===dragging)return;
-      var c=getCenter(el);var dx=c.x-dragPt.x;var dy=c.y-dragPt.y;var dist=Math.sqrt(dx*dx+dy*dy);
+      var c=getOrigCenter(i);var dx=c.x-dragPt.x;var dy=c.y-dragPt.y;var dist=Math.sqrt(dx*dx+dy*dy);
       if(Math.abs(dy)<200&&dist<GAP_RADIUS){
         var force=Math.max(0,(GAP_RADIUS-dist)/GAP_RADIUS);force=force*force;
         var dir=dx>0?1:-1;var pushX=dir*force*GAP_AMOUNT;
