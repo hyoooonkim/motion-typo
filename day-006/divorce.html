@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>소장 — 이혼 등 청구의 소</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Nanum+Myeongjo:wght@400;700;800&family=Noto+Serif+KR:wght@400;500;700;900&family=IBM+Plex+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0a;
+    --paper:#fdfcf7;
+    --paper-shadow:rgba(0,0,0,0.6);
+    --ink:#1a1a1a;
+    --ink-soft:#3a3a3a;
+    --ink-faded:#888;
+    --red:#c8201f;
+    --blue:#2563eb;
+    --orange:#ea580c;
+    --redact:#0a0a0a;
+  }
+
+  *{box-sizing:border-box; margin:0; padding:0}
+
+  html, body{
+    background:var(--bg);
+    color:#888;
+    font-family:'Nanum Myeongjo', serif;
+    overflow:hidden;
+    height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background:
+      radial-gradient(ellipse at top, #1a1a1a 0%, #0a0a0a 70%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.9'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.04 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    pointer-events:none;
+    z-index:0;
+  }
+
+  /* ===== TOP BAR ===== */
+  .topbar{
+    position:fixed;
+    top:0; left:0; right:0;
+    z-index:100;
+    padding:14px 24px;
+    background:linear-gradient(180deg, #0a0a0aee 0%, #0a0a0a00 100%);
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    letter-spacing:.2em;
+    color:#666;
+    text-transform:uppercase;
+    pointer-events:none;
+  }
+
+  .topbar .left, .topbar .right{
+    display:flex; gap:18px; align-items:center;
+  }
+
+  .topbar .case-no b{ color:#ccc; font-weight:500; }
+  .page-indicator{ color:#999; font-weight:500; }
+  .page-indicator b{ color:#fff; }
+
+  .sound-toggle{
+    pointer-events:auto;
+    cursor:pointer;
+    background:transparent;
+    border:1px solid #333;
+    color:#888;
+    font-family:inherit;
+    font-size:9px;
+    letter-spacing:.2em;
+    padding:6px 10px;
+    text-transform:uppercase;
+    transition:all .2s;
+  }
+  .sound-toggle:hover{ border-color:#666; color:#ccc; }
+  .sound-toggle.on{ border-color:var(--red); color:var(--red); }
+
+  /* ===== STAGE — pages stacked overlapping in the center ===== */
+  .stage{
+    position:fixed;
+    inset:0;
+    z-index:1;
+    overflow:visible;
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .pages-wrap{
+    position:relative;
+    width:0; height:0;
+    /* anchor for absolutely-positioned pages */
+  }
+
+  /* A4 ratio */
+  .page{
+    position:absolute;
+    left:50%; top:50%;
+    width:min(560px, 78vh / 1.414);
+    aspect-ratio: 1 / 1.414;
+    background:var(--paper);
+    box-shadow:
+      0 30px 60px -10px var(--paper-shadow),
+      0 80px 120px -40px rgba(0,0,0,0.8);
+    padding:50px 60px 60px;
+    font-family:'Nanum Myeongjo', serif;
+    color:var(--ink);
+    overflow:hidden;
+    transform-origin: center center;
+    /* base transform set per page in JS via --tx, --ty, --rot */
+    transform:
+      translate(-50%, -50%)
+      translate(var(--tx, 0px), var(--ty, 0px))
+      rotate(var(--rot, 0deg));
+    transition: transform 1s cubic-bezier(.5,0,.2,1);
+  }
+
+  .page.entering{
+    animation: pageDrop .9s cubic-bezier(.34,1.36,.64,1);
+  }
+  @keyframes pageDrop{
+    0%{
+      transform: translate(-50%, -50%) translate(var(--tx, 0px), calc(var(--ty, 0px) - 80px)) rotate(calc(var(--rot, 0deg) + 6deg));
+      opacity:0;
+    }
+    50%{
+      opacity:1;
+    }
+    100%{
+      transform: translate(-50%, -50%) translate(var(--tx, 0px), var(--ty, 0px)) rotate(var(--rot, 0deg));
+      opacity:1;
+    }
+  }
+
+  /* page corner mark + page number */
+  .page-num{
+    position:absolute;
+    top:18px; right:24px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:var(--orange);
+    letter-spacing:.1em;
+    display:flex;
+    gap:8px;
+    align-items:center;
+  }
+  .page-num .editing{
+    color:var(--red);
+    opacity:0;
+    transition: opacity .4s;
+  }
+  .page-num .editing.show{ opacity:1; }
+
+  /* document title */
+  .doc-title{
+    text-align:center;
+    font-family:'Noto Serif KR', serif;
+    font-weight:900;
+    font-size:30px;
+    letter-spacing:.5em;
+    margin-left:.5em;
+    margin: 16px 0 36px;
+    opacity:0;
+    transition: opacity 1s .2s;
+  }
+  .doc-title.show{ opacity:1; }
+
+  /* doc-body — full width by default */
+  .doc-body{
+    font-family:'Nanum Myeongjo', serif;
+    font-size:13.5px;
+    line-height:2;
+    color:var(--ink);
+    min-height:200px;
+    position:relative;
+  }
+
+  /* Pages 3 & 4 have evidence on the right.
+     We keep doc-body at full width, but apply max-width to normal lines
+     so they don't run under the photos. Section heads & full-width lines
+     stay full width naturally. */
+  .page.has-evidence .doc-body .line:not(.section-head):not(.full-width){
+    max-width: 62%;
+  }
+
+  .line{
+    display:block;
+    white-space:pre-wrap;
+    word-break:keep-all;
+    min-height:1.5em;
+    position:relative;
+  }
+
+  .line.section-head{
+    font-family:'Noto Serif KR', serif;
+    font-weight:700;
+    font-size:14px;
+    letter-spacing:.3em;
+    text-align:center;
+    margin:18px 0 10px;
+    color:var(--ink);
+  }
+  .line.section-head.red{ color:var(--red); }
+
+  /* hangul typesetting marks */
+  .mark{
+    color:var(--blue);
+    font-family:'IBM Plex Mono', monospace;
+    font-size:.8em;
+    margin:0 1px;
+    opacity:.5;
+    user-select:none;
+  }
+  .mark.tab::before{ content:"→"; }
+  .mark.enter::before{ content:"↵"; }
+  .mark.space::before{ content:"˙"; font-size:1.2em; vertical-align:-2px; }
+
+  .red{ color:var(--red); }
+
+  /* REDACTION — black bar covers original */
+  .redact{
+    color:transparent !important;
+    background:var(--redact);
+    padding:0 4px;
+    margin:0 -2px;
+    box-decoration-break:clone;
+    -webkit-box-decoration-break:clone;
+    user-select:none;
+  }
+  .redact .mark{ visibility:hidden; }
+
+  /* typing cursor */
+  .cursor{
+    display:inline-block;
+    width:7px; height:1em;
+    background:var(--ink);
+    margin-left:1px;
+    vertical-align:-2px;
+    animation: blink 1s steps(1) infinite;
+  }
+  .cursor.red{ background:var(--red); }
+  @keyframes blink{
+    0%,50%{ opacity:1; }
+    51%,100%{ opacity:0; }
+  }
+
+  /* ===== EVIDENCE — placed ON the paper as photos ===== */
+  .evidence-on-paper{
+    position:absolute;
+    background:#fff;
+    padding:8px 8px 30px;
+    box-shadow:
+      0 6px 16px -4px rgba(0,0,0,.5),
+      0 14px 30px -10px rgba(0,0,0,.6);
+    z-index:10;
+    transform-origin: center center;
+    transform: scale(0) rotate(var(--rot, 0deg));
+    transition: transform .7s cubic-bezier(.34,1.56,.64,1);
+    font-family:'IBM Plex Mono', monospace;
+  }
+  .evidence-on-paper.show{
+    transform: scale(1) rotate(var(--rot, 0deg));
+  }
+  .evidence-on-paper img{
+    width:100%;
+    height:auto;
+    display:block;
+    background:#222;
+  }
+  .evidence-on-paper .label{
+    position:absolute;
+    bottom:5px; left:8px; right:8px;
+    font-size:9px;
+    color:#333;
+    letter-spacing:.05em;
+    display:flex;
+    justify-content:space-between;
+  }
+  .evidence-on-paper .label .tag{ color:var(--red); font-weight:700; }
+
+  /* ===== CLICK INDICATOR ===== */
+  .click-hint{
+    position:fixed;
+    bottom:30px;
+    left:50%;
+    transform:translateX(-50%);
+    z-index:50;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:#888;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    text-align:center;
+    pointer-events:none;
+    transition: opacity .4s;
+    user-select:none;
+  }
+  .click-hint .arrow{
+    display:inline-block;
+    margin: 0 8px;
+    animation: pulse 1.4s infinite;
+  }
+  @keyframes pulse{
+    0%,100%{ opacity:.4; }
+    50%{ opacity:1; }
+  }
+
+  /* ===== 3D GALLERY ===== */
+  .gallery{
+    position:fixed;
+    inset:0;
+    background:radial-gradient(ellipse at center, #1a1a1a 0%, #000 90%);
+    z-index:300;
+    opacity:0;
+    pointer-events:none;
+    transition: opacity 1.5s;
+    perspective:1400px;
+    overflow:hidden;
+  }
+  .gallery.show{ opacity:1; pointer-events:auto; }
+
+  .gallery-stage{
+    position:absolute;
+    inset:0;
+    transform-style:preserve-3d;
+    transition: transform .15s ease-out;
+  }
+
+  .gallery-card{
+    position:absolute;
+    transform-style:preserve-3d;
+    transition: box-shadow .3s, filter .3s;
+    cursor:pointer;
+  }
+  .gallery-card:hover{
+    z-index:50;
+    filter: brightness(1.15);
+  }
+
+  .gallery-card.doc{
+    background:var(--paper);
+    box-shadow: 0 30px 60px -10px rgba(0,0,0,.7);
+    width:140px;
+    aspect-ratio: 1 / 1.414;
+    overflow:hidden;
+  }
+  .gallery-card.doc .mini-content{
+    transform: scale(0.21);
+    transform-origin:top left;
+    width: 560px;
+    min-height: calc(560px * 1.414);
+    padding:50px 60px 60px;
+    pointer-events:none;
+  }
+  .gallery-card.doc .mini-content .evidence-on-paper{
+    position:absolute;
+  }
+
+  .gallery-card.evidence{
+    background:#fff;
+    padding:8px 8px 28px;
+    width:170px;
+    box-shadow: 0 20px 40px -10px rgba(0,0,0,.7);
+  }
+  .gallery-card.evidence img{
+    width:100%;
+    height:auto;
+    display:block;
+    background:#222;
+  }
+  .gallery-card.evidence .label{
+    position:absolute;
+    bottom:6px; left:8px; right:8px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:8px;
+    color:#333;
+    letter-spacing:.05em;
+    display:flex;
+    justify-content:space-between;
+  }
+  .gallery-card.evidence .label .tag{ color:var(--red); font-weight:700; }
+
+  .gallery-header{
+    position:absolute;
+    top:30px; left:0; right:0;
+    z-index:60;
+    text-align:center;
+    pointer-events:none;
+  }
+  .gallery-header .judgment{
+    font-family:'Noto Serif KR', serif;
+    font-weight:900;
+    font-size:48px;
+    letter-spacing:.4em;
+    color:var(--red);
+    margin-left:.4em;
+  }
+  .gallery-header .sub{
+    margin-top:14px;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px;
+    color:#888;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+  }
+
+  .gallery-instructions{
+    position:absolute;
+    bottom:30px; left:0; right:0;
+    text-align:center;
+    z-index:60;
+    pointer-events:none;
+    font-family:'IBM Plex Mono', monospace;
+    font-size:10px;
+    color:#666;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+  }
+  .gallery-instructions kbd{
+    display:inline-block;
+    background:#1a1a1a;
+    border:1px solid #333;
+    padding:2px 8px;
+    margin:0 4px;
+    color:#aaa;
+    font-family:inherit;
+    font-size:9px;
+  }
+
+  /* viewer */
+  .viewer{
+    position:fixed;
+    inset:0;
+    background:#000000ee;
+    backdrop-filter:blur(10px);
+    z-index:400;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:40px;
+    opacity:0;
+    pointer-events:none;
+    transition: opacity .4s;
+  }
+  .viewer.show{ opacity:1; pointer-events:auto; }
+  .viewer-content{
+    transform: scale(.92);
+    transition: transform .4s;
+  }
+  .viewer.show .viewer-content{ transform: scale(1); }
+  .viewer-close{
+    position:absolute;
+    top:24px; right:24px;
+    background:transparent;
+    border:1px solid #444;
+    color:#aaa;
+    width:40px; height:40px;
+    border-radius:50%;
+    font-size:20px;
+    cursor:pointer;
+    transition: all .2s;
+  }
+  .viewer-close:hover{ border-color:#fff; color:#fff; }
+
+  /* ===== mobile ===== */
+  @media (max-width:680px){
+    .page{ width:88vw; padding:30px 24px 36px; font-size:11px; }
+    .doc-title{ font-size:20px; letter-spacing:.3em; margin:10px 0 22px; }
+    .doc-body{ font-size:11px; line-height:1.9; }
+    .line.section-head{ font-size:12px; margin:14px 0 8px; }
+    .topbar{ padding:10px 14px; font-size:8px; }
+    .topbar .left, .topbar .right{ gap:8px; }
+    .gallery-header .judgment{ font-size:28px; letter-spacing:.25em; }
+    .gallery-header .sub{ font-size:9px; }
+    .gallery-instructions{ font-size:8px; }
+    .click-hint{ font-size:8px; bottom:18px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <div class="left">
+    <span class="case-no">사건번호 · <b>2026드단04373</b></span>
+  </div>
+  <div class="right">
+    <span class="page-indicator">PAGE · <b id="pageNum">1</b> / <span id="pageTotal">1</span></span>
+    <button class="sound-toggle on" id="soundToggle">♪ 사운드 ON</button>
+  </div>
+</div>
+
+<!-- STAGE -->
+<div class="stage" id="stage">
+  <div class="pages-wrap" id="pagesWrap"></div>
+</div>
+
+<!-- CLICK HINT -->
+<div class="click-hint" id="clickHint">
+  <span class="arrow">▶</span> CLICK <span class="arrow">▶</span>
+</div>
+
+<!-- 3D GALLERY -->
+<div class="gallery" id="gallery">
+  <div class="gallery-header">
+    <div class="judgment">이 혼  인 용</div>
+    <div class="sub">서울가정법원 · 2026 드단 04373 · 자료 보관소</div>
+  </div>
+  <div class="gallery-stage" id="galleryStage"></div>
+  <div class="gallery-instructions">
+    트랙패드 두 손가락 스와이프 &nbsp;·&nbsp; <kbd>드래그</kbd> &nbsp;·&nbsp; <kbd>CLICK</kbd> 자료 열기
+  </div>
+</div>
+
+<!-- VIEWER -->
+<div class="viewer" id="viewer">
+  <button class="viewer-close" id="viewerClose">×</button>
+  <div class="viewer-content" id="viewerContent"></div>
+</div>
+
+<script>
+// ============================================================
+// AUDIO ENGINE
+// ============================================================
+class AudioEngine {
+  constructor(){
+    this.ctx = null;
+    this.enabled = true;
+    this.lastKeyTime = 0;
+  }
+  init(){
+    if(this.ctx) {
+      // ensure resumed
+      if(this.ctx.state === 'suspended') this.ctx.resume();
+      return;
+    }
+    try {
+      this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+      if(this.ctx.state === 'suspended') this.ctx.resume();
+    } catch(e){ this.enabled = false; }
+  }
+
+  key(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    if(now - this.lastKeyTime < 0.008) return;
+    this.lastKeyTime = now;
+
+    const buffer = this.ctx.createBuffer(1, 800, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0; i<800; i++) data[i] = (Math.random()*2-1) * Math.pow(1 - i/800, 3);
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.value = 1800 + Math.random()*1000;
+    filter.Q.value = 2;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    noise.connect(filter).connect(gain).connect(this.ctx.destination);
+    noise.start(now); noise.stop(now + 0.05);
+
+    const osc = this.ctx.createOscillator();
+    osc.frequency.value = 90 + Math.random()*30;
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.08, now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+    osc.connect(og).connect(this.ctx.destination);
+    osc.start(now); osc.stop(now + 0.04);
+  }
+
+  ding(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.frequency.value = 1850;
+    const og = this.ctx.createGain();
+    og.gain.setValueAtTime(0.12, now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+    osc.connect(og).connect(this.ctx.destination);
+    osc.start(now); osc.stop(now + 0.7);
+  }
+
+  reveal(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    osc.frequency.setValueAtTime(80, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 1.5);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(0.3, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.6);
+    osc.type = 'sine';
+    osc.connect(gain).connect(this.ctx.destination);
+    osc.start(now); osc.stop(now + 1.7);
+  }
+
+  redact(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const buffer = this.ctx.createBuffer(1, 3000, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0; i<3000; i++) data[i] = (Math.random()*2-1) * (1 - i/3000) * 0.5;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 600;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.25, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    noise.connect(filter).connect(gain).connect(this.ctx.destination);
+    noise.start(now); noise.stop(now + 0.2);
+  }
+
+  pageTurn(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const buffer = this.ctx.createBuffer(1, 8000, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0; i<8000; i++) data[i] = (Math.random()*2-1) * (1 - i/8000) * 0.5;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 2000;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.2, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.4);
+    noise.connect(filter).connect(gain).connect(this.ctx.destination);
+    noise.start(now); noise.stop(now + 0.45);
+  }
+
+  paperPlace(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const buffer = this.ctx.createBuffer(1, 4000, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0; i<4000; i++) data[i] = (Math.random()*2-1) * (1 - i/4000) * 0.4;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'highpass';
+    filter.frequency.value = 3000;
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.18, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+    noise.connect(filter).connect(gain).connect(this.ctx.destination);
+    noise.start(now); noise.stop(now + 0.2);
+  }
+
+  whoosh(){
+    if(!this.enabled || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const buffer = this.ctx.createBuffer(1, 22050, this.ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i=0; i<22050; i++) data[i] = (Math.random()*2-1) * Math.sin(i/22050*Math.PI) * 0.4;
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buffer;
+    const filter = this.ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.setValueAtTime(2000, now);
+    filter.frequency.exponentialRampToValueAtTime(400, now + 1);
+    const gain = this.ctx.createGain();
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    noise.connect(filter).connect(gain).connect(this.ctx.destination);
+    noise.start(now); noise.stop(now + 1.3);
+  }
+}
+
+const audio = new AudioEngine();
+
+// ============================================================
+// HELPERS & STATE
+// ============================================================
+const TAB = '<span class="mark tab"></span>';
+const ENT = '<span class="mark enter"></span>';
+const SP = '<span class="mark space"></span>';
+
+const stage = document.getElementById('stage');
+const pagesWrap = document.getElementById('pagesWrap');
+const clickHint = document.getElementById('clickHint');
+const pageNumEl = document.getElementById('pageNum');
+const pageTotalEl = document.getElementById('pageTotal');
+const gallery = document.getElementById('gallery');
+const galleryStage = document.getElementById('galleryStage');
+const viewer = document.getElementById('viewer');
+const viewerContent = document.getElementById('viewerContent');
+
+let currentPage = null;
+let pageCount = 0;
+
+function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+// page positions — overlapping in the center, each page slightly offset
+const pageOffsets = [
+  { tx: 0,    ty: 0,    rot: 0 },        // page 1 — dead center
+  { tx: 30,   ty: 18,   rot: 1.5 },      // page 2 — offset right & down
+  { tx: -25,  ty: 30,   rot: -1.8 },     // page 3 — offset left & down more
+  { tx: 40,   ty: 8,    rot: 2.2 },      // page 4 — offset right
+  { tx: -15,  ty: 25,   rot: -1.2 },     // page 5 — offset left
+];
+
+function newPage(pageNumber){
+  // existing pages step back (lower z-index, slight darken via lowering opacity slightly)
+  document.querySelectorAll('.page').forEach((p, idx) => {
+    p.style.zIndex = idx + 1;
+    p.style.filter = 'brightness(.92)';
+  });
+
+  const p = document.createElement('div');
+  p.className = 'page entering';
+  const offset = pageOffsets[pageNumber - 1] || { tx: 0, ty: 0, rot: 0 };
+  p.style.setProperty('--tx', offset.tx + 'px');
+  p.style.setProperty('--ty', offset.ty + 'px');
+  p.style.setProperty('--rot', offset.rot + 'deg');
+  p.style.zIndex = 100; // newest is on top
+  p.style.filter = 'brightness(1)';
+  p.innerHTML = `
+    <div class="page-num">
+      <span>[ 쪽 ${pageNumber} ]</span>
+      <span class="editing">[ 수정 ]</span>
+    </div>
+    <div class="doc-body"></div>
+  `;
+  pagesWrap.appendChild(p);
+  pageCount++;
+  pageNumEl.textContent = pageNumber;
+  pageTotalEl.textContent = pageCount;
+  if(pageNumber > 1) audio.pageTurn();
+  currentPage = p;
+  return p;
+}
+
+function getDocBody(){
+  return currentPage.querySelector('.doc-body');
+}
+
+function addLine(html='', cls=''){
+  const el = document.createElement('span');
+  el.className = 'line ' + cls;
+  el.innerHTML = html;
+  getDocBody().appendChild(el);
+  return el;
+}
+
+function typeInto(el, html, speedMs = 38){
+  // ensure audio is alive
+  if(audio.ctx && audio.ctx.state === 'suspended') audio.ctx.resume();
+  return new Promise(resolve => {
+    document.querySelectorAll('.cursor').forEach(c => c.remove());
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    if(el.classList.contains('red-typing')) cursor.classList.add('red');
+    el.innerHTML = '';
+    el.appendChild(cursor);
+
+    const tokens = parseTokens(html);
+    let i = 0;
+    let buffer = '';
+
+    function step(){
+      if(i >= tokens.length){
+        cursor.remove();
+        resolve();
+        return;
+      }
+      const t = tokens[i++];
+      if(t.type === 'char'){
+        buffer += t.value;
+        el.innerHTML = buffer;
+        el.appendChild(cursor);
+        if(t.value !== ' ' && t.value !== '\n') audio.key();
+        setTimeout(step, speedMs + Math.random()*15);
+      } else if(t.type === 'tag'){
+        buffer += t.value;
+        el.innerHTML = buffer;
+        el.appendChild(cursor);
+        audio.key();
+        setTimeout(step, 50);
+      }
+    }
+    step();
+  });
+}
+
+function parseTokens(html){
+  const tokens = [];
+  let i = 0;
+  while(i < html.length){
+    if(html[i] === '<'){
+      const end = html.indexOf('>', i);
+      const tagMatch = html.substring(i, end+1).match(/^<(\w+)/);
+      if(tagMatch){
+        const tag = tagMatch[1];
+        const closeTag = `</${tag}>`;
+        const closeIdx = html.indexOf(closeTag, end+1);
+        if(closeIdx > -1){
+          tokens.push({type:'tag', value: html.substring(i, closeIdx + closeTag.length)});
+          i = closeIdx + closeTag.length;
+          continue;
+        } else {
+          tokens.push({type:'tag', value: html.substring(i, end+1)});
+          i = end+1;
+          continue;
+        }
+      }
+      i = end+1;
+    } else {
+      tokens.push({type:'char', value: html[i]});
+      i++;
+    }
+  }
+  return tokens;
+}
+
+// REDACT — no shake
+async function redactLine(el){
+  const original = el.innerHTML.replace(/<span class="cursor"[^>]*><\/span>/g, '');
+  el.innerHTML = `<span class="redact">${original}</span>`;
+  audio.redact();
+  await wait(380);
+}
+
+async function rewriteRed(el, newHtml, speed = 28){
+  const newLine = document.createElement('span');
+  newLine.className = 'line red-typing';
+  newLine.style.color = 'var(--red)';
+  el.parentNode.insertBefore(newLine, el.nextSibling);
+  await typeInto(newLine, newHtml, speed);
+  return newLine;
+}
+
+// place an evidence photo on the current page at given position
+function placeEvidenceOnPaper(opts){
+  const ev = document.createElement('div');
+  ev.className = 'evidence-on-paper';
+  ev.style.cssText = `
+    width: ${opts.width}px;
+    top: ${opts.top};
+    ${opts.left ? `left: ${opts.left};` : ''}
+    ${opts.right ? `right: ${opts.right};` : ''}
+    --rot: ${opts.rot}deg;
+  `;
+  ev.dataset.tag = opts.tag;
+  ev.dataset.label = opts.label;
+  ev.dataset.sub = opts.sub || '';
+  ev.dataset.img = opts.img;
+  ev.innerHTML = `
+    <img src="${opts.img}" alt="${opts.label}" onerror="this.style.background='#1a1a1a';this.style.minHeight='${opts.width}px';">
+    <div class="label"><span class="tag">${opts.tag}</span></div>
+    <div style="position:absolute; bottom:-18px; left:8px; right:8px; font-family:'IBM Plex Mono',monospace; font-size:8px; color:#666; letter-spacing:.03em; text-align:center;">${opts.label}</div>
+  `;
+  currentPage.appendChild(ev);
+  audio.paperPlace();
+  setTimeout(() => ev.classList.add('show'), 50);
+  return ev;
+}
+
+// ============================================================
+// EVIDENCE DATA — inline SVG illustrations (no external deps)
+// ============================================================
+function svgDataUrl(svgString){
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svgString);
+}
+
+const EVIDENCE_SVG = {
+  // 1. Screen Time bar chart
+  screentime: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#f4f1ea;font-family:monospace">
+    <rect width="300" height="380" fill="#f4f1ea"/>
+    <text x="20" y="30" font-size="13" font-weight="700" fill="#1a1a1a">SCREEN TIME</text>
+    <text x="20" y="48" font-size="9" fill="#888" letter-spacing="1">MONTHLY · 2026.04</text>
+    <line x1="20" y1="60" x2="280" y2="60" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="90" font-size="44" font-weight="900" fill="#c8201f">137h</text>
+    <text x="20" y="108" font-size="9" fill="#666">+24% from last month</text>
+    <g transform="translate(20,140)">
+      <rect x="0" y="100" width="22" height="40" fill="#1a1a1a"/>
+      <rect x="32" y="80" width="22" height="60" fill="#1a1a1a"/>
+      <rect x="64" y="50" width="22" height="90" fill="#1a1a1a"/>
+      <rect x="96" y="60" width="22" height="80" fill="#1a1a1a"/>
+      <rect x="128" y="20" width="22" height="120" fill="#c8201f"/>
+      <rect x="160" y="40" width="22" height="100" fill="#1a1a1a"/>
+      <rect x="192" y="10" width="22" height="130" fill="#c8201f"/>
+      <rect x="224" y="0" width="22" height="140" fill="#c8201f"/>
+      <text x="0" y="158" font-size="8" fill="#888">M  T  W  T  F  S  S  M</text>
+    </g>
+    <line x1="20" y1="320" x2="280" y2="320" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="340" font-size="9" fill="#1a1a1a">Daily avg · 4h 32m</text>
+    <text x="20" y="356" font-size="9" fill="#1a1a1a">Pickups · 247 / day</text>
+    <text x="20" y="372" font-size="9" fill="#c8201f" font-weight="700">▲ EXCESSIVE USE</text>
+  </svg>`),
+
+  // 2. Notifications stack
+  notifications: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#1a1a1a;font-family:-apple-system,sans-serif">
+    <rect width="300" height="380" fill="#1a1a1a"/>
+    <text x="20" y="28" font-size="11" fill="#666" letter-spacing="1">02:47 AM · LOCK SCREEN</text>
+    <g transform="translate(20,50)">
+      <rect width="260" height="48" rx="14" fill="#2a2a2a"/>
+      <rect x="14" y="14" width="20" height="20" rx="4" fill="#c8201f"/>
+      <text x="44" y="22" font-size="10" fill="#fff" font-weight="600">Instagram</text>
+      <text x="44" y="38" font-size="9" fill="#aaa">3 new likes on your post</text>
+      <text x="220" y="22" font-size="8" fill="#888">now</text>
+    </g>
+    <g transform="translate(20,108)">
+      <rect width="260" height="48" rx="14" fill="#2a2a2a"/>
+      <rect x="14" y="14" width="20" height="20" rx="4" fill="#000"/>
+      <text x="44" y="22" font-size="10" fill="#fff" font-weight="600">TikTok</text>
+      <text x="44" y="38" font-size="9" fill="#aaa">Recommended for you</text>
+      <text x="220" y="22" font-size="8" fill="#888">2m</text>
+    </g>
+    <g transform="translate(20,166)">
+      <rect width="260" height="48" rx="14" fill="#2a2a2a"/>
+      <rect x="14" y="14" width="20" height="20" rx="4" fill="#1da1f2"/>
+      <text x="44" y="22" font-size="10" fill="#fff" font-weight="600">X · Twitter</text>
+      <text x="44" y="38" font-size="9" fill="#aaa">Trending in Korea</text>
+      <text x="220" y="22" font-size="8" fill="#888">5m</text>
+    </g>
+    <g transform="translate(20,224)">
+      <rect width="260" height="48" rx="14" fill="#2a2a2a"/>
+      <rect x="14" y="14" width="20" height="20" rx="4" fill="#25d366"/>
+      <text x="44" y="22" font-size="10" fill="#fff" font-weight="600">KakaoTalk</text>
+      <text x="44" y="38" font-size="9" fill="#aaa">12 new messages</text>
+      <text x="220" y="22" font-size="8" fill="#888">8m</text>
+    </g>
+    <g transform="translate(20,282)">
+      <rect width="260" height="48" rx="14" fill="#2a2a2a"/>
+      <rect x="14" y="14" width="20" height="20" rx="4" fill="#ff0000"/>
+      <text x="44" y="22" font-size="10" fill="#fff" font-weight="600">YouTube</text>
+      <text x="44" y="38" font-size="9" fill="#aaa">New video from a channel...</text>
+      <text x="220" y="22" font-size="8" fill="#888">12m</text>
+    </g>
+    <text x="150" y="358" font-size="11" fill="#c8201f" text-anchor="middle" font-weight="700">+ 242 MORE TODAY</text>
+  </svg>`),
+
+  // 3. Late night phone use — clock + glowing phone
+  latenight: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#0a0a14;font-family:monospace">
+    <defs>
+      <radialGradient id="glow" cx="50%" cy="60%" r="40%">
+        <stop offset="0%" stop-color="#4a90e2" stop-opacity="0.6"/>
+        <stop offset="100%" stop-color="#0a0a14" stop-opacity="0"/>
+      </radialGradient>
+    </defs>
+    <rect width="300" height="380" fill="#0a0a14"/>
+    <circle cx="150" cy="220" r="120" fill="url(#glow)"/>
+    <text x="150" y="40" font-size="13" fill="#888" text-anchor="middle" letter-spacing="3">02 : 47 : 33 AM</text>
+    <text x="150" y="58" font-size="9" fill="#555" text-anchor="middle" letter-spacing="2">2026.04.22 · WEDNESDAY</text>
+    <line x1="40" y1="75" x2="260" y2="75" stroke="#333" stroke-width="0.5"/>
+    <g transform="translate(110,130)">
+      <rect width="80" height="160" rx="14" fill="#1a1a1a" stroke="#333" stroke-width="1"/>
+      <rect x="6" y="14" width="68" height="120" rx="3" fill="#4a90e2" opacity="0.9"/>
+      <text x="40" y="56" font-size="9" fill="#fff" text-anchor="middle">SCROLLING</text>
+      <text x="40" y="72" font-size="9" fill="#fff" text-anchor="middle">FEED</text>
+      <text x="40" y="88" font-size="7" fill="#cce" text-anchor="middle">▼ ▼ ▼</text>
+      <text x="40" y="105" font-size="7" fill="#cce" text-anchor="middle">▼ ▼ ▼</text>
+      <circle cx="40" cy="148" r="5" fill="none" stroke="#333"/>
+    </g>
+    <text x="150" y="320" font-size="10" fill="#c8201f" text-anchor="middle" font-weight="700">SUBJECT IS AWAKE</text>
+    <text x="150" y="340" font-size="9" fill="#888" text-anchor="middle">CONTINUOUS USE · 4h 12m</text>
+    <text x="150" y="358" font-size="8" fill="#666" text-anchor="middle">EXPECTED SLEEP TIME · 23:30</text>
+  </svg>`),
+
+  // 4. Cervical spine MRI
+  mri: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#0a0a0a;font-family:monospace">
+    <rect width="300" height="380" fill="#0a0a0a"/>
+    <text x="20" y="28" font-size="10" fill="#0aff8a" letter-spacing="2">MRI · CERVICAL SPINE</text>
+    <text x="20" y="44" font-size="8" fill="#888" letter-spacing="1">PATIENT · KIM, M.S. (47)</text>
+    <text x="280" y="28" font-size="9" fill="#888" text-anchor="end">T2 SAG</text>
+    <line x1="20" y1="55" x2="280" y2="55" stroke="#333" stroke-width="0.5"/>
+    <g transform="translate(120,80)">
+      <path d="M 30 0 Q 35 20 30 40 Q 25 60 35 75" stroke="#0aff8a" stroke-width="1" fill="none" opacity="0.4"/>
+      <ellipse cx="30" cy="20" rx="22" ry="14" fill="#1a3a2a" stroke="#0aff8a" stroke-width="0.6"/>
+      <text x="30" y="24" font-size="6" fill="#0aff8a" text-anchor="middle">C1</text>
+      <ellipse cx="32" cy="50" rx="20" ry="12" fill="#1a3a2a" stroke="#0aff8a" stroke-width="0.6"/>
+      <text x="32" y="54" font-size="6" fill="#0aff8a" text-anchor="middle">C2</text>
+      <ellipse cx="35" cy="78" rx="20" ry="12" fill="#1a3a2a" stroke="#0aff8a" stroke-width="0.6"/>
+      <text x="35" y="82" font-size="6" fill="#0aff8a" text-anchor="middle">C3</text>
+      <ellipse cx="38" cy="106" rx="20" ry="12" fill="#1a3a2a" stroke="#0aff8a" stroke-width="0.6"/>
+      <text x="38" y="110" font-size="6" fill="#0aff8a" text-anchor="middle">C4</text>
+      <ellipse cx="42" cy="134" rx="20" ry="12" fill="#3a1a1a" stroke="#c8201f" stroke-width="1.4"/>
+      <text x="42" y="138" font-size="6" fill="#c8201f" text-anchor="middle" font-weight="700">C5</text>
+      <ellipse cx="44" cy="162" rx="20" ry="12" fill="#3a1a1a" stroke="#c8201f" stroke-width="1.4"/>
+      <text x="44" y="166" font-size="6" fill="#c8201f" text-anchor="middle" font-weight="700">C6</text>
+      <ellipse cx="42" cy="190" rx="20" ry="12" fill="#1a3a2a" stroke="#0aff8a" stroke-width="0.6"/>
+      <text x="42" y="194" font-size="6" fill="#0aff8a" text-anchor="middle">C7</text>
+      <line x1="68" y1="148" x2="120" y2="148" stroke="#c8201f" stroke-width="0.6" stroke-dasharray="2,2"/>
+      <text x="125" y="151" font-size="7" fill="#c8201f" font-weight="700">C5-C6</text>
+      <text x="125" y="161" font-size="6" fill="#c8201f">HERNIATION</text>
+    </g>
+    <line x1="20" y1="310" x2="280" y2="310" stroke="#333" stroke-width="0.5"/>
+    <text x="20" y="328" font-size="9" fill="#0aff8a">FINDING · DISC PROTRUSION</text>
+    <text x="20" y="346" font-size="9" fill="#0aff8a">CAUSE · FORWARD HEAD POSTURE</text>
+    <text x="20" y="364" font-size="9" fill="#c8201f" font-weight="700">CORRELATION · DEVICE USE</text>
+  </svg>`),
+
+  // 5. Receipt for digital detox subscription
+  receipt: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 380" style="background:#fafaf5;font-family:monospace">
+    <rect width="240" height="380" fill="#fafaf5"/>
+    <path d="M0,5 L240,5 L240,0 L230,8 L220,0 L210,8 L200,0 L190,8 L180,0 L170,8 L160,0 L150,8 L140,0 L130,8 L120,0 L110,8 L100,0 L90,8 L80,0 L70,8 L60,0 L50,8 L40,0 L30,8 L20,0 L10,8 L0,0 Z" fill="#fafaf5"/>
+    <text x="120" y="35" font-size="13" font-weight="700" fill="#1a1a1a" text-anchor="middle">OPAL · DIGITAL DETOX</text>
+    <text x="120" y="50" font-size="8" fill="#666" text-anchor="middle">SUBSCRIPTION RECEIPT</text>
+    <line x1="20" y1="64" x2="220" y2="64" stroke="#1a1a1a" stroke-width="0.5" stroke-dasharray="2,2"/>
+    <text x="20" y="84" font-size="9" fill="#1a1a1a">DATE</text>
+    <text x="220" y="84" font-size="9" fill="#1a1a1a" text-anchor="end">2026.04.01</text>
+    <text x="20" y="102" font-size="9" fill="#1a1a1a">CUSTOMER</text>
+    <text x="220" y="102" font-size="9" fill="#1a1a1a" text-anchor="end">KIM, M.S.</text>
+    <text x="20" y="120" font-size="9" fill="#1a1a1a">PLAN</text>
+    <text x="220" y="120" font-size="9" fill="#1a1a1a" text-anchor="end">PRO MONTHLY</text>
+    <line x1="20" y1="134" x2="220" y2="134" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="156" font-size="9" fill="#1a1a1a">App Blocker</text>
+    <text x="220" y="156" font-size="9" fill="#1a1a1a" text-anchor="end">₩ 19,000</text>
+    <text x="20" y="174" font-size="9" fill="#1a1a1a">Focus Sessions</text>
+    <text x="220" y="174" font-size="9" fill="#1a1a1a" text-anchor="end">₩ 15,000</text>
+    <text x="20" y="192" font-size="9" fill="#1a1a1a">Sleep Mode</text>
+    <text x="220" y="192" font-size="9" fill="#1a1a1a" text-anchor="end">₩ 10,000</text>
+    <text x="20" y="210" font-size="9" fill="#1a1a1a">VAT</text>
+    <text x="220" y="210" font-size="9" fill="#1a1a1a" text-anchor="end">₩ 4,400</text>
+    <line x1="20" y1="222" x2="220" y2="222" stroke="#1a1a1a" stroke-width="1.2"/>
+    <text x="20" y="246" font-size="13" fill="#1a1a1a" font-weight="700">TOTAL</text>
+    <text x="220" y="246" font-size="14" fill="#c8201f" text-anchor="end" font-weight="900">₩ 48,400</text>
+    <line x1="20" y1="258" x2="220" y2="258" stroke="#1a1a1a" stroke-width="0.5" stroke-dasharray="2,2"/>
+    <text x="120" y="282" font-size="9" fill="#1a1a1a" text-anchor="middle">PAID · CARD ****6411</text>
+    <text x="120" y="298" font-size="8" fill="#666" text-anchor="middle">APPROVAL · 04221947</text>
+    <g transform="translate(120,318)">
+      <rect x="-50" y="0" width="100" height="30" fill="none" stroke="#c8201f" stroke-width="1.4"/>
+      <text x="0" y="20" font-size="11" fill="#c8201f" text-anchor="middle" font-weight="700" letter-spacing="2">P A I D</text>
+    </g>
+    <text x="120" y="365" font-size="8" fill="#888" text-anchor="middle">Thank you for choosing peace.</text>
+  </svg>`),
+
+  // 6. Eye exam — vision degradation
+  vision: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#fafafa;font-family:serif">
+    <rect width="300" height="380" fill="#fafafa"/>
+    <text x="150" y="28" font-size="11" fill="#1a1a1a" text-anchor="middle" letter-spacing="2">OPHTHALMOLOGY · 시력검사</text>
+    <line x1="20" y1="42" x2="280" y2="42" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="150" y="80" font-size="60" fill="#1a1a1a" text-anchor="middle" font-weight="700">E</text>
+    <text x="150" y="115" font-size="36" fill="#1a1a1a" text-anchor="middle" font-weight="700">F P</text>
+    <text x="150" y="142" font-size="22" fill="#1a1a1a" text-anchor="middle" font-weight="700">T O Z</text>
+    <text x="150" y="162" font-size="16" fill="#1a1a1a" text-anchor="middle" font-weight="700">L P E D</text>
+    <text x="150" y="180" font-size="11" fill="#1a1a1a" text-anchor="middle" font-weight="700">P E C F D</text>
+    <text x="150" y="194" font-size="8" fill="#888" text-anchor="middle">E D F C Z P</text>
+    <text x="150" y="206" font-size="6" fill="#aaa" text-anchor="middle">F E L O P Z D</text>
+    <line x1="20" y1="225" x2="280" y2="225" stroke="#1a1a1a" stroke-width="0.5" stroke-dasharray="3,2"/>
+    <g transform="translate(20,245)">
+      <text x="0" y="0" font-size="10" fill="#666">2024 (BEFORE)</text>
+      <text x="280" y="0" font-size="14" fill="#1a1a1a" text-anchor="end" font-weight="700">1.0 / 1.0</text>
+    </g>
+    <g transform="translate(20,272)">
+      <text x="0" y="0" font-size="10" fill="#666">2025</text>
+      <text x="280" y="0" font-size="14" fill="#1a1a1a" text-anchor="end" font-weight="700">0.7 / 0.8</text>
+    </g>
+    <g transform="translate(20,299)">
+      <text x="0" y="0" font-size="10" fill="#c8201f" font-weight="700">2026 (CURRENT)</text>
+      <text x="280" y="0" font-size="14" fill="#c8201f" text-anchor="end" font-weight="900">0.4 / 0.5</text>
+    </g>
+    <line x1="20" y1="320" x2="280" y2="320" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="344" font-size="9" fill="#1a1a1a">DIAGNOSIS · MYOPIA PROGRESSION</text>
+    <text x="20" y="360" font-size="9" fill="#c8201f" font-weight="700">CAUSE · EXCESSIVE SCREEN EXPOSURE</text>
+  </svg>`),
+
+  // 7. Dopamine brain diagram
+  dopamine: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#fdfcf7;font-family:monospace">
+    <rect width="300" height="380" fill="#fdfcf7"/>
+    <text x="20" y="28" font-size="11" fill="#1a1a1a" letter-spacing="1" font-weight="700">DOPAMINE RESPONSE</text>
+    <text x="20" y="44" font-size="8" fill="#888" letter-spacing="1">SUBJECT vs CONTROL · 30 DAYS</text>
+    <line x1="20" y1="58" x2="280" y2="58" stroke="#1a1a1a" stroke-width="0.5"/>
+    <g transform="translate(40,80)">
+      <line x1="0" y1="0" x2="0" y2="180" stroke="#1a1a1a" stroke-width="1"/>
+      <line x1="0" y1="180" x2="240" y2="180" stroke="#1a1a1a" stroke-width="1"/>
+      <text x="-8" y="6" font-size="7" fill="#666" text-anchor="end">100</text>
+      <text x="-8" y="96" font-size="7" fill="#666" text-anchor="end">50</text>
+      <text x="-8" y="184" font-size="7" fill="#666" text-anchor="end">0</text>
+      <text x="0" y="196" font-size="7" fill="#666">D1</text>
+      <text x="60" y="196" font-size="7" fill="#666">D8</text>
+      <text x="120" y="196" font-size="7" fill="#666">D15</text>
+      <text x="180" y="196" font-size="7" fill="#666">D22</text>
+      <text x="232" y="196" font-size="7" fill="#666">D30</text>
+      <polyline points="0,40 30,38 60,42 90,45 120,48 150,52 180,55 210,58 240,60" fill="none" stroke="#1a1a1a" stroke-width="1.4" stroke-dasharray="2,2"/>
+      <polyline points="0,40 30,30 60,55 90,80 120,100 150,125 180,140 210,155 240,168" fill="none" stroke="#c8201f" stroke-width="2"/>
+      <circle cx="0" cy="40" r="3" fill="#c8201f"/>
+      <circle cx="240" cy="168" r="3" fill="#c8201f"/>
+      <text x="245" y="62" font-size="7" fill="#1a1a1a">CONTROL</text>
+      <text x="245" y="170" font-size="7" fill="#c8201f" font-weight="700">SUBJECT</text>
+    </g>
+    <line x1="20" y1="298" x2="280" y2="298" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="316" font-size="9" fill="#1a1a1a">BASELINE DOPAMINE · -58%</text>
+    <text x="20" y="332" font-size="9" fill="#1a1a1a">RECEPTOR DOWN-REGULATION · YES</text>
+    <text x="20" y="348" font-size="9" fill="#c8201f" font-weight="700">TOLERANCE INCREASING</text>
+    <text x="20" y="364" font-size="8" fill="#888">REQUIRES MORE STIMULATION FOR SAME EFFECT</text>
+  </svg>`),
+
+  // 8. Card statement — impulse purchases driven by ads
+  cardstatement: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#fafaf5;font-family:monospace">
+    <rect width="300" height="380" fill="#fafaf5"/>
+    <text x="20" y="28" font-size="11" fill="#1a1a1a" font-weight="700" letter-spacing="1">CREDIT CARD STATEMENT</text>
+    <text x="20" y="44" font-size="8" fill="#888" letter-spacing="1">2026.04 · IMPULSE PURCHASES FROM ADS</text>
+    <line x1="20" y1="58" x2="280" y2="58" stroke="#1a1a1a" stroke-width="0.5"/>
+    <g font-size="9" fill="#1a1a1a">
+      <text x="20" y="80">04.02 · 00:14</text><text x="280" y="80" text-anchor="end">₩ 38,900</text>
+      <text x="20" y="92" font-size="7" fill="#888">"OOTD recommended" · IG ad</text>
+      <text x="20" y="114">04.05 · 02:33</text><text x="280" y="114" text-anchor="end">₩ 89,000</text>
+      <text x="20" y="126" font-size="7" fill="#888">"Limited time" · TikTok shop</text>
+      <text x="20" y="148">04.09 · 23:47</text><text x="280" y="148" text-anchor="end">₩ 124,000</text>
+      <text x="20" y="160" font-size="7" fill="#888">"Only 3 left" · YouTube ad</text>
+      <text x="20" y="182">04.13 · 01:18</text><text x="280" y="182" text-anchor="end">₩ 47,500</text>
+      <text x="20" y="194" font-size="7" fill="#888">"Personalized for you" · IG</text>
+      <text x="20" y="216">04.17 · 03:02</text><text x="280" y="216" text-anchor="end">₩ 215,000</text>
+      <text x="20" y="228" font-size="7" fill="#888">"99% off" · Coupang ad</text>
+      <text x="20" y="250">04.20 · 00:55</text><text x="280" y="250" text-anchor="end">₩ 67,800</text>
+      <text x="20" y="262" font-size="7" fill="#888">"Free shipping" · Naver ad</text>
+    </g>
+    <line x1="20" y1="280" x2="280" y2="280" stroke="#1a1a1a" stroke-width="1"/>
+    <text x="20" y="304" font-size="11" fill="#1a1a1a" font-weight="700">TOTAL (NIGHT PURCHASES)</text>
+    <text x="280" y="304" font-size="14" fill="#c8201f" text-anchor="end" font-weight="900">₩ 582,200</text>
+    <line x1="20" y1="320" x2="280" y2="320" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="346" font-size="9" fill="#888">94% AFTER 23:00 · WHILE SCROLLING</text>
+    <text x="20" y="362" font-size="9" fill="#c8201f" font-weight="700">RETURNED · 0 ITEMS</text>
+  </svg>`),
+
+  // 9. Forward head posture diagram
+  posture: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#1a1a1a;font-family:monospace">
+    <rect width="300" height="380" fill="#1a1a1a"/>
+    <text x="150" y="28" font-size="11" fill="#0aff8a" text-anchor="middle" letter-spacing="2">FORWARD HEAD POSTURE</text>
+    <text x="150" y="44" font-size="8" fill="#888" text-anchor="middle" letter-spacing="1">SAGITTAL ANALYSIS</text>
+    <line x1="20" y1="58" x2="280" y2="58" stroke="#333" stroke-width="0.5"/>
+    <g transform="translate(80,80)">
+      <line x1="50" y1="0" x2="50" y2="240" stroke="#444" stroke-width="0.5" stroke-dasharray="3,3"/>
+      <text x="55" y="10" font-size="7" fill="#666">CENTER LINE</text>
+      <circle cx="92" cy="40" r="22" fill="none" stroke="#c8201f" stroke-width="1.4"/>
+      <line x1="80" y1="50" x2="65" y2="100" stroke="#c8201f" stroke-width="2"/>
+      <line x1="65" y1="100" x2="50" y2="180" stroke="#c8201f" stroke-width="2"/>
+      <line x1="50" y1="180" x2="48" y2="240" stroke="#c8201f" stroke-width="2"/>
+      <line x1="50" y1="40" x2="92" y2="40" stroke="#c8201f" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <text x="100" y="36" font-size="9" fill="#c8201f" font-weight="700">42 mm</text>
+      <text x="100" y="48" font-size="7" fill="#c8201f">FORWARD</text>
+      <path d="M 50 40 A 16 16 0 0 1 68 28" fill="none" stroke="#c8201f" stroke-width="1"/>
+      <text x="58" y="22" font-size="8" fill="#c8201f">23°</text>
+    </g>
+    <line x1="20" y1="330" x2="280" y2="330" stroke="#333" stroke-width="0.5"/>
+    <text x="20" y="350" font-size="9" fill="#0aff8a">NORMAL · 0–10 mm forward</text>
+    <text x="20" y="364" font-size="9" fill="#c8201f" font-weight="700">SUBJECT · 42 mm (SEVERE)</text>
+  </svg>`),
+
+  // 10. Snooze button log
+  snooze: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#fafafa;font-family:monospace">
+    <rect width="300" height="380" fill="#fafafa"/>
+    <text x="20" y="28" font-size="11" fill="#1a1a1a" font-weight="700" letter-spacing="1">ALARM LOG · 2026.04.22</text>
+    <text x="20" y="44" font-size="8" fill="#888" letter-spacing="1">SNOOZE BUTTON ACTIVATIONS</text>
+    <line x1="20" y1="58" x2="280" y2="58" stroke="#1a1a1a" stroke-width="0.5"/>
+    <g font-size="10" fill="#1a1a1a">
+      <text x="20" y="82">06:00 · ALARM SET</text>
+      <text x="20" y="100" fill="#888">06:00 · Snooze (+10m)</text>
+      <text x="20" y="118" fill="#888">06:10 · Snooze (+10m)</text>
+      <text x="20" y="136" fill="#888">06:20 · Snooze (+10m)</text>
+      <text x="20" y="154" fill="#888">06:30 · Snooze (+10m)</text>
+      <text x="20" y="172" fill="#888">06:40 · Snooze (+10m)</text>
+      <text x="20" y="190" fill="#888">06:50 · Snooze (+10m)</text>
+      <text x="20" y="208" fill="#888">07:00 · Snooze (+10m)</text>
+      <text x="20" y="226" fill="#c8201f" font-weight="700">07:10 · Snooze (+10m)</text>
+      <text x="20" y="244" fill="#c8201f" font-weight="700">07:20 · Snooze (+10m)</text>
+      <text x="20" y="262" fill="#c8201f" font-weight="700">07:30 · DISMISS · LATE</text>
+    </g>
+    <line x1="20" y1="280" x2="280" y2="280" stroke="#1a1a1a" stroke-width="1"/>
+    <text x="20" y="306" font-size="11" fill="#1a1a1a" font-weight="700">TOTAL SNOOZES</text>
+    <text x="280" y="306" font-size="22" fill="#c8201f" text-anchor="end" font-weight="900">9</text>
+    <line x1="20" y1="322" x2="280" y2="322" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="346" font-size="9" fill="#1a1a1a">CAUSE · 03:14 LAST PHONE USE</text>
+    <text x="20" y="362" font-size="9" fill="#c8201f" font-weight="700">SLEEP DEPRIVATION · CHRONIC</text>
+  </svg>`),
+
+  // 11. Reading time decline
+  reading: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#fdfcf7;font-family:serif">
+    <rect width="300" height="380" fill="#fdfcf7"/>
+    <text x="20" y="28" font-size="11" fill="#1a1a1a" font-weight="700" letter-spacing="2">독 서 기 록</text>
+    <text x="20" y="44" font-size="8" fill="#888" letter-spacing="1">READING ATTEMPTS · 2026.04</text>
+    <line x1="20" y1="58" x2="280" y2="58" stroke="#1a1a1a" stroke-width="0.5"/>
+    <g transform="translate(20,80)" font-size="10" fill="#1a1a1a">
+      <text x="0" y="0">04.03  「불안 사회」</text>
+      <text x="260" y="0" fill="#c8201f" text-anchor="end" font-weight="700">7분</text>
+      <text x="0" y="22">04.05  「딥 워크」</text>
+      <text x="260" y="22" fill="#c8201f" text-anchor="end" font-weight="700">4분</text>
+      <text x="0" y="44">04.08  「도파민네이션」</text>
+      <text x="260" y="44" fill="#c8201f" text-anchor="end" font-weight="700">12분</text>
+      <text x="0" y="66">04.10  「불안 사회」</text>
+      <text x="260" y="66" fill="#c8201f" text-anchor="end" font-weight="700">3분</text>
+      <text x="0" y="88">04.12  「몰입의 즐거움」</text>
+      <text x="260" y="88" fill="#c8201f" text-anchor="end" font-weight="700">9분</text>
+      <text x="0" y="110">04.15  「불안 사회」</text>
+      <text x="260" y="110" fill="#c8201f" text-anchor="end" font-weight="700">2분</text>
+      <text x="0" y="132">04.18  「도파민네이션」</text>
+      <text x="260" y="132" fill="#c8201f" text-anchor="end" font-weight="700">5분</text>
+      <text x="0" y="154">04.20  「불안 사회」</text>
+      <text x="260" y="154" fill="#c8201f" text-anchor="end" font-weight="700">1분</text>
+    </g>
+    <line x1="20" y1="260" x2="280" y2="260" stroke="#1a1a1a" stroke-width="1"/>
+    <text x="20" y="284" font-size="10" fill="#1a1a1a" font-weight="700">평균 집중 시간</text>
+    <text x="280" y="284" font-size="14" fill="#c8201f" text-anchor="end" font-weight="900">5.4분</text>
+    <text x="20" y="306" font-size="10" fill="#1a1a1a" font-weight="700">완독 도서</text>
+    <text x="280" y="306" font-size="14" fill="#c8201f" text-anchor="end" font-weight="900">0권</text>
+    <line x1="20" y1="322" x2="280" y2="322" stroke="#1a1a1a" stroke-width="0.5"/>
+    <text x="20" y="346" font-size="9" fill="#1a1a1a">중단 사유 · 알림 / 폰 확인 충동</text>
+    <text x="20" y="362" font-size="9" fill="#c8201f" font-weight="700">집중력 손상 · 누적</text>
+  </svg>`),
+
+  // 12. SNS pie chart
+  snspie: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#fafafa;font-family:monospace">
+    <rect width="300" height="380" fill="#fafafa"/>
+    <text x="150" y="28" font-size="11" fill="#1a1a1a" text-anchor="middle" font-weight="700" letter-spacing="2">APP USAGE BREAKDOWN</text>
+    <text x="150" y="44" font-size="8" fill="#888" text-anchor="middle" letter-spacing="1">DAILY · 4h 32m</text>
+    <line x1="20" y1="58" x2="280" y2="58" stroke="#1a1a1a" stroke-width="0.5"/>
+    <g transform="translate(150,170)">
+      <path d="M 0,0 L 0,-80 A 80,80 0 0,1 76,-25 Z" fill="#c8201f"/>
+      <path d="M 0,0 L 76,-25 A 80,80 0 0,1 47,65 Z" fill="#1a1a1a"/>
+      <path d="M 0,0 L 47,65 A 80,80 0 0,1 -47,65 Z" fill="#444"/>
+      <path d="M 0,0 L -47,65 A 80,80 0 0,1 -76,-25 Z" fill="#777"/>
+      <path d="M 0,0 L -76,-25 A 80,80 0 0,1 0,-80 Z" fill="#bbb"/>
+      <circle cx="0" cy="0" r="34" fill="#fafafa"/>
+      <text x="0" y="-2" font-size="14" fill="#1a1a1a" text-anchor="middle" font-weight="900">4h</text>
+      <text x="0" y="12" font-size="9" fill="#888" text-anchor="middle">32m</text>
+    </g>
+    <g transform="translate(20,290)" font-size="9" fill="#1a1a1a">
+      <rect x="0" y="0" width="10" height="10" fill="#c8201f"/>
+      <text x="16" y="9">Instagram · 1h 28m</text>
+      <rect x="0" y="18" width="10" height="10" fill="#1a1a1a"/>
+      <text x="16" y="27">YouTube · 1h 12m</text>
+      <rect x="0" y="36" width="10" height="10" fill="#444"/>
+      <text x="16" y="45">TikTok · 52m</text>
+      <rect x="150" y="0" width="10" height="10" fill="#777"/>
+      <text x="166" y="9">KakaoTalk · 38m</text>
+      <rect x="150" y="18" width="10" height="10" fill="#bbb"/>
+      <text x="166" y="27">Other · 22m</text>
+    </g>
+    <text x="20" y="362" font-size="9" fill="#c8201f" font-weight="700">99% NON-PRODUCTIVE</text>
+  </svg>`),
+
+  // 13. Brain MRI - reduced gray matter
+  brainmri: svgDataUrl(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 380" style="background:#0a0a0a;font-family:monospace">
+    <rect width="300" height="380" fill="#0a0a0a"/>
+    <text x="20" y="28" font-size="10" fill="#0aff8a" letter-spacing="2">MRI · BRAIN AXIAL T1</text>
+    <text x="280" y="28" font-size="9" fill="#888" text-anchor="end">SLICE 14/24</text>
+    <line x1="20" y1="42" x2="280" y2="42" stroke="#333" stroke-width="0.5"/>
+    <g transform="translate(150,180)">
+      <ellipse cx="0" cy="0" rx="90" ry="100" fill="#1a3a2a" stroke="#0aff8a" stroke-width="1"/>
+      <ellipse cx="0" cy="0" rx="78" ry="86" fill="#0a2a1a" stroke="#0aff8a" stroke-width="0.5"/>
+      <path d="M -30 -50 Q -10 -30 -30 -10 Q -50 10 -25 30 Q 0 50 25 30 Q 50 10 30 -10 Q 10 -30 30 -50" fill="none" stroke="#0aff8a" stroke-width="0.6" opacity="0.6"/>
+      <ellipse cx="-25" cy="-30" rx="10" ry="14" fill="#3a1a1a" stroke="#c8201f" stroke-width="1.4"/>
+      <ellipse cx="25" cy="-30" rx="10" ry="14" fill="#3a1a1a" stroke="#c8201f" stroke-width="1.4"/>
+      <text x="0" y="68" font-size="6" fill="#c8201f" text-anchor="middle">PREFRONTAL</text>
+      <text x="0" y="76" font-size="6" fill="#c8201f" text-anchor="middle">CORTEX</text>
+      <line x1="-25" y1="-30" x2="-110" y2="-50" stroke="#c8201f" stroke-width="0.5" stroke-dasharray="2,2"/>
+      <text x="-115" y="-48" font-size="7" fill="#c8201f" text-anchor="end" font-weight="700">REDUCED</text>
+      <text x="-115" y="-38" font-size="7" fill="#c8201f" text-anchor="end">GRAY MATTER</text>
+    </g>
+    <line x1="20" y1="320" x2="280" y2="320" stroke="#333" stroke-width="0.5"/>
+    <text x="20" y="340" font-size="9" fill="#0aff8a">FINDING · CORTICAL THINNING</text>
+    <text x="20" y="356" font-size="9" fill="#c8201f" font-weight="700">CORRELATION · DIGITAL OVERUSE</text>
+  </svg>`),
+};
+
+const evidenceData = [
+  { tag: '甲第1호증', label: '스크린타임 스크린샷', sub: '월평균 137시간',
+    img: EVIDENCE_SVG.screentime },
+  { tag: '甲第2호증', label: '알림 발송 내역', sub: '일일 247회',
+    img: EVIDENCE_SVG.notifications },
+  { tag: '甲第3호증', label: '새벽 사용 기록', sub: '02:47 AM',
+    img: EVIDENCE_SVG.latenight },
+  { tag: '甲第4호증', label: '경추 MRI 소견서', sub: 'C5-C6 추간판 돌출',
+    img: EVIDENCE_SVG.mri },
+  { tag: '甲第5호증', label: '디지털 디톡스 영수증', sub: '월 48,400원',
+    img: EVIDENCE_SVG.receipt },
+];
+
+// Additional evidence shown ONLY in the 3D gallery finale
+const galleryExtraEvidence = [
+  { tag: '甲第6호증', label: '시력검사 결과', sub: '2024 → 2026',
+    img: EVIDENCE_SVG.vision },
+  { tag: '甲第7호증', label: '도파민 반응 그래프', sub: 'Baseline -58%',
+    img: EVIDENCE_SVG.dopamine },
+  { tag: '甲第8호증', label: '카드 명세서', sub: '심야 충동구매',
+    img: EVIDENCE_SVG.cardstatement },
+  { tag: '甲第9호증', label: '거북목 자세 분석', sub: '42mm 전방돌출',
+    img: EVIDENCE_SVG.posture },
+  { tag: '甲第10호증', label: '알람 스누즈 기록', sub: '9회 연속',
+    img: EVIDENCE_SVG.snooze },
+  { tag: '甲第11호증', label: '독서 시도 기록', sub: '평균 5.4분',
+    img: EVIDENCE_SVG.reading },
+  { tag: '甲第12호증', label: '앱 사용 비율', sub: '99% 비생산적',
+    img: EVIDENCE_SVG.snspie },
+  { tag: '甲第13호증', label: '전두엽 MRI', sub: '회백질 감소',
+    img: EVIDENCE_SVG.brainmri },
+];
+
+// ============================================================
+// SCRIPT — sequence of click-driven actions
+// ============================================================
+const actions = [];
+
+// ===== PAGE 1 — start immediately =====
+actions.push(async () => {
+  newPage(1);
+  await wait(500);
+  const title = document.createElement('h1');
+  title.className = 'doc-title';
+  title.textContent = '소     장';
+  currentPage.insertBefore(title, currentPage.querySelector('.doc-body'));
+  setTimeout(() => title.classList.add('show'), 100);
+  await wait(700);
+});
+
+actions.push(async () => {
+  const l = addLine('', 'section-head');
+  await typeInto(l, '[ 사 건 ]', 45);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `사 건 명${TAB}이혼 등 청구의 소${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine('', 'section-head');
+  await typeInto(l, '[ 당 사 자 ]', 45);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `원${SP}${SP}${SP}고${TAB}<b>김 민 수</b> (790101-1******)${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `${TAB}서울특별시 마포구 합정동 374-12${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `피${SP}${SP}${SP}고${TAB}이 ___${ENT}`);
+});
+
+// REVEAL on this click
+actions.push(async () => {
+  currentPage.querySelector('.editing').classList.add('show');
+  audio.reveal();
+  await wait(700);
+
+  const lines = getDocBody().querySelectorAll('.line');
+  const pikoLine = lines[lines.length - 1];
+  await redactLine(pikoLine);
+  await rewriteRed(pikoLine, `피${SP}${SP}${SP}고${TAB}<b>Apple iPhone 15 Pro</b>${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  l.classList.add('red-typing');
+  l.style.color = 'var(--red)';
+  await typeInto(l, `${TAB}6.1인치 OLED · 460 ppi · IMEI 359********${ENT}`);
+});
+
+actions.push(async () => {
+  const lines = getDocBody().querySelectorAll('.line');
+  const addrLine = Array.from(lines).find(l => l.textContent.includes('마포구'));
+  if(addrLine){
+    await redactLine(addrLine);
+    await rewriteRed(addrLine, `${TAB}화면 앞 30cm · 베개 옆 · 변기 옆${ENT}`);
+  }
+});
+
+actions.push(async () => {
+  const l = addLine();
+  l.classList.add('red-typing');
+  l.style.color = 'var(--red)';
+  await typeInto(l, `사건본인${TAB}① 시 간  ② 수 면  ③ 집 중 력  ④ 허리디스크  ⑤ 시 력${ENT}`);
+});
+
+// ===== PAGE 2 — 청구취지 =====
+actions.push(async () => {
+  newPage(2);
+  await wait(700);
+  const l = addLine('', 'section-head');
+  await typeInto(l, '[ 청 구 취 지 ]', 45);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `1.${SP}원고와 피고는 이혼한다.${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `2.${SP}피고는 원고에게 위자료 ____원을 지급한다.${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `3.${SP}사건본인의 친권자 및 양육자로 원고를 지정한다.${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `4.${SP}피고는 원고에게 사건본인의 양육비로 매월${ENT}`);
+  const l2 = addLine();
+  await typeInto(l2, `${TAB}____원을 지급한다.${ENT}`);
+});
+
+// REVEAL — 청구취지
+actions.push(async () => {
+  audio.reveal();
+  await wait(600);
+
+  const lines = getDocBody().querySelectorAll('.line');
+  for(let i = 2; i < lines.length; i++){
+    await redactLine(lines[i]);
+    await wait(120);
+  }
+});
+
+actions.push(async () => {
+  const reds = [
+    `2.${SP}피고는 원고에게 빼앗긴 시간 14,892시간을 반환한다.${ENT}`,
+    `3.${SP}피고는 숏폼 및 무한스크롤 기능을 즉시 차단한다.${ENT}`,
+    `4.${SP}사건본인의 친권 및 양육권은 원고에게 귀속한다.${ENT}`,
+    `5.${SP}피고는 매일 23시 이후 원고에게 접근하지 못한다.${ENT}`,
+    `6.${SP}소송비용은 피고가 부담한다.${ENT}`,
+  ];
+  for(const r of reds){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, r);
+  }
+});
+
+actions.push(async () => {
+  const l = addLine('', 'full-width');
+  l.style.color = 'var(--ink)';
+  l.style.textAlign = 'right';
+  l.style.marginTop = '8px';
+  await typeInto(l, `라는 판결을 구한다.${ENT}`);
+  audio.ding();
+});
+
+// ===== PAGE 3 — 청구원인 (with evidence placed on paper) =====
+actions.push(async () => {
+  newPage(3);
+  currentPage.classList.add('has-evidence');
+  await wait(700);
+  const l = addLine('', 'section-head');
+  await typeInto(l, '[ 청 구 원 인 ]', 45);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `1.${SP}원고와 피고는 2014년 9월 혼인신고를 마쳤다.${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `2.${SP}피고는 결혼 직후부터 원고와의 대화를 거부하고${ENT}`);
+  const l2 = addLine();
+  await typeInto(l2, `${TAB}일방적인 의사소통만을 강요한다.${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine();
+  await typeInto(l, `3.${SP}피고는 원고의 수면 시간을 침해한다.${ENT}`);
+});
+
+// REVEAL
+actions.push(async () => {
+  audio.reveal();
+  await wait(600);
+  const lines = getDocBody().querySelectorAll('.line');
+  for(let i = 1; i < lines.length; i++){
+    await redactLine(lines[i]);
+    await wait(110);
+  }
+});
+
+actions.push(async () => {
+  const reds = [
+    `1.${SP}피고는 원고의 동의 없이 매일 평균 247회의 알림을${ENT}`,
+    `${TAB}발송하여 원고의 정신적 평온을 침해한다.${ENT}`,
+  ];
+  for(const r of reds){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, r, 26);
+  }
+  // Evidence 1 placed on paper — right column top
+  await wait(200);
+  placeEvidenceOnPaper({
+    tag: evidenceData[0].tag,
+    label: evidenceData[0].label,
+    sub: evidenceData[0].sub,
+    img: evidenceData[0].img,
+    width: 165,
+    top: '95px',
+    right: '25px',
+    rot: 4
+  });
+});
+
+actions.push(async () => {
+  const reds = [
+    `2.${SP}피고는 무한스크롤 기능으로 원고의 시간을 기만적으로${ENT}`,
+    `${TAB}탈취한다 (1일 평균 4시간 12분 손실).${ENT}`,
+  ];
+  for(const r of reds){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, r, 26);
+  }
+  await wait(200);
+  placeEvidenceOnPaper({
+    tag: evidenceData[2].tag,
+    label: evidenceData[2].label,
+    sub: evidenceData[2].sub,
+    img: evidenceData[2].img,
+    width: 155,
+    top: '350px',
+    right: '40px',
+    rot: -5
+  });
+});
+
+actions.push(async () => {
+  const reds = [
+    `3.${SP}피고는 도파민 회로를 인위적으로 자극하여 원고의${ENT}`,
+    `${TAB}자발적 의지를 무력화한다.${ENT}`,
+  ];
+  for(const r of reds){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, r, 26);
+  }
+  await wait(200);
+  placeEvidenceOnPaper({
+    tag: evidenceData[1].tag,
+    label: evidenceData[1].label,
+    sub: evidenceData[1].sub,
+    img: evidenceData[1].img,
+    width: 160,
+    top: '590px',
+    right: '20px',
+    rot: 6
+  });
+});
+
+// ===== PAGE 4 — 계속 + 입증방법 + 서명 =====
+actions.push(async () => {
+  newPage(4);
+  currentPage.classList.add('has-evidence');
+  await wait(700);
+  const reds = [
+    `4.${SP}피고의 장기 사용으로 원고에게 거북목 및 허리디스크${ENT}`,
+    `${TAB}등의 신체적 손상이 발생한다.${ENT}`,
+  ];
+  for(const r of reds){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, r, 26);
+  }
+  await wait(200);
+  placeEvidenceOnPaper({
+    tag: evidenceData[3].tag,
+    label: evidenceData[3].label,
+    sub: evidenceData[3].sub,
+    img: evidenceData[3].img,
+    width: 165,
+    top: '90px',
+    right: '25px',
+    rot: 5
+  });
+});
+
+actions.push(async () => {
+  const reds = [
+    `5.${SP}피고는 인지과학자를 동원해 원고의 심리적 취약성을${ENT}`,
+    `${TAB}체계적으로 분석하고 악용한다.${ENT}`,
+  ];
+  for(const r of reds){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, r, 26);
+  }
+});
+
+actions.push(async () => {
+  addLine();
+  const l = addLine('', 'section-head red');
+  await typeInto(l, '[ 입 증 방 법 ]', 45);
+  audio.ding();
+});
+
+actions.push(async () => {
+  const evidenceList = [
+    `甲第1호증${TAB}스크린타임 스크린샷 (월평균 137시간)${ENT}`,
+    `甲第2호증${TAB}피고의 알림 발송 내역 (일일 247회)${ENT}`,
+    `甲第3호증${TAB}원고의 새벽 사용 기록 사진${ENT}`,
+    `甲第4호증${TAB}경추 MRI 소견서${ENT}`,
+    `甲第5호증${TAB}디지털 디톡스 서비스 구독 영수증${ENT}`,
+  ];
+  for(const e of evidenceList){
+    const l = addLine();
+    l.classList.add('red-typing');
+    l.style.color = 'var(--red)';
+    await typeInto(l, e, 22);
+  }
+  // Place receipt evidence — right column
+  await wait(200);
+  placeEvidenceOnPaper({
+    tag: evidenceData[4].tag,
+    label: evidenceData[4].label,
+    sub: evidenceData[4].sub,
+    img: evidenceData[4].img,
+    width: 155,
+    top: '350px',
+    right: '40px',
+    rot: -4
+  });
+});
+
+actions.push(async () => {
+  newPage(5);
+  await wait(700);
+  // spacer for breathing
+  addLine(); addLine(); addLine();
+  const l = addLine('', 'full-width');
+  l.style.textAlign = 'right';
+  l.style.color = 'var(--ink)';
+  await typeInto(l, `2026년 4월 22일${ENT}`);
+});
+
+actions.push(async () => {
+  const l = addLine('', 'full-width');
+  l.style.textAlign = 'right';
+  l.style.color = 'var(--ink)';
+  await typeInto(l, `원고${SP}${SP}김 민 수${SP}<span style="color:var(--red);">⊙</span>${ENT}`);
+});
+
+actions.push(async () => {
+  addLine(); addLine();
+  const l = addLine('', 'full-width');
+  l.style.textAlign = 'center';
+  l.style.color = 'var(--ink)';
+  l.style.fontWeight = '700';
+  l.style.letterSpacing = '.3em';
+  l.style.marginTop = '18px';
+  await typeInto(l, '서 울 가 정 법 원  귀 중', 50);
+  audio.ding();
+});
+
+// ===== FINALE =====
+actions.push(async () => {
+  await wait(800);
+  await openGallery();
+});
+
+// ============================================================
+// CLICK TO ADVANCE
+// ============================================================
+let actionIdx = 0;
+let actionRunning = false;
+let galleryActive = false;
+let firstClick = true;
+
+async function advance(){
+  if(actionRunning || galleryActive) return;
+  if(actionIdx >= actions.length) return;
+
+  // first user click → init audio (do NOT advance, just resume audio)
+  if(firstClick){
+    audio.init();
+    firstClick = false;
+    // small delay to let audio context warm up, then proceed
+    await wait(80);
+  }
+
+  actionRunning = true;
+  clickHint.style.opacity = '0';
+  try {
+    await actions[actionIdx]();
+  } catch(e){ console.error(e); }
+  actionIdx++;
+  actionRunning = false;
+  if(actionIdx < actions.length && !galleryActive){
+    clickHint.style.opacity = '1';
+  }
+}
+
+stage.addEventListener('click', advance);
+
+// auto-run first action immediately to show page 1
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    advance();
+  }, 300);
+});
+
+// ============================================================
+// 3D GALLERY FINALE — trackpad swipe rotation
+// ============================================================
+let galleryRotY = 0;
+let galleryRotX = -8;
+let galleryItems = [];
+
+async function openGallery(){
+  galleryActive = true;
+  clickHint.style.opacity = '0';
+
+  audio.whoosh();
+  await wait(400);
+
+  galleryStage.innerHTML = '';
+  galleryItems = [];
+
+  // collect: doc pages + ALL evidence (本案 5개 + 갤러리 추가 8개)
+  const realPages = document.querySelectorAll('.page');
+  realPages.forEach((page, idx) => {
+    galleryItems.push({ type: 'doc', src: page, idx });
+  });
+  const allEvidence = [...evidenceData, ...galleryExtraEvidence];
+  allEvidence.forEach((ev, idx) => {
+    galleryItems.push({ type: 'evidence', ev, idx });
+  });
+
+  // generate scattered 3D positions
+  const positions = generate3DPositions(galleryItems.length);
+
+  galleryItems.forEach((item, i) => {
+    const pos = positions[i];
+    let card;
+    if(item.type === 'doc'){
+      card = document.createElement('div');
+      card.className = 'gallery-card doc';
+      const inner = document.createElement('div');
+      inner.className = 'mini-content';
+      inner.innerHTML = item.src.innerHTML;
+      // remove cursors from cloned content
+      inner.querySelectorAll('.cursor').forEach(c => c.remove());
+      card.appendChild(inner);
+    } else {
+      card = document.createElement('div');
+      card.className = 'gallery-card evidence';
+      card.innerHTML = `
+        <img src="${item.ev.img}" alt="${item.ev.label}" onerror="this.style.background='#1a1a1a';this.style.minHeight='200px';">
+        <div class="label"><span class="tag">${item.ev.tag}</span><span>${item.ev.label}</span></div>
+      `;
+    }
+    card.style.left = '50%';
+    card.style.top = '50%';
+    card.style.transform = `
+      translate(-50%, -50%)
+      translate3d(${pos.x}px, ${pos.y}px, ${pos.z}px)
+      rotateY(${pos.ry}deg)
+      rotateZ(${pos.rz}deg)
+    `;
+    card.dataset.basex = pos.x;
+    card.dataset.basey = pos.y;
+    card.dataset.basez = pos.z;
+    card.dataset.bry = pos.ry;
+    card.dataset.brz = pos.rz;
+    card.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openViewer(item);
+    });
+    galleryStage.appendChild(card);
+  });
+
+  // hide stage
+  stage.style.opacity = '0';
+  setTimeout(() => stage.style.display = 'none', 800);
+
+  await wait(300);
+  gallery.classList.add('show');
+  applyGalleryTransform();
+}
+
+function generate3DPositions(n){
+  const positions = [];
+  // distribute in multiple rings/layers
+  for(let i = 0; i < n; i++){
+    const angle = (i / n) * Math.PI * 2 + (Math.random()-.5)*.6;
+    const ring = i % 3; // 3 rings of depth
+    const baseRadius = 280 + ring * 120;
+    const radius = baseRadius + Math.random()*180;
+    const x = Math.cos(angle) * radius + (Math.random()-0.5)*100;
+    const y = Math.sin(angle) * radius * 0.6 + (Math.random()-0.5)*100;
+    const z = (ring - 1) * 200 + (Math.random()-0.5) * 300;
+    const ry = (Math.random()-0.5) * 40;
+    const rz = (Math.random()-0.5) * 14;
+    positions.push({x, y, z, ry, rz});
+  }
+  return positions;
+}
+
+function applyGalleryTransform(){
+  galleryStage.style.transform = `rotateX(${galleryRotX}deg) rotateY(${galleryRotY}deg)`;
+}
+
+// ===== TRACKPAD / WHEEL — rotate gallery =====
+gallery.addEventListener('wheel', (e) => {
+  if(viewer.classList.contains('show')) return;
+  e.preventDefault();
+  // trackpad two-finger swipe → deltaX/deltaY
+  galleryRotY += e.deltaX * 0.4;
+  galleryRotX -= e.deltaY * 0.3;
+  galleryRotX = Math.max(-50, Math.min(50, galleryRotX));
+  applyGalleryTransform();
+}, { passive: false });
+
+// ===== MOUSE DRAG — also rotate (fallback for non-trackpad) =====
+let drag = { active:false, x:0, y:0, ry:0, rx:0 };
+gallery.addEventListener('mousedown', (e) => {
+  if(viewer.classList.contains('show')) return;
+  if(e.target.closest('.gallery-card')) return;
+  drag.active = true;
+  drag.x = e.clientX;
+  drag.y = e.clientY;
+  drag.ry = galleryRotY;
+  drag.rx = galleryRotX;
+  galleryStage.style.transition = 'none';
+});
+window.addEventListener('mousemove', (e) => {
+  if(!drag.active) return;
+  galleryRotY = drag.ry + (e.clientX - drag.x) * 0.3;
+  galleryRotX = drag.rx - (e.clientY - drag.y) * 0.2;
+  galleryRotX = Math.max(-50, Math.min(50, galleryRotX));
+  applyGalleryTransform();
+});
+window.addEventListener('mouseup', () => {
+  drag.active = false;
+  galleryStage.style.transition = 'transform .15s ease-out';
+});
+
+// touch
+gallery.addEventListener('touchstart', (e) => {
+  if(viewer.classList.contains('show')) return;
+  if(e.target.closest('.gallery-card')) return;
+  const t = e.touches[0];
+  drag.active = true;
+  drag.x = t.clientX;
+  drag.y = t.clientY;
+  drag.ry = galleryRotY;
+  drag.rx = galleryRotX;
+  galleryStage.style.transition = 'none';
+}, {passive:true});
+window.addEventListener('touchmove', (e) => {
+  if(!drag.active) return;
+  const t = e.touches[0];
+  galleryRotY = drag.ry + (t.clientX - drag.x) * 0.3;
+  galleryRotX = drag.rx - (t.clientY - drag.y) * 0.2;
+  galleryRotX = Math.max(-50, Math.min(50, galleryRotX));
+  applyGalleryTransform();
+}, {passive:true});
+window.addEventListener('touchend', () => {
+  drag.active = false;
+  galleryStage.style.transition = 'transform .15s ease-out';
+});
+
+// ===== VIEWER =====
+function openViewer(item){
+  audio.pageTurn();
+  if(item.type === 'doc'){
+    viewerContent.innerHTML = '';
+    const clone = item.src.cloneNode(true);
+    clone.style.position = 'static';
+    clone.style.transform = 'none';
+    clone.style.animation = 'none';
+    clone.classList.remove('entering');
+    clone.querySelectorAll('.cursor').forEach(c => c.remove());
+    viewerContent.appendChild(clone);
+  } else {
+    viewerContent.innerHTML = `
+      <div style="background:#fff; padding:14px 14px 50px; box-shadow:0 30px 80px rgba(0,0,0,.8); position:relative; max-width:560px;">
+        <img src="${item.ev.img}" style="width:100%; display:block;" onerror="this.style.background='#1a1a1a';this.style.minHeight='400px';">
+        <div style="position:absolute; bottom:14px; left:14px; right:14px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:#333; display:flex; justify-content:space-between;">
+          <span style="color:var(--red); font-weight:700;">${item.ev.tag}</span>
+          <span>${item.ev.label} · ${item.ev.sub}</span>
+        </div>
+      </div>
+    `;
+  }
+  viewer.classList.add('show');
+}
+
+document.getElementById('viewerClose').addEventListener('click', () => {
+  viewer.classList.remove('show');
+});
+viewer.addEventListener('click', (e) => {
+  if(e.target === viewer) viewer.classList.remove('show');
+});
+
+// sound toggle
+const soundBtn = document.getElementById('soundToggle');
+soundBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  audio.enabled = !audio.enabled;
+  if(audio.enabled){
+    soundBtn.classList.add('on');
+    soundBtn.textContent = '♪ 사운드 ON';
+  } else {
+    soundBtn.classList.remove('on');
+    soundBtn.textContent = '♪ 사운드 OFF';
+  }
+});
+
+document.querySelector('.topbar').addEventListener('click', (e) => e.stopPropagation());
+</script>
+</body>
+</html>
