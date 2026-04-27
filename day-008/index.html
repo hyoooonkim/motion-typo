@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>10대들은 인공지능과 무슨 대화를 할까?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;900&family=IBM+Plex+Sans+KR:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #ffffff;
+    --ink: #1c1c1e;
+    --muted: #8e8e93;
+    --teen-bubble: #e5e5ea;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'IBM Plex Sans KR', -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+  }
+
+  .stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 40px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .stage:active { opacity: 0.96; }
+
+  .title {
+    position: absolute;
+    top: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+  }
+  .title .eyebrow {
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .title h1 {
+    font-family: 'Pretendard Variable', 'Pretendard', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-weight: 900;
+    font-size: 29px;
+    letter-spacing: -0.035em;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+
+  .click-hint {
+    position: absolute;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: var(--muted);
+    text-transform: uppercase;
+    opacity: 0.5;
+    z-index: 5;
+    pointer-events: none;
+    animation: breathe 2.4s ease-in-out infinite;
+  }
+  @keyframes breathe {
+    0%, 100% { opacity: 0.35; }
+    50% { opacity: 0.7; }
+  }
+
+  .sound-toggle {
+    position: absolute;
+    top: 40px;
+    right: 40px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(0,0,0,0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    cursor: pointer;
+    z-index: 20;
+    transition: all 0.2s;
+    user-select: none;
+  }
+  .sound-toggle:hover {
+    background: rgba(255,255,255,0.9);
+    transform: scale(1.08);
+  }
+  .sound-toggle.muted { opacity: 0.4; }
+
+  .footer-info {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .current-ai {
+    font-family: 'IBM Plex Sans KR', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+  }
+  .current-ai .ai-dynamic {
+    color: var(--ink);
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .progress-dots { display: flex; gap: 6px; }
+  .progress-dots .dot {
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--muted);
+    opacity: 0.3;
+    transition: all 0.3s ease;
+  }
+  .progress-dots .dot.active {
+    opacity: 1;
+    width: 18px;
+    border-radius: 3px;
+    background: var(--ink);
+  }
+
+  .characters {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 60px;
+  }
+
+  .character {
+    position: relative;
+    width: 480px;
+    height: 560px;
+    flex-shrink: 0;
+  }
+  .character svg {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+  }
+  /* pop-in */
+  .character svg .bub-group,
+  .character svg .char-element {
+    opacity: 0;
+    transform: translateY(6px);
+    transition: opacity 0.4s ease, transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .character svg .bub-group.visible,
+  .character svg .char-element.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .glyph-text {
+    font-family: 'Space Mono', monospace;
+    font-weight: 700;
+    letter-spacing: -0.06em;
+    user-select: none;
+  }
+
+  @media (max-width: 900px) {
+    .stage { padding: 80px 20px 100px; overflow-y: auto; height: auto; min-height: 100vh; }
+    html, body { overflow: auto; height: auto; }
+    .characters { flex-direction: column; gap: 40px; }
+    .character { width: 360px; height: 440px; }
+    .title h1 { font-size: 23px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+
+  <div class="sound-toggle" id="soundToggle" title="Toggle sound">🔊</div>
+  <div class="click-hint" id="clickHint">— TAP TO SWITCH AI —</div>
+
+  <div class="title">
+    <div class="eyebrow">DAILY VIBE CODING · VOL. 01</div>
+    <h1>10대들은 인공지능과 무슨 대화를 할까?</h1>
+  </div>
+
+  <div class="characters">
+    <div class="character" id="aiChar"></div>
+    <div class="character" id="teenChar"></div>
+  </div>
+
+  <div class="footer-info">
+    <div class="progress-dots" id="progressDots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+    <div class="current-ai">
+      <span class="ai-dynamic" id="aiName">CLAUDE</span>
+      <span style="opacity:0.5"> × </span>
+      <span>TEEN</span>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// LAYOUT
+// ============================================================
+const VB_W = 480;
+const VB_H = 560;
+const BUB_H = 44;
+const BUB_GAP = 6;
+const BUB_Y_START = 20;
+
+// Bubble rows (profile silhouette from reference)
+const ROWS = [
+  { width: 220, role: 'top'    },  // 0 — top of head (tail)
+  { width: 260, role: 'fore'   },  // 1 — forehead
+  { width: 240, role: 'brow'   },  // 2 — brow
+  { width: 260, role: 'eyes'   },  // 3 — 👁️ eye
+  { width: 380, role: 'ear'    },  // 4 — 👂 ear, LONG protrusion
+  { width: 240, role: 'cheek'  },  // 5 — cheek
+  { width: 280, role: 'mouth'  },  // 6 — 👄 mouth
+  { width: 240, role: 'chin'   },  // 7 — chin
+  { width: 170, role: 'acc'    },  // 8 — accessory bubble (bow tie etc.)
+  { width: 130, role: 'neck'   },  // 9 — neck
+  { width: 150, role: 'bot'    }   // 10 — bottom
+];
+
+// ============================================================
+// PERSONAS
+// Each AI has a "glyph" = a single character type used to fill bubbles
+// like text in the reference image (e.g. "))))))" or "((((((")
+// ============================================================
+const AIs = [
+  {
+    name: 'CLAUDE',
+    color: '#C96442',
+    colorLight: '#E88A6B',
+    glyphColor: 'rgba(255,255,255,0.7)',
+    // Claude = thoughtful parens (like the original reference)
+    glyphForward: ')',
+    glyphBackward: '(',
+    eye: '👁️', ear: '👂', mouth: '👄',
+    accessory: { emoji: '🎩', anchor: 'top', position: 'above', size: 54 }
+  },
+  {
+    name: 'CURSOR',
+    color: '#1a1a1a',
+    colorLight: '#3a3a3a',
+    glyphColor: 'rgba(255,255,255,0.85)',
+    // Cursor = code brackets
+    glyphForward: '>',
+    glyphBackward: '<',
+    eye: '👀', ear: '👂', mouth: '👄',
+    accessory: { emoji: '👓', anchor: 'acc', position: 'on', size: 38 }
+  },
+  {
+    name: 'CHATGPT',
+    color: '#10A37F',
+    colorLight: '#2BC9A0',
+    glyphColor: 'rgba(255,255,255,0.8)',
+    // ChatGPT = chatty dots
+    glyphForward: '·',
+    glyphBackward: '·',
+    eye: '👁️', ear: '👂', mouth: '👅',
+    accessory: { emoji: '👔', anchor: 'acc', position: 'on', size: 38 }
+  },
+  {
+    name: 'GEMINI',
+    color: '#4285F4',
+    colorLight: '#6FA7F7',
+    glyphColor: 'rgba(255,255,255,0.85)',
+    // Gemini = stars
+    glyphForward: '✦',
+    glyphBackward: '✦',
+    eye: '👀', ear: '👂', mouth: '👄',
+    accessory: { emoji: '✨', anchor: 'top', position: 'above', size: 40 }
+  },
+  {
+    name: 'CHARACTER.AI',
+    color: '#D946AD',
+    colorLight: '#EE7ACB',
+    glyphColor: 'rgba(255,255,255,0.85)',
+    // Character.ai = asterisks/hearts
+    glyphForward: '*',
+    glyphBackward: '*',
+    eye: '👁️', ear: '👂', mouth: '💋',
+    accessory: { emoji: '🎭', anchor: 'acc', position: 'on', size: 38 }
+  }
+];
+
+const TEEN = {
+  color: 'var(--teen-bubble)',
+  colorLight: '#eeeef0',
+  glyphColor: 'rgba(0,0,0,0.22)',
+  glyphForward: ')',
+  glyphBackward: '(',
+  eye: '👁️', ear: '👂', mouth: '👄',
+  accessory: { emoji: '🧢', anchor: 'top', position: 'above', size: 52 }
+};
+
+// ============================================================
+// LAYOUT HELPERS
+// ============================================================
+function getSpineX(side) {
+  return side === 'ai' ? 70 : (VB_W - 70);
+}
+
+function getBubbleGeometry(side, row) {
+  const spine = getSpineX(side);
+  let left, right;
+  if (side === 'ai') {
+    left = spine;
+    right = spine + row.width;
+  } else {
+    right = spine;
+    left = spine - row.width;
+  }
+  return {
+    left, right,
+    faceEndX: side === 'ai' ? right : left,
+    backEndX: side === 'ai' ? left : right
+  };
+}
+
+// Build a glyph run of a given width
+// glyph = single character, count = how many, separator (space or not)
+function makeGlyphString(glyph, count) {
+  return Array(count).fill(glyph).join('');
+}
+
+// ============================================================
+// RENDER
+// For each bubble, decide glyph layout:
+//  - bubbles with NO face element: fill with glyphs
+//  - bubbles with face element: glyphs on opposite side of the emoji
+//    (emoji is on face-end, glyphs go toward back-end direction)
+//  - accessory bubble: room for accessory, glyphs on opposite side
+//
+// Glyph direction (forward vs backward):
+//  - on the FACE side of the bubble: use glyphForward (e.g. )))) pointing
+//    toward face direction) — matches reference where the protruding ear
+//    bubble has )))))) glyphs pointing toward the face direction
+//  - on the BACK side: use glyphBackward
+// ============================================================
+function buildCharacter(el, side, persona) {
+  const { color, colorLight, glyphColor, glyphForward, glyphBackward,
+          eye, ear, mouth, accessory } = persona;
+
+  let svg = `<svg viewBox="0 0 ${VB_W} ${VB_H}" xmlns="http://www.w3.org/2000/svg">`;
+
+  // -- BUBBLES + in-bubble glyphs + face emojis --
+  ROWS.forEach((r, i) => {
+    const geo = getBubbleGeometry(side, r);
+    const bubbleY = BUB_Y_START + i * (BUB_H + BUB_GAP);
+    const cy = bubbleY + BUB_H/2;
+
+    // color gradient
+    const progress = i / (ROWS.length - 1);
+    const fillColor = progress < 0.22 ? colorLight : color;
+
+    svg += `<g class="bub-group" data-index="${i}" data-role="${r.role}">`;
+    svg += `<rect x="${geo.left}" y="${bubbleY}" width="${r.width}" height="${BUB_H}"
+             rx="${BUB_H/2}" ry="${BUB_H/2}" fill="${fillColor}"/>`;
+
+    // tail on top bubble — proper iMessage-style curved tail
+    if (r.role === 'top') {
+      if (side === 'ai') {
+        // AI tail: curls down-LEFT from bottom-left corner of bubble
+        // The path follows the rounded corner of the bubble, then curves out
+        // forming the characteristic iMessage tail hook
+        const cornerX = geo.left + BUB_H/2;   // where bubble's bottom-left curve ends
+        const bottomY = bubbleY + BUB_H;
+        svg += `<path d="
+          M ${cornerX} ${bottomY}
+          C ${cornerX - 4} ${bottomY}, ${geo.left - 2} ${bottomY + 2}, ${geo.left - 12} ${bottomY + 6}
+          C ${geo.left - 4} ${bottomY + 2}, ${geo.left + 2} ${bottomY - 2}, ${geo.left + 4} ${bottomY - 8}
+          Z"
+          fill="${fillColor}"/>`;
+      } else {
+        // Teen tail: curls down-RIGHT from bottom-right corner
+        const cornerX = geo.right - BUB_H/2;
+        const bottomY = bubbleY + BUB_H;
+        svg += `<path d="
+          M ${cornerX} ${bottomY}
+          C ${cornerX + 4} ${bottomY}, ${geo.right + 2} ${bottomY + 2}, ${geo.right + 12} ${bottomY + 6}
+          C ${geo.right + 4} ${bottomY + 2}, ${geo.right - 2} ${bottomY - 2}, ${geo.right - 4} ${bottomY - 8}
+          Z"
+          fill="${fillColor}"/>`;
+      }
+    }
+
+    // ============================================================
+    // GLYPH TEXT — hair represented by text glyphs
+    // Density decreases from top to bottom (hair gets shorter)
+    // ============================================================
+    //
+    // Per-row hair amount (0-1):
+    //   top (0):     1.0   ← fully filled (long hair)
+    //   fore (1):    1.0
+    //   brow (2):    1.0
+    //   eyes (3):    0.35  ← short bit behind the eye (back of head hair)
+    //   ear (4):     0.45  ← short bit next to the ear (sideburn-ish)
+    //   cheek (5):   0.25  ← tiny tuft
+    //   mouth (6):   0.30  ← short bit behind mouth
+    //   chin (7+):   0     ← no hair (face / body / neck)
+    // ============================================================
+    const HAIR_DENSITY = {
+      'top': 1.0, 'fore': 1.0, 'brow': 1.0,
+      'eyes': 0.35,
+      'ear': 0.45,
+      'cheek': 0.25,
+      'mouth': 0.30,
+      'chin': 0, 'acc': 0, 'neck': 0, 'bot': 0
+    };
+
+    const density = HAIR_DENSITY[r.role] ?? 0;
+
+    if (density > 0) {
+      const PAD = 16;
+      const EMOJI_SPACE = 44;  // room around face emoji
+      const glyphSize = 18;
+      const glyphUnitW = 10.5;
+
+      // Determine the "hair region" in the bubble.
+      // Hair sits on the BACK side of the head (behind the face).
+      //   AI faces right → back = LEFT end of bubble
+      //   TEEN faces left → back = RIGHT end of bubble
+      // Exception: 'ear' row — the bubble extends past face side with protruding
+      //   part; hair remnant sits near the ear emoji (which is on back end),
+      //   extending toward the face.
+      //
+      // For density < 1.0, hair takes only part of the bubble (shorter hair)
+      // starting from the BACK end.
+
+      let regionStart, regionEnd, direction;
+
+      // Full hair range (back end to face end, minus emoji/padding)
+      let fullStart, fullEnd;
+      if (side === 'ai') {
+        // back = left, face = right
+        fullStart = geo.backEndX + PAD;
+        fullEnd = geo.faceEndX - PAD;
+        // if this row has face emoji, reduce space
+        if (r.role === 'eyes' || r.role === 'mouth') {
+          fullEnd = geo.faceEndX - EMOJI_SPACE;
+        }
+        if (r.role === 'ear') {
+          // ear emoji is at BACK end on AI (left side), so hair extends from
+          // ear toward face
+          fullStart = geo.backEndX + EMOJI_SPACE;
+          fullEnd = geo.faceEndX - PAD;
+        }
+        direction = 'toFace';
+      } else {
+        fullStart = geo.faceEndX + PAD;
+        fullEnd = geo.backEndX - PAD;
+        if (r.role === 'eyes' || r.role === 'mouth') {
+          fullStart = geo.faceEndX + EMOJI_SPACE;
+        }
+        if (r.role === 'ear') {
+          // ear emoji at back end on TEEN (right side)
+          fullStart = geo.faceEndX + PAD;
+          fullEnd = geo.backEndX - EMOJI_SPACE;
+        }
+        direction = 'toBack';
+      }
+
+      const fullWidth = fullEnd - fullStart;
+      if (fullWidth > glyphUnitW) {
+        // Apply density: hair covers only `density` fraction, starting from BACK
+        const hairWidth = fullWidth * density;
+
+        // hair starts from BACK end
+        if (side === 'ai') {
+          // back = left → hair starts at fullStart, extends right for hairWidth
+          regionStart = fullStart;
+          regionEnd = fullStart + hairWidth;
+        } else {
+          // back = right → hair ends at fullEnd, extends left for hairWidth
+          regionEnd = fullEnd;
+          regionStart = fullEnd - hairWidth;
+        }
+
+        // Special case: ear row — hair sits NEAR the ear
+        if (r.role === 'ear') {
+          // Override: hair hugs the ear emoji
+          if (side === 'ai') {
+            // ear at left (back end), hair starts from ear and extends toward face
+            regionStart = geo.backEndX + EMOJI_SPACE;
+            regionEnd = regionStart + hairWidth;
+          } else {
+            // ear at right (back end), hair ends before ear
+            regionEnd = geo.backEndX - EMOJI_SPACE;
+            regionStart = regionEnd - hairWidth;
+          }
+        }
+
+        const regionWidth = regionEnd - regionStart;
+        if (regionWidth >= glyphUnitW) {
+          const count = Math.floor(regionWidth / glyphUnitW);
+          const glyphChar = direction === 'toFace' ? glyphForward : glyphBackward;
+          const content = makeGlyphString(glyphChar, count);
+
+          svg += `<text class="glyph-text" x="${regionStart}" y="${cy}"
+                   font-size="${glyphSize}" fill="${glyphColor}"
+                   dominant-baseline="central"
+                   text-anchor="start">${content}</text>`;
+        }
+      }
+    }
+
+    svg += `</g>`;
+  });
+
+  // -- FACE EMOJIS (as separate char-elements so they can fade) --
+  ROWS.forEach((r, i) => {
+    const geo = getBubbleGeometry(side, r);
+    const bubbleY = BUB_Y_START + i * (BUB_H + BUB_GAP);
+    const cy = bubbleY + BUB_H/2;
+
+    if (r.role === 'eyes' && eye) {
+      const ex = side === 'ai' ? (geo.faceEndX - 44) : (geo.faceEndX + 8);
+      svg += `<text class="char-element" data-face="eye" x="${ex}" y="${cy}"
+               font-size="30" dominant-baseline="central"
+               text-anchor="start">${eye}</text>`;
+    }
+    if (r.role === 'ear' && ear) {
+      const ex = side === 'ai' ? (geo.backEndX + 10) : (geo.backEndX - 40);
+      svg += `<text class="char-element" data-face="ear" x="${ex}" y="${cy}"
+               font-size="28" dominant-baseline="central"
+               text-anchor="start">${ear}</text>`;
+    }
+    if (r.role === 'mouth' && mouth) {
+      const ex = side === 'ai' ? (geo.faceEndX - 42) : (geo.faceEndX + 8);
+      svg += `<text class="char-element" data-face="mouth" x="${ex}" y="${cy}"
+               font-size="28" dominant-baseline="central"
+               text-anchor="start">${mouth}</text>`;
+    }
+  });
+
+  // -- ACCESSORY (also a char-element) --
+  if (accessory) {
+    const rowIdx = ROWS.findIndex(r => r.role === accessory.anchor);
+    if (rowIdx !== -1) {
+      const row = ROWS[rowIdx];
+      const geo = getBubbleGeometry(side, row);
+      const rowY = BUB_Y_START + rowIdx * (BUB_H + BUB_GAP);
+      const cy = rowY + BUB_H/2;
+
+      let ax, ay;
+      if (accessory.position === 'above') {
+        const cx = (geo.left + geo.right)/2;
+        ax = side === 'ai' ? (cx + 14) : (cx - 14);
+        ay = rowY - accessory.size/2 + 10;
+      } else {
+        // 'on' — placed at face-end of the accessory bubble
+        if (side === 'ai') {
+          ax = geo.faceEndX - accessory.size/2 - 6;
+        } else {
+          ax = geo.faceEndX + accessory.size/2 + 6;
+        }
+        ay = cy;
+      }
+
+      svg += `<text class="char-element" data-face="acc" x="${ax}" y="${ay}"
+               font-size="${accessory.size}"
+               dominant-baseline="central" text-anchor="middle">${accessory.emoji}</text>`;
+    }
+  }
+
+  svg += `</svg>`;
+  el.innerHTML = svg;
+
+  // pop-in bubbles
+  const groups = el.querySelectorAll('.bub-group');
+  groups.forEach((g, i) => {
+    setTimeout(() => g.classList.add('visible'), i * 60);
+  });
+  // pop-in char-elements after bubbles start appearing
+  const chars = el.querySelectorAll('.char-element');
+  chars.forEach((c) => {
+    setTimeout(() => c.classList.add('visible'), groups.length * 30);
+  });
+}
+
+// ============================================================
+// TALKING ANIMATION — mouth only
+// (hair glyphs stay — they're decoration/hair, not typing)
+// ============================================================
+function animateTalking(el, persona, frame) {
+  const mouthEl = el.querySelector('[data-face="mouth"]');
+  if (!mouthEl) return;
+  const alt = persona.mouth === '💋' ? '👄' : '👅';
+  mouthEl.textContent = frame % 2 === 0 ? persona.mouth : alt;
+}
+
+function resetTalking(el, persona) {
+  const mouthEl = el.querySelector('[data-face="mouth"]');
+  if (mouthEl) mouthEl.textContent = persona.mouth;
+}
+
+// ============================================================
+// SOUND SYSTEM
+// ============================================================
+let audioCtx = null;
+let soundEnabled = true;
+
+function initAudio() {
+  if (!audioCtx) {
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    } catch (e) {}
+  }
+  if (audioCtx && audioCtx.state === 'suspended') {
+    audioCtx.resume();
+  }
+}
+
+function playSentSound() {
+  if (!soundEnabled || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc1 = audioCtx.createOscillator();
+  const gain1 = audioCtx.createGain();
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(420, now);
+  osc1.frequency.exponentialRampToValueAtTime(880, now + 0.08);
+  osc1.frequency.exponentialRampToValueAtTime(1320, now + 0.18);
+  gain1.gain.setValueAtTime(0.0, now);
+  gain1.gain.linearRampToValueAtTime(0.22, now + 0.015);
+  gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  osc1.connect(gain1).connect(audioCtx.destination);
+  osc1.start(now); osc1.stop(now + 0.25);
+
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = 'triangle';
+  osc2.frequency.setValueAtTime(880, now);
+  osc2.frequency.exponentialRampToValueAtTime(1760, now + 0.12);
+  gain2.gain.setValueAtTime(0.0, now);
+  gain2.gain.linearRampToValueAtTime(0.08, now + 0.02);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  osc2.connect(gain2).connect(audioCtx.destination);
+  osc2.start(now); osc2.stop(now + 0.2);
+}
+
+function playReceivedSound() {
+  if (!soundEnabled || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc1 = audioCtx.createOscillator();
+  const gain1 = audioCtx.createGain();
+  osc1.type = 'sine';
+  osc1.frequency.setValueAtTime(760, now);
+  osc1.frequency.exponentialRampToValueAtTime(520, now + 0.08);
+  gain1.gain.setValueAtTime(0.0, now);
+  gain1.gain.linearRampToValueAtTime(0.25, now + 0.01);
+  gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  osc1.connect(gain1).connect(audioCtx.destination);
+  osc1.start(now); osc1.stop(now + 0.2);
+
+  const osc2 = audioCtx.createOscillator();
+  const gain2 = audioCtx.createGain();
+  osc2.type = 'sine';
+  osc2.frequency.setValueAtTime(1520, now);
+  osc2.frequency.exponentialRampToValueAtTime(1040, now + 0.05);
+  gain2.gain.setValueAtTime(0.0, now);
+  gain2.gain.linearRampToValueAtTime(0.09, now + 0.005);
+  gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+  osc2.connect(gain2).connect(audioCtx.destination);
+  osc2.start(now); osc2.stop(now + 0.12);
+}
+
+function playSwitchSound() {
+  if (!soundEnabled || !audioCtx) return;
+  const now = audioCtx.currentTime;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(180, now);
+  osc.frequency.exponentialRampToValueAtTime(720, now + 0.25);
+  gain.gain.setValueAtTime(0.0, now);
+  gain.gain.linearRampToValueAtTime(0.12, now + 0.03);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+  osc.connect(gain).connect(audioCtx.destination);
+  osc.start(now); osc.stop(now + 0.32);
+}
+
+// ============================================================
+// INIT
+// ============================================================
+const aiCharEl = document.getElementById('aiChar');
+const teenCharEl = document.getElementById('teenChar');
+
+buildCharacter(teenCharEl, 'teen', TEEN);
+
+let currentAI = 0;
+function switchAI(ai) {
+  buildCharacter(aiCharEl, 'ai', ai);
+  document.getElementById('aiName').textContent = ai.name;
+}
+switchAI(AIs[0]);
+
+// ============================================================
+// DIALOGUE ANIMATION
+// ============================================================
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+let skipRequested = false;
+
+async function speakTurn(side, duration) {
+  const el = side === 'ai' ? aiCharEl : teenCharEl;
+  const base = side === 'ai' ? AIs[currentAI] : TEEN;
+  const steps = Math.max(2, Math.floor(duration / 280));
+
+  if (side === 'teen') playSentSound();
+  else playReceivedSound();
+
+  for (let i = 0; i < steps; i++) {
+    if (skipRequested) return;
+    animateTalking(el, base, i);
+    await sleep(280);
+  }
+  resetTalking(el, base);
+}
+
+const CONVERSATIONS = [
+  [['teen', 900], ['ai', 1600], ['ai', 1200], ['teen', 700], ['ai', 1800]],
+  [['teen', 800], ['ai', 600], ['ai', 600], ['teen', 900], ['ai', 500]],
+  [['teen', 700], ['ai', 1400], ['teen', 1200], ['ai', 1600], ['ai', 1400]],
+  [['teen', 600], ['ai', 900], ['ai', 1400], ['teen', 800], ['ai', 1200]],
+  [['teen', 800], ['ai', 1800], ['ai', 1500], ['teen', 900], ['ai', 2000]]
+];
+
+async function playConversation(aiIdx) {
+  for (const [side, dur] of CONVERSATIONS[aiIdx]) {
+    if (skipRequested) return;
+    await speakTurn(side, dur);
+    if (skipRequested) return;
+    await sleep(380);
+  }
+}
+
+// ============================================================
+// TRANSITIONS (with proper fadeout of ALL char-elements)
+// ============================================================
+async function transitionToNextAI() {
+  playSwitchSound();
+  currentAI = (currentAI + 1) % AIs.length;
+
+  // Fade out BOTH bubbles AND char-elements (emojis/accessories)
+  const bubbles = Array.from(aiCharEl.querySelectorAll('.bub-group')).reverse();
+  const chars = Array.from(aiCharEl.querySelectorAll('.char-element'));
+
+  // fade char-elements first (quick)
+  chars.forEach(c => c.classList.remove('visible'));
+  // then fade bubbles from bottom to top
+  bubbles.forEach((g, i) => {
+    setTimeout(() => g.classList.remove('visible'), i * 35);
+  });
+
+  await sleep(bubbles.length * 35 + 320);
+
+  switchAI(AIs[currentAI]);
+  await sleep(ROWS.length * 60 + 200);
+}
+
+async function mainLoop() {
+  await sleep(1400);
+  while (true) {
+    skipRequested = false;
+    document.querySelectorAll('.progress-dots .dot').forEach((d, i) => {
+      d.classList.toggle('active', i === currentAI);
+    });
+
+    await playConversation(currentAI);
+    if (!skipRequested) await sleep(1600);
+    if (!skipRequested) await transitionToNextAI();
+  }
+}
+
+// ============================================================
+// CLICK + SOUND TOGGLE
+// ============================================================
+let isTransitioning = false;
+async function handleClick() {
+  initAudio();
+  if (isTransitioning || skipRequested) return;
+  isTransitioning = true;
+  skipRequested = true;
+
+  const hint = document.getElementById('clickHint');
+  if (hint) {
+    hint.style.transition = 'opacity 0.4s';
+    hint.style.opacity = '0';
+    setTimeout(() => hint.remove(), 500);
+  }
+
+  await transitionToNextAI();
+  isTransitioning = false;
+}
+
+document.querySelector('.stage').addEventListener('click', (e) => {
+  if (e.target.closest('.sound-toggle')) return;
+  handleClick();
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'Space' || e.code === 'ArrowRight' || e.code === 'ArrowLeft') {
+    e.preventDefault();
+    handleClick();
+  }
+});
+
+const soundToggleEl = document.getElementById('soundToggle');
+soundToggleEl.addEventListener('click', (e) => {
+  e.stopPropagation();
+  initAudio();
+  soundEnabled = !soundEnabled;
+  soundToggleEl.textContent = soundEnabled ? '🔊' : '🔇';
+  soundToggleEl.classList.toggle('muted', !soundEnabled);
+});
+
+document.addEventListener('pointerdown', initAudio, { once: true });
+
+mainLoop();
+</script>
+</body>
+</html>

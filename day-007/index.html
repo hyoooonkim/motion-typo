@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<title>Day 007 — 바다를 끓여라</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    background: #1a3a6b;
+    color: #ffffff;
+    font-family: 'Pretendard', 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
+    overflow: hidden;
+    width: 100vw; height: 100vh;
+  }
+
+  /* 상단 네비 */
+  .home {
+    position: fixed; top: 24px; left: 28px; z-index: 20;
+    font-size: 11px; letter-spacing: .3em; text-decoration: none; color: #ffffff;
+    border-bottom: 1px solid rgba(255,255,255,.6); padding-bottom: 2px;
+    opacity: .75;
+  }
+  .sound-btn {
+    position: fixed; top: 24px; right: 28px; z-index: 20;
+    width: 46px; height: 46px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.6); background: transparent; cursor: pointer;
+    font-family: inherit; font-size: 11px; letter-spacing: .08em;
+    color: #ffffff; opacity: .75;
+  }
+  .sound-btn:hover { background: #ffffff; color: #1a3a6b; opacity: 1; }
+
+  .title-en {
+    position: fixed;
+    top: 26px; left: 50%; transform: translateX(-50%);
+    font-family: 'Times New Roman', serif;
+    font-style: italic;
+    font-size: 13px;
+    color: rgba(255,255,255,.6);
+    letter-spacing: .25em;
+    z-index: 15;
+    pointer-events: none;
+  }
+
+  canvas {
+    display: block;
+    position: absolute; inset: 0;
+    width: 100vw; height: 100vh;
+  }
+
+  /* 상승 기포 — 3D 뎁스 레이어 (GPU blur) */
+  #cv-near { z-index: 1; }
+  #cv-mid  { z-index: 1; filter: blur(2.5px); }
+  #cv-far  { z-index: 1; filter: blur(7px); opacity: .75; }
+
+  /* 메타볼 레이어: 일단 blend/filter 끄고 흰 원이 찍히는지부터 확인 */
+  #meta {
+    position: absolute; inset: 0;
+    width: 100vw; height: 100vh;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  .caption {
+    position: fixed;
+    bottom: 32px; left: 50%; transform: translateX(-50%);
+    color: rgba(255,255,255,.5);
+    font-size: 11px; letter-spacing: .4em;
+    font-family: 'Times New Roman', serif;
+    z-index: 15;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<a class="home" href="../index.html">← INDEX</a>
+<button class="sound-btn" id="soundBtn">♪ ON</button>
+<div class="title-en">BOIL THE OCEAN · DAY 007</div>
+
+<canvas id="cv-far"></canvas>
+<canvas id="cv-mid"></canvas>
+<canvas id="cv-near"></canvas>
+<canvas id="meta"></canvas>
+
+<div class="caption">BOIL THE OCEAN · 끓어오르는 바다</div>
+
+<script>
+/* =========================================================
+   Day 007 — 바다를 끓여라
+   텍스트 모양의 기포 클러스터. 마우스 근처에선 휘저은 듯 분산.
+========================================================= */
+
+const canvas = document.getElementById('cv-near');
+const ctx = canvas.getContext('2d', { alpha: true });
+const cvMid = document.getElementById('cv-mid');
+const ctxMid = cvMid.getContext('2d', { alpha: true });
+const cvFar = document.getElementById('cv-far');
+const ctxFar = cvFar.getContext('2d', { alpha: true });
+
+// 메타볼 DOM 캔버스 — CSS filter(blur+contrast) + mix-blend-mode로 GPU 합성
+const metaCanvas = document.getElementById('meta');
+const metaCtx = metaCanvas.getContext('2d', { alpha: true });
+
+let W = window.innerWidth;
+let H = window.innerHeight;
+const DPR = Math.min(window.devicePixelRatio || 1, 2);
+
+// 바다 공간 (뷰포트보다 크게 — 탐색 가능)
+let WORLD_W = 0, WORLD_H = 0;
+const WORLD_MULT = 1.8;
+// 카메라 오프셋 (0,0이면 월드 중앙 정렬)
+const camera = { x: 0, y: 0, tx: 0, ty: 0 };
+
+function resize() {
+  W = window.innerWidth;
+  H = window.innerHeight;
+  for (const c of [canvas, cvMid, cvFar]) {
+    c.width = W * DPR;
+    c.height = H * DPR;
+    c.style.width = W + 'px';
+    c.style.height = H + 'px';
+    c.getContext('2d').setTransform(DPR, 0, 0, DPR, 0, 0);
+  }
+
+  metaCanvas.width = W * DPR;
+  metaCanvas.height = H * DPR;
+  metaCanvas.style.width = W + 'px';
+  metaCanvas.style.height = H + 'px';
+  metaCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+
+  WORLD_W = W * WORLD_MULT;
+  WORLD_H = H * WORLD_MULT;
+}
+resize();
+window.addEventListener('resize', () => { resize(); rebuildTargets(); });
+
+/* ---------- 텍스트 포인트 샘플링 ----------
+   offscreen canvas에 텍스트 그리고 픽셀 뽑아 격자 샘플링.
+*/
+function sampleTextPoints(text, lines, sampleGap) {
+  const off = document.createElement('canvas');
+  const octx = off.getContext('2d');
+
+  // 한 글자 크기 — 뷰포트 기준 (카메라 안 움직여도 잘 보이게)
+  const baseSize = Math.min(W * 0.11, H * 0.14);
+  const sizes = lines.map(l => l.size ? l.size * baseSize : baseSize);
+  const weights = lines.map(l => l.weight || 900);
+  const fonts = lines.map(l => l.font || "'Noto Serif KR', 'Nanum Myeongjo', serif");
+
+  // offscreen은 WORLD 크기
+  off.width = WORLD_W;
+  off.height = WORLD_H;
+  octx.fillStyle = '#000';
+  octx.textAlign = 'center';
+  octx.textBaseline = 'middle';
+
+  // 월드 정중앙에 배치 — 오프셋 없음, 뷰포트 중앙에 그대로 보이도록
+  let totalH = 0;
+  sizes.forEach(s => totalH += s * 1.05);
+  const startY = WORLD_H / 2 - totalH / 2 + sizes[0] / 2;
+
+  let curY = startY;
+  lines.forEach((l, i) => {
+    octx.font = `${weights[i]} ${sizes[i]}px ${fonts[i]}`;
+    octx.fillText(l.text, WORLD_W / 2, curY);
+    curY += sizes[i] * 1.05;
+  });
+
+  const img = octx.getImageData(0, 0, WORLD_W, WORLD_H).data;
+  const pts = [];
+  for (let y = 0; y < WORLD_H; y += sampleGap) {
+    for (let x = 0; x < WORLD_W; x += sampleGap) {
+      const idx = (y * WORLD_W + x) * 4 + 3;
+      if (img[idx] > 128) {
+        pts.push({
+          x: x + (Math.random() - 0.5) * sampleGap * 0.6,
+          y: y + (Math.random() - 0.5) * sampleGap * 0.6
+        });
+      }
+    }
+  }
+  return pts;
+}
+
+/* ---------- 파티클(기포) ---------- */
+class Bubble {
+  constructor(tx, ty) {
+    this.tx = tx; this.ty = ty; // 목표 위치 (WORLD 좌표)
+    // 초기 위치: 목표 근처 — 첫 프레임부터 글자가 보이도록
+    this.x = tx + (Math.random() - 0.5) * 30;
+    this.y = ty + (Math.random() - 0.5) * 30;
+    this.vx = 0; this.vy = 0;
+    this.r = 10 + Math.random() * 6;
+    this.baseR = this.r;
+    this.phase = Math.random() * Math.PI * 2;
+    this.wobSpeed = 0.6 + Math.random() * 0.8;
+    this.offRange = 3 + Math.random() * 5;
+    this.life = 1;
+    this.escaped = false;
+    // 밀도 호흡용 — 기포별 고정 우선순위 (0~1). 높은 값일수록 먼저 이탈.
+    this.priority = Math.random();
+    // 이탈 시 표류 목표
+    this.wanderX = 0; this.wanderY = 0;
+    this.wanderPhase = Math.random() * Math.PI * 2;
+  }
+
+  update(dt, t, mouse, driftX, driftY, densityThreshold) {
+    this.active = this.priority < densityThreshold;
+
+    let cx, cy;
+    if (this.active) {
+      cx = this.tx + driftX;
+      cy = this.ty + driftY;
+    } else {
+      // 이탈: 원래 자리에서 반경 40~80px 바깥을 천천히 선회
+      const radius = 40 + (this.priority * 60);
+      const ang = t * 0.25 + this.wanderPhase + this.priority * 6.28;
+      cx = this.tx + driftX + Math.cos(ang) * radius;
+      cy = this.ty + driftY + Math.sin(ang) * radius * 0.8;
+    }
+    const nx = cx + Math.cos(t * this.wobSpeed + this.phase) * this.offRange;
+    const ny = cy + Math.sin(t * this.wobSpeed * 0.9 + this.phase * 1.3) * this.offRange
+             + Math.sin(t * 2 + this.phase) * 1.5;
+
+    const dx = nx - this.x;
+    const dy = ny - this.y;
+    const k = this.active ? 0.12 : 0.06;
+    this.vx += dx * k;
+    this.vy += dy * k;
+
+    this.vx *= 0.82;
+    this.vy *= 0.82;
+
+    this.x += this.vx;
+    this.y += this.vy;
+
+    this.r = this.baseR + Math.sin(t * 2.4 + this.phase) * 0.6;
+  }
+
+  draw(ctx) {
+    // 이탈 상태면 그리지 않음 — 실제 밀도가 줄도록
+    if (!this.active) return;
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ---------- 상승 기포 ----------
+   layer: 0=near(선명), 1=mid(약블러), 2=far(강블러)
+   레이어별로 캔버스가 달라서 CSS filter로 GPU에서 한 번에 블러 처리.
+*/
+class RisingBubble {
+  constructor() {
+    // 레이어 분포: near 20% / mid 35% / far 45%
+    const roll = Math.random();
+    this.layer = roll < 0.20 ? 0 : roll < 0.55 ? 1 : 2;
+    this.reset(true);
+  }
+  reset(initial) {
+    this.x = Math.random() * WORLD_W;
+    const visibleTop = (WORLD_H - H) / 2;
+    if (initial) {
+      this.y = visibleTop + Math.pow(Math.random(), 4) * H;
+    } else {
+      this.y = visibleTop + H + Math.random() * 40;
+    }
+    // 크기: near가 제일 큼
+    const sizeRoll = Math.random();
+    let baseR;
+    if (sizeRoll < 0.7) baseR = 1.2 + Math.random() * 2.7;
+    else if (sizeRoll < 0.95) baseR = 3 + Math.random() * 3.75;
+    else baseR = 6 + Math.random() * 4.5;
+    const scale = this.layer === 0 ? 1.5 : this.layer === 1 ? 1.0 : 0.7;
+    this.r = baseR * scale;
+    // 속도: near가 제일 빠름
+    const speedScale = this.layer === 0 ? 1.2 : this.layer === 1 ? 0.9 : 0.65;
+    this.vy = -(0.6 + Math.random() * 2.2) * (0.7 + this.r * 0.15) * 0.3 * 0.5 * speedScale;
+    this.sway = Math.random() * Math.PI * 2;
+    this.swaySpeed = 0.8 + Math.random() * 1.8;
+    this.swayAmp = 0.3 + Math.random() * 1.5;
+  }
+  update(t) {
+    this.y += this.vy;
+    this.x += Math.cos(this.sway + t * this.swaySpeed) * this.swayAmp;
+    const visibleTop = (WORLD_H - H) / 2;
+    if (this.y < visibleTop + H * 0.20) {
+      this.vy *= 0.993;
+    }
+    if (this.y < visibleTop - 20) this.reset(false);
+  }
+  draw(ctx) {
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/* ---------- 마우스 상태 ---------- */
+const mouse = {
+  x: -9999, y: -9999,
+  px: -9999, py: -9999,
+  vx: 0, vy: 0,
+  radius: 200,
+  active: false
+};
+window.addEventListener('mousemove', (e) => {
+  if (mouse.active) {
+    mouse.vx = e.clientX - mouse.x;
+    mouse.vy = e.clientY - mouse.y;
+  } else {
+    mouse.vx = 0;
+    mouse.vy = 0;
+  }
+  mouse.x = e.clientX;
+  mouse.y = e.clientY;
+  mouse.active = true;
+});
+window.addEventListener('mouseleave', () => { mouse.active = false; });
+window.addEventListener('touchmove', (e) => {
+  if (e.touches.length) {
+    const t = e.touches[0];
+    mouse.vx = t.clientX - mouse.x;
+    mouse.vy = t.clientY - mouse.y;
+    mouse.x = t.clientX;
+    mouse.y = t.clientY;
+    mouse.active = true;
+  }
+}, { passive: true });
+window.addEventListener('touchend', () => { mouse.active = false; });
+
+/* ---------- 카메라 이동 (트랙패드/드래그) ---------- */
+// wheel (트랙패드 두 손가락 스크롤)
+window.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  camera.tx += e.deltaX * 0.8;
+  camera.ty += e.deltaY * 0.8;
+  // 범위 제한 — 월드 중앙 대비 +-(WORLD - viewport)/2
+  const maxX = (WORLD_W - W) / 2;
+  const maxY = (WORLD_H - H) / 2;
+  camera.tx = Math.max(-maxX, Math.min(maxX, camera.tx));
+  camera.ty = Math.max(-maxY, Math.min(maxY, camera.ty));
+}, { passive: false });
+
+// 우클릭 드래그 (왼쪽 드래그는 마우스 휘젓기와 충돌해서 중간 버튼/우클릭으로)
+// 대신 shift + 드래그로 팬 가능
+let panDrag = { active: false, sx: 0, sy: 0, cx: 0, cy: 0 };
+window.addEventListener('mousedown', (e) => {
+  if (e.shiftKey || e.button === 1 || e.button === 2) {
+    panDrag.active = true;
+    panDrag.sx = e.clientX;
+    panDrag.sy = e.clientY;
+    panDrag.cx = camera.tx;
+    panDrag.cy = camera.ty;
+    e.preventDefault();
+  }
+});
+window.addEventListener('mousemove', (e) => {
+  if (!panDrag.active) return;
+  camera.tx = panDrag.cx - (e.clientX - panDrag.sx);
+  camera.ty = panDrag.cy - (e.clientY - panDrag.sy);
+  const maxX = (WORLD_W - W) / 2;
+  const maxY = (WORLD_H - H) / 2;
+  camera.tx = Math.max(-maxX, Math.min(maxX, camera.tx));
+  camera.ty = Math.max(-maxY, Math.min(maxY, camera.ty));
+});
+window.addEventListener('mouseup', () => { panDrag.active = false; });
+window.addEventListener('contextmenu', (e) => { if (e.shiftKey) e.preventDefault(); });
+
+/* ---------- 빌드 ---------- */
+let bubbles = [];
+const risers = [];
+const RISER_COUNT = 2200;
+for (let i = 0; i < RISER_COUNT; i++) risers.push(new RisingBubble());
+
+function rebuildTargets() {
+  // 텍스트 샘플 → 기포 배치
+  const lines = [
+    { text: '바다를', size: 2.18, weight: 900, font: "'Pretendard','Noto Sans KR','Apple SD Gothic Neo',sans-serif" },
+    { text: '끓여라', size: 2.18, weight: 900, font: "'Pretendard','Noto Sans KR','Apple SD Gothic Neo',sans-serif" }
+  ];
+  const gap = Math.max(12, Math.min(16, Math.round(Math.min(W, H) / 65)));
+  const pts = sampleTextPoints('', lines, gap);
+
+  // 기존 bubbles 재활용 (수에 맞춰 생성/삭제)
+  const needed = pts.length;
+  // 기존 기포가 있으면 가장 가까운 target으로 매핑 (갑자기 텔레포트 방지)
+  const prev = bubbles.slice();
+  bubbles = [];
+  for (let i = 0; i < needed; i++) {
+    const p = pts[i];
+    if (prev[i]) {
+      prev[i].tx = p.x;
+      prev[i].ty = p.y;
+      bubbles.push(prev[i]);
+    } else {
+      bubbles.push(new Bubble(p.x, p.y));
+    }
+  }
+}
+
+rebuildTargets();
+
+/* ---------- Web Audio (끓는 사운드) ---------- */
+let audioCtx = null;
+let soundOn = true;
+let ambientNode = null;
+const soundBtn = document.getElementById('soundBtn');
+soundBtn.addEventListener('click', () => {
+  soundOn = !soundOn;
+  soundBtn.textContent = soundOn ? '♪ ON' : '♪ OFF';
+  if (soundOn) startAmbient();
+  else stopAmbient();
+});
+
+function ensureAudio() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+function startAmbient() {
+  if (!soundOn || ambientNode) return;
+  ensureAudio();
+  const sr = audioCtx.sampleRate;
+  const bufDur = 4;
+  const buf = audioCtx.createBuffer(1, sr * bufDur, sr);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * 0.5;
+  }
+  // 레이어 1: 저음 글로블링 (큰 기포 터지는 저음)
+  const src1 = audioCtx.createBufferSource();
+  src1.buffer = buf; src1.loop = true;
+  const f1 = audioCtx.createBiquadFilter();
+  f1.type = 'lowpass'; f1.frequency.value = 350; f1.Q.value = 1.2;
+  const g1 = audioCtx.createGain(); g1.gain.value = 0.05;
+  src1.connect(f1).connect(g1).connect(audioCtx.destination);
+  src1.start();
+
+  // 레이어 2: 중음 보글보글
+  const src2 = audioCtx.createBufferSource();
+  src2.buffer = buf; src2.loop = true;
+  const f2 = audioCtx.createBiquadFilter();
+  f2.type = 'bandpass'; f2.frequency.value = 700; f2.Q.value = 0.8;
+  const g2 = audioCtx.createGain(); g2.gain.value = 0.04;
+  src2.connect(f2).connect(g2).connect(audioCtx.destination);
+  src2.start();
+
+  // 레이어 3: 고음 치지직 (작은 기포)
+  const src3 = audioCtx.createBufferSource();
+  src3.buffer = buf; src3.loop = true;
+  const f3 = audioCtx.createBiquadFilter();
+  f3.type = 'bandpass'; f3.frequency.value = 2400; f3.Q.value = 1.5;
+  const g3 = audioCtx.createGain(); g3.gain.value = 0.018;
+  src3.connect(f3).connect(g3).connect(audioCtx.destination);
+  src3.start();
+
+  ambientNode = { srcs: [src1, src2, src3] };
+}
+function stopAmbient() {
+  if (ambientNode) {
+    ambientNode.srcs.forEach(s => { try { s.stop(); } catch(_) {} });
+    ambientNode = null;
+  }
+}
+
+// 첫 클릭으로 시작
+window.addEventListener('click', () => {
+  ensureAudio();
+  startAmbient();
+}, { once: true });
+
+/* ---------- 렌더 루프 ---------- */
+let lastT = performance.now();
+function loop(now) {
+  const dt = Math.min(32, now - lastT);
+  lastT = now;
+  const t = now * 0.001;
+
+  // 카메라 부드러운 보간
+  camera.x += (camera.tx - camera.x) * 0.12;
+  camera.y += (camera.ty - camera.y) * 0.12;
+
+  // 스크린 좌표 → 월드 좌표 변환 (렌더 시 translate의 역)
+  mouse.wx = mouse.x - (W / 2 - WORLD_W / 2 - camera.x);
+  mouse.wy = mouse.y - (H / 2 - WORLD_H / 2 - camera.y);
+
+  // 월드→스크린 translate (공통)
+  const tx = W / 2 - WORLD_W / 2 - camera.x;
+  const ty = H / 2 - WORLD_H / 2 - camera.y;
+
+  // ===== 메인 캔버스들: 배경(near) + 상승 기포 3레이어 =====
+  ctx.fillStyle = '#1a3a6b';
+  ctx.fillRect(0, 0, W, H);
+  ctxMid.clearRect(0, 0, W, H);
+  ctxFar.clearRect(0, 0, W, H);
+
+  const ctxs = [ctx, ctxMid, ctxFar];
+  for (const c of ctxs) { c.save(); c.translate(tx, ty); c.fillStyle = '#ffffff'; }
+  for (const r of risers) {
+    r.update(t);
+    r.draw(ctxs[r.layer]);
+  }
+  for (const c of ctxs) c.restore();
+
+  // 마우스 속도 decay
+  if (mouse.active) {
+    mouse.vx *= 0.85;
+    mouse.vy *= 0.85;
+  }
+
+  // ===== 메타볼 패스 =====
+  // 검정 배경 + 흰 원 → CSS filter(blur+contrast)가 임계화, lighten 블렌드로 검정 무시
+  // 호흡: 밀도(texture) + 블러(shape)가 함께 움직여 "뚜렷 ↔ 흩어짐" 리듬
+  const raw = (Math.sin(t * 0.7) + 1) / 2;    // 0~1 공통 호흡 곡선
+  const breath = Math.pow(raw, 1.6);          // 낮은 값(선명)에 더 오래 머묾
+  const blurPx = 6 + breath * 18;             // 6 ~ 24
+  // 밀도: 일단 100% 고정 (호흡은 나중에 재도입)
+  const densityThreshold = 1.0;
+  // 디버그: filter 비활성 — 원 자체가 보이는지 먼저 확인
+  metaCanvas.style.filter = 'none';
+
+  metaCtx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  metaCtx.globalCompositeOperation = 'source-over';
+  metaCtx.clearRect(0, 0, W, H);
+
+  metaCtx.save();
+  metaCtx.translate(tx, ty);
+  metaCtx.fillStyle = 'rgba(255, 100, 100, 0.9)';
+
+  const driftX = Math.sin(t * 0.25) * 18 + Math.cos(t * 0.18) * 10;
+  const driftY = Math.cos(t * 0.21) * 14 + Math.sin(t * 0.33) * 6;
+  for (const b of bubbles) {
+    b.update(dt, t, mouse, driftX, driftY, densityThreshold);
+    b.draw(metaCtx);
+  }
+  metaCtx.restore();
+
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+
+</body>
+</html>
