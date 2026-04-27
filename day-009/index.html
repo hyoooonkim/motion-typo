@@ -1,0 +1,1402 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>뷰파인더 속 마법 같은 세상</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300&family=Bebas+Neue&family=Share+Tech+Mono&display=swap');
+  @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css');
+  *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+  html, body { width:100%; height:100%; background:#000; overflow:hidden; }
+  #stage { position:relative; width:100vw; height:100vh; overflow:hidden; cursor:crosshair; }
+  #cv { position:absolute; inset:0; width:100%; height:100%; display:block; }
+  #title {
+    position:absolute; bottom:36px; left:50%; transform:translateX(-50%);
+    text-align:center; pointer-events:none; z-index:20; white-space:nowrap;
+  }
+  .ko { font-family:'Cormorant Garamond',serif; font-weight:300; font-size:clamp(15px,2.6vw,28px); color:#fff; letter-spacing:0.16em; opacity:0; animation:fu 1.6s 0.6s forwards; }
+  .en { font-family:'Bebas Neue',sans-serif; font-size:8px; letter-spacing:0.3em; color:rgba(255,255,255,0.22); margin-top:7px; display:block; opacity:0; animation:fu 1.6s 1s forwards; }
+  @keyframes fu { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+  .corner { position:absolute; width:28px; height:28px; z-index:20; pointer-events:none; }
+  #c-tl{top:20px;left:20px;border-top:1.5px solid rgba(255,255,255,0.75);border-left:1.5px solid rgba(255,255,255,0.75);}
+  #c-tr{top:20px;right:20px;border-top:1.5px solid rgba(255,255,255,0.75);border-right:1.5px solid rgba(255,255,255,0.75);}
+  #c-bl{bottom:20px;left:20px;border-bottom:1.5px solid rgba(255,255,255,0.75);border-left:1.5px solid rgba(255,255,255,0.75);}
+  #c-br{bottom:20px;right:20px;border-bottom:1.5px solid rgba(255,255,255,0.75);border-right:1.5px solid rgba(255,255,255,0.75);}
+  /* 뷰파인더 외곽 프레임 */
+  #vf-frame {
+    position:absolute; inset:12px; z-index:19; pointer-events:none;
+    border:0.5px solid rgba(255,255,255,0.12);
+  }
+  /* 중앙 크로스헤어 */
+  #crosshair {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    z-index:20; pointer-events:none;
+    width:40px; height:40px;
+  }
+  #crosshair::before, #crosshair::after {
+    content:''; position:absolute; background:rgba(255,255,255,0.45);
+  }
+  #crosshair::before { width:1px; height:100%; left:50%; top:0; transform:translateX(-50%); }
+  #crosshair::after  { width:100%; height:1px; top:50%; left:0; transform:translateY(-50%); }
+  #crosshair-dot {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:4px; height:4px; border-radius:50%;
+    border:1px solid rgba(255,255,255,0.6);
+  }
+  /* 중앙 원형 뷰파인더 링 */
+  #vf-circle {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:min(40vw,40vh); height:min(40vw,40vh);
+    border-radius:50%;
+    border:0.5px solid rgba(255,255,255,0.18);
+    z-index:19; pointer-events:none;
+  }
+  /* 스캔라인 애니 */
+  #scanline {
+    position:absolute; left:12px; right:12px; height:1px;
+    background:rgba(255,255,255,0.06);
+    z-index:19; pointer-events:none;
+    animation:scan 4s linear infinite;
+  }
+  @keyframes scan { from{top:12px} to{top:calc(100% - 12px)} }
+  /* REC 인디케이터 */
+  #rec {
+    position:absolute; top:22px; left:50%;
+    transform:translateX(-50%);
+    display:flex; align-items:center; gap:6px;
+    z-index:20; pointer-events:none;
+  }
+  #rec-dot {
+    width:6px; height:6px; border-radius:50%;
+    background:#ff3333;
+    animation:blink-rec 1.2s ease infinite;
+  }
+  #rec-label {
+    font-family:'Share Tech Mono',monospace;
+    font-size:8px; letter-spacing:0.2em;
+    color:rgba(255,255,255,0.5);
+  }
+  @keyframes blink-rec { 0%,100%{opacity:1} 50%{opacity:0.2} }
+  /* 노출 정보 */
+  #expo {
+    position:absolute; bottom:22px; right:20px;
+    font-family:'Share Tech Mono',monospace;
+    font-size:7px; letter-spacing:0.15em;
+    color:rgba(255,255,255,0.3);
+    z-index:20; pointer-events:none;
+    text-align:right; line-height:2;
+  }
+  #meta  { position:absolute;top:22px;left:56px; font-family:'Share Tech Mono',monospace;font-size:7px;letter-spacing:0.15em;color:rgba(255,255,255,0.28);pointer-events:none;z-index:20;line-height:2; }
+  #meta2 { display:none; }
+
+  /* 필름 카운터 — 하단 중앙 (필름 슬롯 5개) */
+  #film-counter {
+    position:absolute; bottom:28px; left:50%;
+    transform:translateX(-50%);
+    display:flex; align-items:center; gap:14px;
+    z-index:20; pointer-events:none;
+  }
+  #film-counter .label {
+    font-family:'Share Tech Mono',monospace;
+    font-size:10px; letter-spacing:0.32em;
+    color:rgba(255,255,255,0.65);
+    margin-right:6px;
+  }
+  #film-counter .slot {
+    width:30px; height:20px;
+    border:1.5px solid rgba(255,255,255,0.7);
+    background:rgba(255,255,255,0.14);
+    transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+    position:relative;
+  }
+  #film-counter .slot::before {
+    content:'';
+    position:absolute;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:14px; height:5px;
+    background:rgba(255,255,255,0.45);
+  }
+  #film-counter .slot.used {
+    opacity:0.15;
+    background:transparent;
+    border-color:rgba(255,255,255,0.25);
+    transform:scale(0.82) rotate(5deg);
+  }
+  #film-counter .slot.used::before { opacity:0; }
+  #film-counter .count {
+    font-family:'Share Tech Mono',monospace;
+    font-size:12px; letter-spacing:0.2em;
+    color:rgba(255,255,255,0.85);
+    margin-left:10px;
+    min-width:56px;
+  }
+
+  /* 피날레 캔버스 — 클릭 10회 완성시 전체 덮는 컬러 포스터 */
+  #finale {
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    z-index:30; pointer-events:none;
+    opacity:0;
+    transition:opacity 0.8s ease;
+  }
+  #finale.on { opacity:1; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="cv"></canvas>
+  <div id="vf-frame"></div>
+  <div id="vf-circle"></div>
+  <div id="scanline"></div>
+  <div class="corner" id="c-tl"></div><div class="corner" id="c-tr"></div>
+  <div class="corner" id="c-bl"></div><div class="corner" id="c-br"></div>
+  <div id="crosshair"><div id="crosshair-dot"></div></div>
+  <div id="rec"><div id="rec-dot"></div><div id="rec-label">REC</div></div>
+  <div id="meta">SASHA ELAGE<br>VIEWFINDER</div>
+  <div id="expo">F/1.8 &nbsp;1/125s<br>ISO 400 &nbsp;24mm</div>
+  <div id="film-counter">
+    <span class="label">FILM</span>
+    <div class="slot"></div>
+    <div class="slot"></div>
+    <div class="slot"></div>
+    <div class="slot"></div>
+    <div class="slot"></div>
+    <span class="count">05 LEFT</span>
+  </div>
+  <canvas id="finale"></canvas>
+</div>
+<script>
+(function(){
+  const stage = document.getElementById('stage');
+  const cv    = document.getElementById('cv');
+  const ctx   = cv.getContext('2d');
+  let W, H;
+
+  function resize(){
+    W = cv.width  = stage.offsetWidth;
+    H = cv.height = stage.offsetHeight;
+  }
+  resize();
+  window.addEventListener('resize', ()=>{ resize(); if(imgReady) buildOffscreens(); });
+
+  /* ── 말 이미지 (로컬, 확장 배경) ── */
+  const SRC = 'source_extendbackground.jpg';
+  const baseImg = new Image();
+  let imgReady = false;
+  const offscreens = {};
+  // 이미지에서 추출한 컬러 팔레트 (피날레에 사용)
+  let imagePalette = [];
+  // 말 실루엣 마스크 캔버스 (피날레 오버레이에 사용)
+  let horseSilhouette = null;
+
+  baseImg.onload  = ()=>{
+    imgReady=true;
+    extractPaletteAndSilhouette();
+    buildOffscreens();
+  };
+  baseImg.onerror = ()=>{ imgReady=true; };
+  baseImg.src = SRC;
+
+  /* ── 이미지에서 대표 컬러 추출 ──
+     평균 LAB 거리 기반 간단한 클러스터링 (8~10개 대표색)
+     + 말 실루엣 마스크 생성
+  */
+  function extractPaletteAndSilhouette(){
+    const iw = baseImg.naturalWidth, ih = baseImg.naturalHeight;
+    const sampleW = 200, sampleH = Math.round(200 * ih / iw);
+    const sc = document.createElement('canvas');
+    sc.width = sampleW; sc.height = sampleH;
+    const sx = sc.getContext('2d');
+    sx.drawImage(baseImg, 0, 0, sampleW, sampleH);
+    const imgd = sx.getImageData(0, 0, sampleW, sampleH).data;
+
+    // k-means 유사 — 히스토그램 기반 빠른 컬러 양자화
+    // 색공간을 4×4×4 = 64 버킷으로 나누고 빈도 상위 12개 선택
+    const buckets = new Map();
+    for (let i = 0; i < imgd.length; i += 4) {
+      const r = imgd[i], g = imgd[i+1], b = imgd[i+2];
+      // 너무 어둡거나 밝은 색은 배경 가능성 → 제외
+      const lum = (r*0.299 + g*0.587 + b*0.114) / 255;
+      if (lum < 0.08 || lum > 0.95) continue;
+      // 4×4×4 양자화
+      const key = `${Math.floor(r/64)}_${Math.floor(g/64)}_${Math.floor(b/64)}`;
+      if (!buckets.has(key)) buckets.set(key, {r:0, g:0, b:0, count:0});
+      const bk = buckets.get(key);
+      bk.r += r; bk.g += g; bk.b += b; bk.count++;
+    }
+    const sorted = [...buckets.values()]
+      .sort((a,b) => b.count - a.count)
+      .slice(0, 14);
+    imagePalette = sorted.map(bk => ({
+      r: Math.round(bk.r / bk.count),
+      g: Math.round(bk.g / bk.count),
+      b: Math.round(bk.b / bk.count),
+      weight: bk.count
+    }));
+
+    // 말 실루엣 마스크: 배경(밝은 영역)과 전경(어두운 말) 분리
+    // contain fit 가정하에 W/H 해상도로 실루엣을 뽑아둠
+    horseSilhouette = document.createElement('canvas');
+  }
+
+  function hex(c){
+    const t = n => n.toString(16).padStart(2,'0');
+    return `#${t(c.r)}${t(c.g)}${t(c.b)}`;
+  }
+  function pickPalette(n){
+    // 팔레트에서 n개 뽑기 (가중치 기반이지만 다양성 위해 상위/하위 섞음)
+    if (imagePalette.length === 0) return ['#999999'];
+    const arr = [...imagePalette];
+    const picks = [];
+    for (let i = 0; i < n; i++) {
+      picks.push(arr[Math.floor(Math.random() * arr.length)]);
+    }
+    return picks.map(hex);
+  }
+
+  /* ── 7가지 렌더링 모드 오프스크린 빌드 ── */
+  /* 핵심: 모든 오프스크린은 W×H 사이즈로
+     말이 항상 화면 중앙에 cover fit으로 보이게 */
+  function buildOffscreens(){
+    const RW = W, RH = H;
+    ['original','dot','halftone','ascii','pixel','glitch','duotone','duotone_pink','duotone_blue','duotone_orange'].forEach(mode=>{
+      offscreens[mode] = buildMode(mode, RW, RH);
+    });
+  }
+
+  function drawBaseCover(ot, RW, RH, extraScale){
+    const iw = baseImg.naturalWidth, ih = baseImg.naturalHeight;
+    // contain fit — 이미지 전체가 보이도록 (말 전체 실루엣 확보)
+    const s  = Math.min(RW/iw, RH/ih) * (extraScale||0.95);
+    const x  = (RW - iw*s)/2;
+    const y  = (RH - ih*s)/2;
+    // 배경은 밝게 → 말 실루엣이 대비로 두드러짐
+    ot.fillStyle = '#f4ead8';
+    ot.fillRect(0, 0, RW, RH);
+    ot.drawImage(baseImg, x, y, iw*s, ih*s);
+  }
+
+  function buildMode(mode, RW, RH){
+    const oc = document.createElement('canvas');
+    oc.width = RW; oc.height = RH;
+    const ot = oc.getContext('2d');
+
+    if(mode === 'original'){
+      drawBaseCover(ot, RW, RH, 1.0);
+      return oc;
+    }
+
+    /* 소스 픽셀 데이터 공통 추출 */
+    const src = document.createElement('canvas');
+    src.width = RW; src.height = RH;
+    const st  = src.getContext('2d');
+    drawBaseCover(st, RW, RH, 1.0);
+    const id  = st.getImageData(0,0,RW,RH);
+    const d   = id.data;
+    // 콘트라스트 강화 — 중간값(0.4) 기준 위아래로 증폭해서 말 실루엣 부각
+    for (let i = 0; i < d.length; i += 4) {
+      for (let c = 0; c < 3; c++) {
+        const v = d[i + c] / 255;
+        const boosted = Math.max(0, Math.min(1, (v - 0.4) * 1.8 + 0.4));
+        d[i + c] = (boosted * 255) | 0;
+      }
+    }
+
+    // 중심 방사 감쇠: 말 중심(0.5, 0.45)에서 멀어질수록 도트/문자 밀도 줄어듦
+    const cxImg = RW * 0.5;
+    const cyImg = RH * 0.45;
+    const maxDist = Math.sqrt((RW*0.5)**2 + (RH*0.55)**2);
+    function radialFalloff(x, y) {
+      const dx = x - cxImg, dy = y - cyImg;
+      const dist = Math.sqrt(dx*dx + dy*dy) / maxDist;
+      if (dist < 0.50) return 1;
+      const t = (dist - 0.50) / 0.50;
+      return Math.max(0, 1 - t*t);
+    }
+
+    if(mode === 'dot'){
+      ot.fillStyle='#f4f1e8'; ot.fillRect(0,0,RW,RH);
+      const step = Math.max(5, Math.round(RW/150));
+      for(let y=0;y<RH;y+=step){
+        for(let x=0;x<RW;x+=step){
+          const i=(y*RW+x)*4;
+          const lum=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)/255;
+          const strength = (1 - lum) * radialFalloff(x, y);
+          if(strength<0.05) continue;
+          const sz = Math.max(1, strength*step*1.05);
+          ot.fillStyle=`rgb(${d[i]},${d[i+1]},${d[i+2]})`;
+          ot.fillRect(x+(step-sz)/2, y+(step-sz)/2, sz, sz);
+        }
+      }
+    }
+
+    else if(mode === 'halftone'){
+      ot.fillStyle='#faf6ec'; ot.fillRect(0,0,RW,RH);
+      const step = Math.max(4, Math.round(RW/180));
+      for(let y=0;y<RH;y+=step){
+        for(let x=0;x<RW;x+=step){
+          const i=(y*RW+x)*4;
+          const lum=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)/255;
+          const strength = (1 - lum) * radialFalloff(x, y);
+          if(strength<0.05) continue;
+          const r = strength*step*0.70;
+          ot.beginPath();
+          ot.arc(x+step/2, y+step/2, r, 0, Math.PI*2);
+          ot.fillStyle=`rgb(${d[i]},${d[i+1]},${d[i+2]})`;
+          ot.fill();
+        }
+      }
+    }
+
+    else if(mode === 'ascii'){
+      const CHARS = '@#S%?*+;:,. ';
+      ot.fillStyle='#0d0d0d'; ot.fillRect(0,0,RW,RH);
+      const cw = Math.max(6, Math.round(RW/130));
+      const ch = Math.round(cw*1.7);
+      ot.font = `${ch}px "Share Tech Mono",monospace`;
+      for(let y=0;y<RH;y+=ch){
+        for(let x=0;x<RW;x+=cw){
+          const i=(Math.min(y,RH-1)*RW+Math.min(x,RW-1))*4;
+          const lum=(d[i]*.299+d[i+1]*.587+d[i+2]*.114)/255;
+          const falloff = radialFalloff(x, y);
+          if (falloff < 0.08) continue;
+          // 어두운 영역(말)은 꽉 찬 문자, 밝은 영역은 희미한 문자
+          if(lum<0.02) {
+            ot.fillStyle=`rgba(240,240,240,${0.85 * falloff})`;
+            ot.fillText('@', x, y+ch);
+            continue;
+          }
+          const ci = Math.min(CHARS.length-1, Math.floor((1-lum)*CHARS.length));
+          // falloff 낮으면 문자 투명도 떨어뜨림
+          ot.globalAlpha = falloff;
+          ot.fillStyle=`rgb(${d[i]},${d[i+1]},${d[i+2]})`;
+          ot.fillText(CHARS[ci], x, y+ch);
+        }
+      }
+      ot.globalAlpha = 1;
+    }
+
+    else if(mode === 'pixel'){
+      ot.fillStyle='#0a0a0a'; ot.fillRect(0,0,RW,RH);
+      const sz = Math.max(14, Math.round(RW/55));
+      for(let y=0;y<RH;y+=sz){
+        for(let x=0;x<RW;x+=sz){
+          let r=0,g=0,b=0,cnt=0;
+          for(let dy=0;dy<sz&&y+dy<RH;dy++){
+            for(let dx=0;dx<sz&&x+dx<RW;dx++){
+              const i=((y+dy)*RW+(x+dx))*4;
+              r+=d[i];g+=d[i+1];b+=d[i+2];cnt++;
+            }
+          }
+          if(!cnt) continue;
+          // 컷오프 제거 — 모든 픽셀 렌더 (말 전체 보존)
+          ot.fillStyle=`rgb(${r/cnt|0},${g/cnt|0},${b/cnt|0})`;
+          ot.fillRect(x, y, sz-1, sz-1);
+        }
+      }
+    }
+
+    else if(mode === 'glitch'){
+      drawBaseCover(ot, RW, RH, 1.0);
+      /* RGB 채널 분리 */
+      const tmp = document.createElement('canvas');
+      tmp.width=RW; tmp.height=RH;
+      const tt=tmp.getContext('2d');
+      drawBaseCover(tt,RW,RH,1.0);
+      ot.globalCompositeOperation='screen';
+      ot.globalAlpha=0.45;
+      ot.drawImage(tmp, 6, 0);
+      ot.globalAlpha=0.3;
+      ot.drawImage(tmp,-4, 2);
+      ot.globalAlpha=1;
+      ot.globalCompositeOperation='source-over';
+      /* 수평 슬라이스 */
+      for(let i=0;i<22;i++){
+        const sy=(Math.random()*RH)|0;
+        const sh=(Math.random()*16+2)|0;
+        const sx=((Math.random()-.5)*50)|0;
+        ot.drawImage(tmp, 0,sy,RW,sh, sx,sy,RW,sh);
+      }
+      ot.globalCompositeOperation='multiply';
+      ot.fillStyle='rgba(255,0,80,0.12)'; ot.fillRect(0,0,RW/2,RH);
+      ot.fillStyle='rgba(0,220,180,0.10)'; ot.fillRect(RW/2,0,RW/2,RH);
+      ot.globalCompositeOperation='source-over';
+    }
+
+    else if(mode === 'duotone' || mode === 'duotone_green' || mode === 'duotone_pink' || mode === 'duotone_blue' || mode === 'duotone_orange'){
+      /* 말 실루엣 유지하며 컬러 톤만 바뀌는 듀오톤 */
+      const nd = new Uint8ClampedArray(d);
+      // 톤별 다크/라이트 컬러
+      let dark, light;
+      if (mode === 'duotone_pink') {
+        dark = [36, 8, 24];  light = [255, 150, 200];
+      } else if (mode === 'duotone_blue') {
+        dark = [6, 18, 42];  light = [120, 180, 255];
+      } else if (mode === 'duotone_orange') {
+        dark = [40, 18, 6];  light = [255, 170, 90];
+      } else {
+        // duotone / duotone_green (기본)
+        dark = [10, 20, 8];  light = [180, 235, 110];
+      }
+      for(let i=0;i<nd.length;i+=4){
+        const lum=(nd[i]*.299+nd[i+1]*.587+nd[i+2]*.114)/255;
+        const t = lum;
+        nd[i]   = Math.round(dark[0] + (light[0] - dark[0]) * t);
+        nd[i+1] = Math.round(dark[1] + (light[1] - dark[1]) * t);
+        nd[i+2] = Math.round(dark[2] + (light[2] - dark[2]) * t);
+      }
+      ot.putImageData(new ImageData(nd,RW,RH), 0, 0);
+    }
+
+    return oc;
+  }
+
+  /* ── 패널 레이아웃
+     모든 패널이 동일한 커버 기준으로 이미지를 보여줌
+     → 말 형태가 전체에서 일관되게 보임
+     패럴랙스만 패널마다 미세하게 다름
+  ── */
+  /* ── 패널 자동 생성
+     말 실루엣 중심(cx=0.50, cy=0.45) 기준
+     중심: 불규칙 크기/위치로 밀도 집중
+     외곽: 크고 듬성
+  ── */
+  function genPanels(seedOffset){
+    const result = [];
+    const off = seedOffset || 0;
+    const seed = (n) => { let x=Math.sin((n + off*997)*127.1)*43758.5453; return x-Math.floor(x); };
+
+    // 말 실루엣 중심 기준 (화면 비율)
+    // 중심에 가까울수록 패널 작고 많음, 외곽은 크고 드문
+    // 겹침 허용 — 레이어 느낌
+
+    // 1) 극소형 패널 — 말 중심부에 밀집 (0.25~0.75, 0.15~0.80)
+    const tinyCount = 28;
+    for(let i=0;i<tinyCount;i++){
+      const s = seed(i*7);
+      const s2 = seed(i*7+1);
+      const s3 = seed(i*7+2);
+      const s4 = seed(i*7+3);
+      // 중심 주변에 가우시안 분포처럼 몰리게
+      const gx = (seed(i*7+4)-0.5)*2 + (seed(i*7+5)-0.5)*2; // -2~2
+      const gy = (seed(i*7+6)-0.5)*2 + (seed(i*7+1+6)-0.5)*2;
+      const cx = 0.50 + gx*0.16;
+      const cy = 0.45 + gy*0.16;
+      const w  = 0.05 + s3*0.08;
+      const h  = 0.05 + s4*0.08;
+      const x  = Math.max(0.02, Math.min(0.92-w, cx - w/2 + (s-0.5)*0.04));
+      const y  = Math.max(0.02, Math.min(0.92-h, cy - h/2 + (s2-0.5)*0.04));
+      result.push({x,y,w,h});
+    }
+
+    // 2) 소형 패널 — 중간 링 (중심~외곽 사이)
+    const smallCount = 20;
+    for(let i=0;i<smallCount;i++){
+      const s = seed(i*11+100);
+      const angle = (i/smallCount)*Math.PI*2 + seed(i*11+101)*0.8;
+      const dist  = 0.22 + seed(i*11+102)*0.18;
+      const cx = 0.50 + Math.cos(angle)*dist;
+      const cy = 0.45 + Math.sin(angle)*dist*0.85;
+      const w  = 0.07 + seed(i*11+103)*0.09;
+      const h  = 0.07 + seed(i*11+104)*0.09;
+      const x  = Math.max(0.01, Math.min(0.93-w, cx-w/2));
+      const y  = Math.max(0.01, Math.min(0.93-h, cy-h/2));
+      result.push({x,y,w,h});
+    }
+
+    // 3) 중형 패널 — 바깥 링
+    const midCount = 14;
+    for(let i=0;i<midCount;i++){
+      const angle = (i/midCount)*Math.PI*2 + seed(i*13+200)*1.2;
+      const dist  = 0.36 + seed(i*13+201)*0.14;
+      const cx = 0.50 + Math.cos(angle)*dist;
+      const cy = 0.45 + Math.sin(angle)*dist*0.85;
+      const w  = 0.10 + seed(i*13+202)*0.10;
+      const h  = 0.10 + seed(i*13+203)*0.10;
+      const x  = Math.max(0.00, Math.min(0.95-w, cx-w/2));
+      const y  = Math.max(0.00, Math.min(0.95-h, cy-h/2));
+      result.push({x,y,w,h});
+    }
+
+    // 4) 대형 패널 — 가장자리 (크고 드문) — seed 기반으로 위치/크기 변주
+    const outerCount = 6;
+    for(let i=0;i<outerCount;i++){
+      const corner = i % 4; // 0:TL 1:TR 2:BL 3:BR, 4~5: 좌/우 중간
+      const s1 = seed(i*19 + 300);
+      const s2 = seed(i*19 + 301);
+      const s3 = seed(i*19 + 302);
+      const s4 = seed(i*19 + 303);
+      let x, y, w, h;
+      if (i < 4) {
+        // 네 귀퉁이
+        w = 0.10 + s1*0.12;
+        h = 0.14 + s2*0.14;
+        if (corner === 0) { x = 0.00 + s3*0.03; y = 0.00 + s4*0.03; }
+        else if (corner === 1) { x = 1 - w - s3*0.03; y = 0.00 + s4*0.03; }
+        else if (corner === 2) { x = 0.00 + s3*0.03; y = 1 - h - s4*0.03; }
+        else { x = 1 - w - s3*0.03; y = 1 - h - s4*0.03; }
+      } else {
+        // 좌/우 중간
+        w = 0.08 + s1*0.07;
+        h = 0.18 + s2*0.14;
+        x = (i === 4) ? 0.00 + s3*0.02 : 1 - w - s3*0.02;
+        y = 0.25 + s4*0.30;
+      }
+      result.push({x,y,w,h});
+    }
+
+    return result;
+  }
+
+  const PANEL_DEFS = genPanels(0);
+
+  // 중심부는 원본 + 실루엣 유지형 위주, 텍스처 모드는 섞어서 다양성
+  const MODES_CENTER = ['original','original','duotone','duotone_blue','halftone','ascii','glitch','dot'];
+  // 외곽은 원본 + 컬러 필터 변종만 (비트맵/하프톤 제외)
+  const MODES_OUTER  = ['original','duotone','duotone_pink','duotone_blue','duotone_orange'];
+
+  function shuffleSeq(idx, modes){
+    const a=[...modes];
+    for(let i=a.length-1;i>0;i--){
+      const j=(idx*13+i*7+3)%(i+1);
+      [a[i],a[j]]=[a[j],a[i]];
+    }
+    return a;
+  }
+
+  // 패널이 말 중심(0.50, 0.45)에서 얼마나 떨어졌는지로 "외곽" 판정
+  function panelIsOuter(def){
+    const cx = def.x + def.w/2;
+    const cy = def.y + def.h/2;
+    const dx = cx - 0.50, dy = cy - 0.45;
+    const dist = Math.sqrt(dx*dx + dy*dy);
+    return dist > 0.22; // 중심 좁게 — 외곽은 컬러 필터만
+  }
+
+  let panels = [];
+  function buildPanels(seedOffset){
+    const defs = genPanels(seedOffset || 0);
+    panels = defs.map((def,i)=>{
+      const outer = panelIsOuter(def);
+      return {
+        ...def,
+        outer,
+        seq:    shuffleSeq(i + (seedOffset||0)*97, outer ? MODES_OUTER : MODES_CENTER),
+        si:     0,
+        ni:     1,
+        t:      0,
+        trans:  false,
+        tStart: 0,
+        hoverT: 0,
+        pFactor: 0.6 + (i%5)*0.08,
+        label:  `${(i*317+42 + (seedOffset||0)*991)%9999}`.padStart(4,'0'),
+        showLabel: i%3===0,
+      };
+    });
+  }
+  buildPanels(0);
+
+  /* ── 마우스 ── */
+  let mx=0.5, my=0.5, hoverIdx=-1;
+  stage.addEventListener('mousemove',e=>{
+    const r=stage.getBoundingClientRect();
+    mx=(e.clientX-r.left)/W; my=(e.clientY-r.top)/H;
+    hoverIdx=-1;
+    for(let i=panels.length-1;i>=0;i--){
+      const p=panels[i];
+      if(mx>=p.x&&mx<=p.x+p.w&&my>=p.y&&my<=p.y+p.h){hoverIdx=i;break;}
+    }
+  });
+  stage.addEventListener('mouseleave',()=>hoverIdx=-1);
+  /* ── 플래시 + 셔터음 + 클릭 카운트 + 피날레 ── */
+  let flashT = 0;
+  let audioCtx = null;
+  let clickCount = 0;
+  let introActive = true; // 첫 화면 — 말 이미지 없이 뷰파인더만
+  const CLICK_GOAL = 5;
+  const counterEl = document.getElementById('film-counter');
+  const counterSlots = counterEl.querySelectorAll('.slot');
+  const counterText = counterEl.querySelector('.count');
+  const finaleCv = document.getElementById('finale');
+  const finaleCtx = finaleCv.getContext('2d');
+  let finaleOn = false;
+  let finaleStartTs = 0;
+
+  function ensureAudio(){
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+  function playShutter(){
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const sr = audioCtx.sampleRate;
+    const noiseBuf = audioCtx.createBuffer(1, sr * 0.22, sr);
+    const nData = noiseBuf.getChannelData(0);
+    for (let i = 0; i < nData.length; i++) {
+      const t = i / nData.length;
+      nData[i] = (Math.random()*2 - 1) * Math.pow(1 - t, 3);
+    }
+    const src1 = audioCtx.createBufferSource();
+    src1.buffer = noiseBuf;
+    const hp1 = audioCtx.createBiquadFilter();
+    hp1.type = 'highpass'; hp1.frequency.value = 1200;
+    const g1 = audioCtx.createGain();
+    g1.gain.setValueAtTime(0.35, now);
+    g1.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+    src1.connect(hp1).connect(g1).connect(audioCtx.destination);
+    src1.start(now); src1.stop(now + 0.1);
+
+    const src2 = audioCtx.createBufferSource();
+    src2.buffer = noiseBuf;
+    const hp2 = audioCtx.createBiquadFilter();
+    hp2.type = 'bandpass'; hp2.frequency.value = 2800; hp2.Q.value = 0.8;
+    const g2 = audioCtx.createGain();
+    g2.gain.setValueAtTime(0, now + 0.09);
+    g2.gain.linearRampToValueAtTime(0.5, now + 0.095);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+    src2.connect(hp2).connect(g2).connect(audioCtx.destination);
+    src2.start(now + 0.09); src2.stop(now + 0.25);
+
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(180, now);
+    osc.frequency.exponentialRampToValueAtTime(80, now + 0.08);
+    const og = audioCtx.createGain();
+    og.gain.setValueAtTime(0.25, now);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+    osc.connect(og).connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.12);
+  }
+  function playFinaleSound(){
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    // 상승 whoosh
+    const sr = audioCtx.sampleRate;
+    const len = Math.floor(sr * 1.2);
+    const buf = audioCtx.createBuffer(1, len, sr);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      d[i] = (Math.random()*2 - 1) * Math.pow(i/len, 1.5) * 0.7;
+    }
+    const src = audioCtx.createBufferSource();
+    src.buffer = buf;
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(200, now);
+    bp.frequency.exponentialRampToValueAtTime(4000, now + 1.0);
+    bp.Q.value = 2;
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.25, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+    src.connect(bp).connect(g).connect(audioCtx.destination);
+    src.start(now); src.stop(now + 1.3);
+    // 찡 (고음 지속)
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(110, now + 0.1);
+    osc.frequency.exponentialRampToValueAtTime(880, now + 1.0);
+    const og = audioCtx.createGain();
+    og.gain.setValueAtTime(0, now + 0.1);
+    og.gain.linearRampToValueAtTime(0.12, now + 0.3);
+    og.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+    osc.connect(og).connect(audioCtx.destination);
+    osc.start(now + 0.1); osc.stop(now + 1.4);
+  }
+
+  function updateCounter(){
+    const remaining = Math.max(0, CLICK_GOAL - clickCount);
+    // 슬롯: 클릭한 순서대로 used 처리 (왼쪽부터)
+    counterSlots.forEach((slot, i) => {
+      slot.classList.toggle('used', i < clickCount);
+    });
+    counterText.textContent = String(remaining).padStart(2,'0') + ' LEFT';
+    if (remaining === 0) {
+      counterText.textContent = 'END';
+      counterText.style.color = '#ff3333';
+    } else if (remaining <= 1) {
+      counterText.style.color = '#ff9944';
+    } else {
+      counterText.style.color = 'rgba(255,255,255,0.7)';
+    }
+  }
+  updateCounter();
+
+  /* ── 피날레 포스터: 3D 공간의 블록들이 텍스트로 수렴 ── */
+  let finaleBlocks = [];
+  let finaleAnimStart = 0;
+  let finaleBgCanvas = null;
+  const FINALE_ANIM_DUR = 1600; // 수렴 애니 길이 (ms)
+  const FINALE_EXIT_DUR = 2200; // 역재생(분산) 길이 (ms) — 느리게 사라짐
+  let finalePhase = 'idle';     // 'converge' → 'settled' → 'explode' → 'idle'
+  let finalePhaseStart = 0;
+
+  // 원근 상수: 카메라 focal distance
+  const PERSP_FOCAL = 800;
+  function project(x, y, z, FW, FH){
+    // z > 0: 후방(멀어짐) / z < 0: 전방(가까움)
+    const scale = PERSP_FOCAL / (PERSP_FOCAL + z);
+    const px = FW/2 + (x - FW/2) * scale;
+    const py = FH/2 + (y - FH/2) * scale;
+    return { px, py, scale };
+  }
+
+  function buildFinale(){
+    const FW = window.innerWidth;
+    const FH = window.innerHeight;
+    finaleCv.width = FW;
+    finaleCv.height = FH;
+
+    // 정적 배경 — 블랙 + 메타
+    finaleBgCanvas = document.createElement('canvas');
+    finaleBgCanvas.width = FW; finaleBgCanvas.height = FH;
+    const bx = finaleBgCanvas.getContext('2d');
+    bx.fillStyle = '#000000';
+    bx.fillRect(0, 0, FW, FH);
+    bx.font = '12px "Share Tech Mono", monospace';
+    bx.textAlign = 'left';
+    bx.fillStyle = 'rgba(255,255,255,0.85)';
+    bx.fillText('27.04 21:00   SASHA ELAGE · VIEWFINDER', 28, FH - 48);
+    bx.fillText('A MAGICAL WORLD INSIDE THE VIEWFINDER', 28, FH - 32);
+    bx.textAlign = 'right';
+    bx.fillStyle = 'rgba(255,255,255,0.7)';
+    bx.fillText('[EYESMAG · 2026]', FW - 28, 32);
+
+    finaleBlocks = [];
+    collectTextBlocks('뷰파인더 속',    FW * 0.5, FH * 0.33, FW * 0.84, FH * 0.19, FW, FH);
+    collectTextBlocks('마법 같은 세상', FW * 0.5, FH * 0.58, FW * 0.84, FH * 0.19, FW, FH);
+
+    finaleAnimStart = performance.now();
+    finalePhase = 'converge';
+    finalePhaseStart = finaleAnimStart;
+    if (!finaleRafId) {
+      finaleRafId = requestAnimationFrame(finaleFrame);
+    }
+  }
+
+  function collectTextBlocks(text, cx, cy, maxW, maxH, FW, FH){
+    const off = document.createElement('canvas');
+    off.width  = Math.round(maxW);
+    off.height = Math.round(maxH);
+    const ox = off.getContext('2d');
+    ox.fillStyle = '#000';
+    ox.fillRect(0, 0, off.width, off.height);
+
+    let fontSize = Math.round(maxH * 0.92);
+    ox.font = `900 ${fontSize}px 'Pretendard Variable','Noto Sans KR','Apple SD Gothic Neo',sans-serif`;
+    let m = ox.measureText(text);
+    while (m.width > off.width * 0.96 && fontSize > 30) {
+      fontSize -= 6;
+      ox.font = `900 ${fontSize}px 'Pretendard Variable','Noto Sans KR','Apple SD Gothic Neo',sans-serif`;
+      m = ox.measureText(text);
+    }
+    ox.textAlign = 'center';
+    ox.textBaseline = 'middle';
+    ox.fillStyle = '#fff';
+    ox.fillText(text, off.width/2, off.height/2);
+    const imgd = ox.getImageData(0, 0, off.width, off.height).data;
+
+    const grid = Math.max(4, Math.round(fontSize * 0.055));
+    function coverageAt(gx, gy, gw, gh){
+      let white = 0, total = 0;
+      for (let y = gy; y < gy + gh; y += 2) {
+        for (let x = gx; x < gx + gw; x += 2) {
+          if (x < 0 || x >= off.width || y < 0 || y >= off.height) continue;
+          const i = (y * off.width + x) * 4;
+          if (imgd[i] > 180) white++;
+          total++;
+        }
+      }
+      return total > 0 ? white / total : 0;
+    }
+
+    const startX = cx - maxW / 2;
+    const startY = cy - maxH / 2;
+
+    for (let gy = 0; gy < off.height; gy += grid) {
+      for (let gx = 0; gx < off.width; gx += grid) {
+        const cov = coverageAt(gx, gy, grid, grid);
+        if (cov < 0.18) continue;
+        if (Math.random() < 0.05) continue;
+
+        // 목표 크기 (살짝 stretch)
+        const stretchRoll = Math.random();
+        let stretchX = 1, stretchY = 1;
+        if (stretchRoll < 0.10) stretchX = 1 + Math.random() * 0.5;
+        else if (stretchRoll < 0.15) stretchY = 1 + Math.random() * 0.5;
+
+        const bw = grid * stretchX + 0.5;
+        const bh = grid * stretchY + 0.5;
+        const tx = startX + gx + (Math.random()-0.5);
+        const ty = startY + gy + (Math.random()-0.5);
+
+        // 시작: 화면 전체에 극좌표 분산 + z축 깊이
+        const ang = Math.random() * Math.PI * 2;
+        const dist = Math.max(FW, FH) * (0.35 + Math.random() * 0.7);
+        const sx = FW/2 + Math.cos(ang) * dist;
+        const sy = FH/2 + Math.sin(ang) * dist;
+        // z: 시작은 전방~후방에 랜덤. 목표는 z=0 평면에 수렴
+        // -300(앞) ~ +600(뒤)
+        const sz = -300 + Math.random() * 900;
+
+        // 딜레이 staggered
+        const delayBase = (gy / off.height) * 0.35 + Math.random() * 0.25;
+
+        // 미세 호흡용 고유 phase
+        const breathPhase = Math.random() * Math.PI * 2;
+        const breathAmpX  = 0.4 + Math.random() * 1.2;
+        const breathAmpY  = 0.3 + Math.random() * 1.0;
+        const breathSpd   = 0.8 + Math.random() * 1.4;
+
+        // 글리치 튕김용 상태
+        const glitchPhase = Math.random() * Math.PI * 2;
+        // 각 블록은 독자 "튕김 주기" — 랜덤 초마다 한 번씩 튕김
+        const glitchPeriod = 4 + Math.random() * 8; // 초
+        const glitchOffset = Math.random() * glitchPeriod;
+
+        finaleBlocks.push({
+          sx, sy, sz, tx, ty, tz: 0,
+          w: bw, h: bh,
+          delay: delayBase,
+          breathPhase, breathAmpX, breathAmpY, breathSpd,
+          glitchPeriod, glitchOffset,
+          // exit 목표 — 새로 계산 (explode 시점에 덮어씀)
+          ex: sx, ey: sy, ez: sz,
+          exitDelay: 0,
+        });
+      }
+    }
+  }
+
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
+
+  let finaleRafId = null;
+  let finaleExitDone = null; // 종료 콜백
+
+  function startFinaleExit(onDone){
+    // 현재 정착 위치(목표)에서 새 분산 위치로 퍼져나감
+    const FW = finaleCv.width;
+    const FH = finaleCv.height;
+    for (const b of finaleBlocks) {
+      const ang = Math.random() * Math.PI * 2;
+      const dist = Math.max(FW, FH) * (0.4 + Math.random() * 0.8);
+      b.ex = FW/2 + Math.cos(ang) * dist;
+      b.ey = FH/2 + Math.sin(ang) * dist;
+      b.ez = -400 + Math.random() * 1000; // 전후방으로 튐
+      b.exitDelay = Math.random() * 0.35; // 0~35% 딜레이로 staggered
+    }
+    finalePhase = 'explode';
+    finalePhaseStart = performance.now();
+    finaleExitDone = onDone || null;
+  }
+
+  function finaleFrame(now){
+    if (!finaleOn && finalePhase === 'idle') { finaleRafId = null; return; }
+    const FW = finaleCv.width;
+    const FH = finaleCv.height;
+    const fx = finaleCtx;
+
+    if (finaleBgCanvas) fx.drawImage(finaleBgCanvas, 0, 0);
+    else { fx.fillStyle = '#000'; fx.fillRect(0, 0, FW, FH); }
+
+    const tSec = now * 0.001;
+    const renderList = [];
+
+    // phase 별 진행도
+    if (finalePhase === 'converge' || finalePhase === 'settled') {
+      const elapsed = now - finaleAnimStart;
+      const total = FINALE_ANIM_DUR;
+      // 수렴 완료 판정
+      if (finalePhase === 'converge' && elapsed >= total) {
+        finalePhase = 'settled';
+      }
+
+      for (const b of finaleBlocks) {
+        const tNorm = elapsed / total;
+        const localT = Math.max(0, Math.min(1, (tNorm - b.delay) / (1 - b.delay * 0.5)));
+        const e = easeOutCubic(localT);
+
+        let wx = b.sx + (b.tx - b.sx) * e;
+        let wy = b.sy + (b.ty - b.sy) * e;
+        let wz = b.sz + (b.tz - b.sz) * e;
+
+        let ghostX = 0, glitchActive = 0;
+        if (localT >= 1) {
+          wx += Math.sin(tSec * b.breathSpd + b.breathPhase) * b.breathAmpX;
+          wy += Math.cos(tSec * b.breathSpd * 0.8 + b.breathPhase * 1.3) * b.breathAmpY;
+          const phase = ((tSec + b.glitchOffset) % b.glitchPeriod) / b.glitchPeriod;
+          if (phase < 0.05) {
+            const gp = phase / 0.05;
+            glitchActive = Math.sin(gp * Math.PI);
+            ghostX = glitchActive * (Math.random() < 0.5 ? -14 : 14);
+            wx += glitchActive * ((Math.random() - 0.5) * 4);
+          }
+        }
+
+        const p = project(wx, wy, wz, FW, FH);
+        renderList.push({
+          x: p.px, y: p.py, w: b.w * p.scale, h: b.h * p.scale,
+          z: wz, alphaBase: 0.15 + 0.85 * localT, glitchActive, ghostX,
+        });
+      }
+    } else if (finalePhase === 'explode') {
+      const elapsed = now - finalePhaseStart;
+      const total = FINALE_EXIT_DUR;
+      const tNorm = elapsed / total;
+
+      for (const b of finaleBlocks) {
+        // staggered 분산: exitDelay 반영
+        const localT = Math.max(0, Math.min(1, (tNorm - b.exitDelay) / (1 - b.exitDelay * 0.5)));
+        // ease-in cubic — 처음엔 천천히, 끝에 빠르게 사라짐
+        const e = localT * localT * localT;
+
+        const wx = b.tx + (b.ex - b.tx) * e;
+        const wy = b.ty + (b.ey - b.ty) * e;
+        const wz = b.tz + (b.ez - b.tz) * e;
+
+        const p = project(wx, wy, wz, FW, FH);
+        renderList.push({
+          x: p.px, y: p.py, w: b.w * p.scale, h: b.h * p.scale,
+          z: wz, alphaBase: 1 - e, glitchActive: 0, ghostX: 0,
+        });
+      }
+
+      // 종료 판정
+      if (elapsed >= total + 100) {
+        finalePhase = 'idle';
+        if (finaleExitDone) { const cb = finaleExitDone; finaleExitDone = null; cb(); }
+        // 루프 종료
+        fx.clearRect(0, 0, FW, FH);
+        finaleRafId = null;
+        return;
+      }
+    }
+
+    // 후방 먼저
+    renderList.sort((a, b) => b.z - a.z);
+
+    for (const r of renderList) {
+      const depthBright = Math.max(0.18, Math.min(1, 1 - r.z * 0.0009));
+      const alpha = Math.min(1, r.alphaBase * (0.4 + depthBright * 0.6));
+
+      if (r.glitchActive > 0.05) {
+        fx.globalAlpha = alpha * 0.5;
+        fx.fillStyle = 'rgba(255,40,80,0.6)';
+        fx.fillRect(r.x + r.ghostX * 0.6, r.y, r.w, r.h);
+        fx.fillStyle = 'rgba(40,220,255,0.55)';
+        fx.fillRect(r.x - r.ghostX * 0.6, r.y, r.w, r.h);
+      }
+
+      fx.globalAlpha = alpha;
+      const bright = Math.round(200 + 55 * depthBright);
+      fx.fillStyle = `rgb(${bright},${bright},${bright})`;
+      fx.fillRect(r.x, r.y, r.w, r.h);
+    }
+    fx.globalAlpha = 1;
+
+    finaleRafId = requestAnimationFrame(finaleFrame);
+  }
+
+  /* 글리치 텍스트: 한글 폰트 마스크 기반.
+     각 글자를 격자 샘플링해서 커버리지 있는 칸을 사각 블록으로 치환.
+     단순 픽셀 복제가 아니라 블록을 수평/수직으로 랜덤하게 늘려 글리치 느낌.
+     글자는 알아볼 수 있으면서 깨진 듯한 텍스처.
+  */
+  function drawGlitchText(fx, FW, FH){
+    drawTextLineAsPanels(fx, '뷰파인더 속',     FW * 0.5, FH * 0.33, FW * 0.84, FH * 0.19);
+    drawTextLineAsPanels(fx, '마법 같은 세상', FW * 0.5, FH * 0.58, FW * 0.84, FH * 0.19);
+  }
+
+  function drawTextLineAsPanels(fx, text, cx, cy, maxW, maxH){
+    // 1) 고해상도 오프스크린에 글자 렌더
+    const off = document.createElement('canvas');
+    off.width  = Math.round(maxW);
+    off.height = Math.round(maxH);
+    const ox = off.getContext('2d');
+    ox.fillStyle = '#000';
+    ox.fillRect(0, 0, off.width, off.height);
+
+    // 폰트 크기 자동 맞춤
+    let fontSize = Math.round(maxH * 0.92);
+    ox.font = `900 ${fontSize}px 'Pretendard Variable','Noto Sans KR','Apple SD Gothic Neo',sans-serif`;
+    let m = ox.measureText(text);
+    while (m.width > off.width * 0.96 && fontSize > 30) {
+      fontSize -= 6;
+      ox.font = `900 ${fontSize}px 'Pretendard Variable','Noto Sans KR','Apple SD Gothic Neo',sans-serif`;
+      m = ox.measureText(text);
+    }
+    ox.textAlign = 'center';
+    ox.textBaseline = 'middle';
+    ox.fillStyle = '#fff';
+    ox.fillText(text, off.width/2, off.height/2);
+    const imgd = ox.getImageData(0, 0, off.width, off.height).data;
+
+    // 2) 격자 샘플링 — 조밀하게 (글자 선명도 우선)
+    const grid = Math.max(4, Math.round(fontSize * 0.055));
+    function coverageAt(gx, gy, gw, gh){
+      let white = 0, total = 0;
+      for (let y = gy; y < gy + gh; y += 2) {
+        for (let x = gx; x < gx + gw; x += 2) {
+          if (x < 0 || x >= off.width || y < 0 || y >= off.height) continue;
+          const i = (y * off.width + x) * 4;
+          if (imgd[i] > 180) white++;
+          total++;
+        }
+      }
+      return total > 0 ? white / total : 0;
+    }
+
+    // 3) 커버리지 셀 — 임계 낮춰 글자 충실 복원
+    const cells = [];
+    for (let gy = 0; gy < off.height; gy += grid) {
+      for (let gx = 0; gx < off.width; gx += grid) {
+        const cov = coverageAt(gx, gy, grid, grid);
+        if (cov > 0.18) cells.push({ gx, gy, cov });
+      }
+    }
+
+    const startX = cx - maxW / 2;
+    const startY = cy - maxH / 2;
+
+    // 4) 각 셀을 사각 블록 — 글리치는 아주 약하게, 가독성 우선
+    //    95% 밀도 — 5% 드롭만
+    cells.forEach(cell => {
+      if (Math.random() < 0.05) return;
+
+      // 가끔(15%) 수평/수직 살짝만 늘림, 나머지는 격자 그대로
+      const stretchRoll = Math.random();
+      let stretchX = 1, stretchY = 1;
+      if (stretchRoll < 0.10) {
+        stretchX = 1 + Math.random() * 0.5; // 최대 1.5배
+      } else if (stretchRoll < 0.15) {
+        stretchY = 1 + Math.random() * 0.5;
+      }
+
+      const bw = grid * stretchX;
+      const bh = grid * stretchY;
+      const px = startX + cell.gx;
+      const py = startY + cell.gy;
+
+      // 지터 거의 없음
+      const jx = (Math.random() - 0.5) * 1;
+      const jy = (Math.random() - 0.5) * 1;
+
+      fx.fillStyle = '#ffffff';
+      fx.fillRect(px + jx, py + jy, bw + 0.5, bh + 0.5);
+
+      // 글리치 고스트 — 드물게 (4%)만, 약하게
+      if (Math.random() < 0.04) {
+        const ox2 = (Math.random() - 0.5) * 12;
+        fx.fillStyle = 'rgba(255,255,255,0.35)';
+        fx.fillRect(px + ox2, py + jy, bw, bh * 0.35);
+      }
+    });
+  }
+
+  /* 피날레 톤 순환 애니메이션 — 피날레 진입 후 자동 전환 */
+  const FINALE_TONES = [
+    'none',
+    'hue-rotate(200deg) saturate(1.4) contrast(1.1)',              // 쿨 블루
+    'hue-rotate(300deg) saturate(1.6) brightness(1.05)',           // 마젠타
+    'sepia(0.85) hue-rotate(-18deg) saturate(1.4) contrast(1.15)', // 세피아
+    'hue-rotate(90deg) saturate(1.8) contrast(1.2) brightness(0.95)' // 하이콘 그린
+  ];
+  let finaleToneTimer = null;
+  function startFinaleToneLoop(){
+    stopFinaleToneLoop();
+    // 부드러운 전환을 위해 transition 지정
+    finaleCv.style.transition = 'filter 1.6s cubic-bezier(0.4, 0, 0.2, 1)';
+    let idx = 1; // 0=none 건너뛰고 컬러부터 시작
+    finaleCv.style.filter = FINALE_TONES[idx];
+    finaleToneTimer = setInterval(() => {
+      idx = (idx + 1) % FINALE_TONES.length;
+      if (idx === 0) idx = 1; // none 건너뛰기
+      finaleCv.style.filter = FINALE_TONES[idx];
+    }, 2400);
+  }
+  function stopFinaleToneLoop(){
+    if (finaleToneTimer) clearInterval(finaleToneTimer);
+    finaleToneTimer = null;
+    finaleCv.style.filter = 'none';
+  }
+
+  function triggerFinale(ts){
+    if (finaleOn) return;
+    finaleOn = true;
+    finaleStartTs = ts;
+    buildFinale();
+    finaleCv.classList.add('on');
+    playFinaleSound();
+    startFinaleToneLoop();
+  }
+
+  /* ── 클릭마다 바뀌는 톤 프리셋 (5단계) ──
+     0: 원본 / 1: 쿨블루 / 2: 마젠타 / 3: 세피아 / 4: 하이콘 그린
+     CSS filter로 모든 캔버스에 적용 (성능 가볍게)
+  */
+  const TONE_PRESETS = [
+    'none',
+    'hue-rotate(200deg) saturate(1.4) contrast(1.1)',         // 쿨 블루
+    'hue-rotate(300deg) saturate(1.6) brightness(1.05)',       // 마젠타/핑크
+    'sepia(0.85) hue-rotate(-18deg) saturate(1.4) contrast(1.15)', // 세피아→오렌지
+    'hue-rotate(90deg) saturate(1.8) contrast(1.2) brightness(0.95)', // 하이콘 그린
+  ];
+  function applyTone(idx){
+    const f = TONE_PRESETS[idx % TONE_PRESETS.length];
+    // 캔버스 3개 전부에 적용 (cv만 있으면 cv만)
+    cv.style.filter = f;
+    cv.style.transition = 'filter 0.4s ease';
+  }
+
+  /* ── 클릭 시 촬영 스냅샷 (피날레에 사용) ── */
+  const snapshots = []; // 각 클릭 시점의 cv 이미지 저장
+
+  function captureSnapshot(){
+    try {
+      const snap = document.createElement('canvas');
+      snap.width = W; snap.height = H;
+      const sx = snap.getContext('2d');
+      sx.drawImage(cv, 0, 0);
+      snapshots.push(snap);
+    } catch (e) {}
+  }
+
+  function resetToIntro(){
+    // 피날레 종료
+    finaleOn = false;
+    finaleCv.classList.remove('on');
+    stopFinaleToneLoop();
+    // 피날레 애니메이션 루프 정지
+    if (finaleRafId) { cancelAnimationFrame(finaleRafId); finaleRafId = null; }
+    finaleBlocks = [];
+    finalePhase = 'idle';
+    // 상태 초기화
+    introActive = true;
+    clickCount = 0;
+    snapshots.length = 0;
+    // 톤 리셋
+    cv.style.filter = 'none';
+    // 카운터 UI 리셋
+    updateCounter();
+    // 화면 비우기
+    ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // 피날레 → 인트로 전환: 블록들이 흩어지며 사라지는 exit 모션 후 리셋
+  function dismissFinale(){
+    if (finalePhase === 'explode') return; // 이미 진행 중
+    startFinaleExit(() => {
+      // exit 모션 끝난 뒤 페이드아웃 + 인트로 리셋
+      finaleCv.classList.remove('on');
+      stopFinaleToneLoop();
+      setTimeout(() => resetToIntro(), 900); // opacity transition 여유
+    });
+  }
+
+  stage.addEventListener('click',()=>{
+    ensureAudio();
+    playShutter();
+    flashT = 1.0;
+
+    if (finaleOn) {
+      // 피날레 상태 → 역재생 모션 후 인트로로 리셋
+      dismissFinale();
+      return;
+    }
+
+    if (introActive) {
+      // 첫 클릭: 인트로 종료, 말 이미지 첫 등장. 필름은 소비하지 않음.
+      introActive = false;
+      buildPanels(0);
+      triggerAll(performance.now());
+      return;
+    }
+
+    captureSnapshot();
+    clickCount++;
+    updateCounter();
+    applyTone(clickCount);
+    buildPanels(clickCount);
+    triggerAll(performance.now());
+    if (clickCount >= CLICK_GOAL) {
+      setTimeout(() => triggerFinale(performance.now()), 240);
+    }
+  });
+
+  /* ── 전환 ── */
+  const HOLD=3200, TRANS=1100;
+  let lastCycle=0;
+
+  function triggerAll(ts){
+    const sorted=[...panels].sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+    sorted.forEach((p,i)=>{
+      if(p.trans) return;
+      p.trans=true;
+      p.tStart=ts+i*65+Math.random()*140;
+      p.ni=(p.si+1)%p.seq.length;
+      p.t=0;
+      p.label=`${(Math.random()*9999)|0}`.padStart(4,'0');
+    });
+  }
+
+  function easeInOut(t){return t<.5?2*t*t:1-Math.pow(-2*t+2,2)/2;}
+
+  /* ── 패널에 오프스크린 그리기
+     패럴랙스: 패널마다 pFactor 다름 → 약간씩 다른 시점
+     하지만 zoom은 1.0 고정 → 말 형태 유지
+  ── */
+  function drawPanel(mode, alpha, p){
+    const oc = offscreens[mode];
+    if(!oc||alpha<=0) return;
+    // 전체 동일한 패럴랙스 — 말 위치가 모든 패널에서 일치
+    const ox = (mx-0.5)*18;
+    const oy = (my-0.5)*14;
+    ctx.globalAlpha = Math.max(0,Math.min(1,alpha));
+    ctx.drawImage(oc, ox, oy, W, H);
+    ctx.globalAlpha = 1;
+  }
+
+  /* ── 연결선 노드 ── */
+  const nodes = Array.from({length:16},()=>({
+    x:Math.random(), y:Math.random(),
+    vx:(Math.random()-.5)*.00025, vy:(Math.random()-.5)*.00025
+  }));
+  function updateNodes(){
+    nodes.forEach(n=>{
+      n.x+=n.vx; n.y+=n.vy;
+      if(n.x<0||n.x>1)n.vx*=-1;
+      if(n.y<0||n.y>1)n.vy*=-1;
+    });
+  }
+  function drawConnectors(){
+    ctx.save();
+    ctx.strokeStyle='rgba(255,255,255,0.12)';
+    ctx.lineWidth=0.4;
+    for(let i=0;i<nodes.length;i++){
+      for(let j=i+1;j<nodes.length;j++){
+        const dx=(nodes[i].x-nodes[j].x)*W;
+        const dy=(nodes[i].y-nodes[j].y)*H;
+        if(Math.sqrt(dx*dx+dy*dy)<W*.28){
+          ctx.beginPath();
+          ctx.moveTo(nodes[i].x*W,nodes[i].y*H);
+          ctx.lineTo(nodes[j].x*W,nodes[j].y*H);
+          ctx.stroke();
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  /* ── 메인 루프 ── */
+  function frame(ts){
+    requestAnimationFrame(frame);
+    ctx.clearRect(0,0,W,H);
+    // 배경 — 인트로 중이면 순수 블랙, 아니면 듀오톤 말 이미지 깔아둠
+    if (introActive) {
+      ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+    } else if (offscreens['duotone']) {
+      ctx.drawImage(offscreens['duotone'], 0, 0, W, H);
+    } else {
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+    }
+
+    if(!imgReady||Object.keys(offscreens).length<7) return;
+
+    // 인트로 상태: 뷰파인더 UI만 보여주고 패널 렌더 스킵
+    if (introActive) return;
+
+    /* 자동 루핑 */
+    if(ts-lastCycle>HOLD){ lastCycle=ts; triggerAll(ts); }
+
+    /* 전환 완료 */
+    panels.forEach(p=>{
+      if(p.trans&&ts-p.tStart>TRANS+150){
+        p.si=p.ni; p.trans=false; p.t=0;
+      }
+    });
+
+    updateNodes();
+
+    /* 렌더 — 큰 패널 먼저 */
+    const sorted=[...panels].sort((a,b)=>(b.w*b.h)-(a.w*a.h));
+
+    sorted.forEach(p=>{
+      const px=p.x*W, py=p.y*H, pw=p.w*W, ph=p.h*H;
+
+      ctx.save();
+      ctx.beginPath(); ctx.rect(px,py,pw,ph); ctx.clip();
+
+      /* 현재 모드 */
+      drawPanel(p.seq[p.si], 1, p);
+
+      /* 전환 */
+      if(p.trans){
+        const el=ts-p.tStart;
+        if(el>0){
+          p.t=easeInOut(Math.min(1,el/TRANS));
+          /* 플래시 */
+          if(p.t>.38&&p.t<.62){
+            const f=(0.5-Math.abs(p.t-.5))*2;
+            ctx.globalAlpha=f*.25; ctx.fillStyle='#fff'; ctx.fillRect(px,py,pw,ph); ctx.globalAlpha=1;
+          }
+          drawPanel(p.seq[p.ni], p.t, p);
+        }
+      }
+
+      /* 경계 — 모든 패널 */
+      ctx.strokeStyle='rgba(255,255,255,0.18)'; ctx.lineWidth=0.5;
+      ctx.strokeRect(px+.25,py+.25,pw-.5,ph-.5);
+
+      /* 데이터 레이블 */
+      if(p.showLabel){
+        ctx.font='7px "Share Tech Mono",monospace';
+        ctx.strokeStyle='rgba(255,255,255,0.5)';
+        ctx.lineWidth=0.5;
+        ctx.strokeRect(px+3,py+3,34,12);
+        ctx.fillStyle='rgba(255,255,255,0.6)';
+        ctx.fillText(p.label, px+7, py+12);
+      }
+
+      /* 호버 */
+      const isHov=panels.indexOf(p)===hoverIdx;
+      if(isHov) p.hoverT=Math.min(1,p.hoverT+0.1);
+      else       p.hoverT=Math.max(0,p.hoverT-.06);
+      if(p.hoverT>.01){
+        ctx.strokeStyle=`rgba(255,255,255,${p.hoverT*.5})`;
+        ctx.lineWidth=1;
+        ctx.strokeRect(px+.5,py+.5,pw-1,ph-1);
+      }
+
+      ctx.restore();
+    });
+
+    /* 연결선 오버레이 */
+    drawConnectors();
+
+    /* 비네트 */
+    const vg=ctx.createRadialGradient(W/2,H/2,H*.18,W/2,H/2,H*.78);
+    vg.addColorStop(0,'rgba(0,0,0,0)');
+    vg.addColorStop(1,'rgba(0,0,0,0.58)');
+    ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+
+    /* 카메라 플래시 */
+    if(flashT > 0){
+      // 순간 폭발 후 빠르게 감쇠
+      const decay = flashT > 0.7 ? flashT : flashT * flashT;
+      ctx.fillStyle = `rgba(255,255,255,${decay * 0.92})`;
+      ctx.fillRect(0,0,W,H);
+      flashT = Math.max(0, flashT - 0.07);
+    }
+  }
+
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
