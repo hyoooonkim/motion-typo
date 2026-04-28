@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사우나는 수동적 운동이다 — Day 010</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<link rel="stylesheet" as="style" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: #000; color: #fff;
+    font-family: 'Pretendard Variable', sans-serif;
+    cursor: none;
+  }
+
+  #thermal-canvas {
+    position: fixed; inset: 0; z-index: 1;
+    width: 100%; height: 100%;
+  }
+
+  #text-source {
+    position: fixed;
+    left: -99999px; top: -99999px;
+    pointer-events: none;
+  }
+
+  .ui {
+    position: fixed; z-index: 10;
+    color: rgba(255, 255, 255, 0.9);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    pointer-events: none;
+    text-shadow: 0 0 12px rgba(0, 0, 0, 0.9);
+    mix-blend-mode: difference;
+  }
+  .ui-tl { top: 24px; left: 24px; }
+  .ui-tr { top: 24px; right: 24px; text-align: right; }
+  .ui-bl { bottom: 24px; left: 24px; }
+  .ui-br {
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    text-align: center;
+  }
+  .ui-line { display: block; line-height: 1.6; opacity: 0.75; }
+  .ui-line.bright { opacity: 1; }
+
+  /* Large vertical thermometer — right side */
+  .thermo-vertical {
+    position: fixed;
+    right: 28px;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    pointer-events: none;
+    mix-blend-mode: normal;
+  }
+
+  .thermo-readout {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    font-family: 'Share Tech Mono', monospace;
+    color: #fff;
+    text-shadow: 0 0 18px rgba(0, 0, 0, 0.85), 0 0 4px rgba(0, 0, 0, 0.95);
+  }
+
+  .thermo-num {
+    font-size: clamp(60px, 7vw, 110px);
+    font-weight: 400;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .thermo-unit {
+    font-size: 13px;
+    letter-spacing: 0.15em;
+    margin-top: 4px;
+    opacity: 0.85;
+  }
+
+  .thermo-label {
+    font-size: 10px;
+    letter-spacing: 0.3em;
+    margin-top: 8px;
+    opacity: 0.7;
+  }
+
+  .thermo-track {
+    position: relative;
+    width: 18px;
+    height: clamp(280px, 50vh, 460px);
+    background: #000;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
+  }
+
+  /* Full color spectrum painted along the track */
+  .thermo-track::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      to top,
+      #050a24 0%,
+      #143ca0 12%,
+      #28a0d2 25%,
+      #5adc8c 42%,
+      #f0e646 58%,
+      #faa032 72%,
+      #f04638 85%,
+      #ff8cc8 95%,
+      #fff5e6 100%
+    );
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  /* Mask reveals the spectrum from bottom up to current temp */
+  .thermo-track.has-fill::before {
+    opacity: 1;
+    clip-path: var(--thermo-clip, inset(100% 0 0 0));
+  }
+
+  /* Tick marks on the track */
+  .thermo-ticks {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+  .thermo-tick {
+    position: absolute;
+    right: 0;
+    width: 6px;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.4);
+  }
+  .thermo-tick.major { width: 10px; background: rgba(255, 255, 255, 0.7); }
+
+  .thermo-tick-labels {
+    position: absolute;
+    right: 28px;
+    top: 0;
+    bottom: 0;
+    width: 32px;
+    pointer-events: none;
+  }
+  .thermo-tick-label {
+    position: absolute;
+    right: 0;
+    transform: translateY(50%);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.55);
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+    letter-spacing: 0.05em;
+  }
+
+  /* Indicator triangle pointing at current temp */
+  .thermo-indicator {
+    position: absolute;
+    right: 100%;
+    margin-right: 4px;
+    transform: translateY(50%);
+    width: 0; height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-right: 7px solid rgba(255, 255, 255, 0.95);
+    filter: drop-shadow(0 0 4px rgba(0, 0, 0, 0.9));
+    transition: bottom 0.15s ease;
+  }
+
+  /* Live monitor — bottom left */
+  .monitor {
+    position: fixed;
+    bottom: 32px;
+    left: 32px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    pointer-events: none;
+    font-family: 'Share Tech Mono', monospace;
+    color: #fff;
+  }
+
+  .monitor-header {
+    font-size: 10px;
+    letter-spacing: 0.32em;
+    color: rgba(255, 255, 255, 0.7);
+    text-shadow: 0 0 12px rgba(0, 0, 0, 0.9);
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.18);
+    width: 240px;
+  }
+
+  .monitor-stat {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    transition: opacity 0.3s ease, transform 0.3s ease;
+  }
+
+  .monitor-stat .stat-label {
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    color: rgba(255, 255, 255, 0.55);
+    width: 44px;
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+  }
+
+  .monitor-stat .stat-value {
+    font-size: 28px;
+    line-height: 1;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums;
+    color: #fff;
+    text-shadow: 0 0 18px rgba(0, 0, 0, 0.85), 0 0 4px rgba(0, 0, 0, 0.95);
+    transition: color 0.4s ease, text-shadow 0.4s ease, transform 0.15s ease;
+  }
+
+  .monitor-stat .stat-unit {
+    font-size: 10px;
+    letter-spacing: 0.2em;
+    color: rgba(255, 255, 255, 0.55);
+    text-shadow: 0 0 8px rgba(0, 0, 0, 0.9);
+  }
+
+  /* Heat-activated state: meta becomes hot-colored as temperature rises */
+  .monitor-stat.warm .stat-value { color: #f0e646; text-shadow: 0 0 18px rgba(0,0,0,0.85), 0 0 12px #f0e646; }
+  .monitor-stat.hot .stat-value  { color: #faa032; text-shadow: 0 0 18px rgba(0,0,0,0.85), 0 0 16px #faa032; }
+  .monitor-stat.crit .stat-value { color: #ff8cc8; text-shadow: 0 0 18px rgba(0,0,0,0.85), 0 0 24px #ff8cc8, 0 0 40px #f04638; }
+
+  /* Heart pulse — beats with HR */
+  .monitor-stat.hr .stat-value {
+    animation: pulse-beat 1s ease-in-out infinite;
+  }
+  @keyframes pulse-beat {
+    0%, 100% { transform: scale(1); }
+    8% { transform: scale(1.06); }
+    16% { transform: scale(1); }
+    24% { transform: scale(1.04); }
+    32% { transform: scale(1); }
+  }
+
+  /* Calorie tick — small flash on increment */
+  .monitor-stat.tick-flash .stat-value {
+    animation: tick 0.15s ease-out;
+  }
+  @keyframes tick {
+    0% { opacity: 1; }
+    50% { opacity: 0.55; }
+    100% { opacity: 1; }
+  }
+
+  .monitor-protocol {
+    font-size: 10px;
+    letter-spacing: 0.25em;
+    color: rgba(255, 255, 255, 0.55);
+    margin-top: 4px;
+    text-shadow: 0 0 12px rgba(0, 0, 0, 0.9);
+  }
+
+  .cursor {
+    position: fixed; z-index: 20;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    mix-blend-mode: difference;
+  }
+  .cursor::before {
+    content: '';
+    position: absolute; inset: -5px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .overheat {
+    position: fixed; top: 24px; left: 50%;
+    transform: translateX(-50%);
+    z-index: 9;
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 10px; letter-spacing: 0.3em;
+    color: #fff; opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    text-shadow: 0 0 20px #ff8cc8, 0 0 40px #f04638;
+  }
+  .overheat.active { opacity: 1; }
+  .overheat::before {
+    content: '◉'; display: inline-block; margin-right: 8px;
+    animation: blink 0.5s steps(2) infinite;
+  }
+  @keyframes blink { to { opacity: 0; } }
+</style>
+</head>
+<body>
+
+<canvas id="thermal-canvas"></canvas>
+<canvas id="text-source"></canvas>
+
+<div class="ui ui-tl">
+  <span class="ui-line bright">010 · SAUNA · PASSIVE MOTION</span>
+  <span class="ui-line"><span style="color:#ff3838">●</span> REC &nbsp;&nbsp;THERMAL IR MODE</span>
+</div>
+
+<div class="ui ui-tr">
+  <span class="ui-line">EYESMAG · 2026.04.29</span>
+  <span class="ui-line">SENSOR / V1-II</span>
+</div>
+
+<!-- Live monitor (bottom left) — values intensify with temperature -->
+<div class="monitor">
+  <div class="monitor-header">VITALS / SESSION</div>
+  <div class="monitor-stat hr" id="stat-hr">
+    <span class="stat-label">HR</span>
+    <span class="stat-value" id="hr-value">72</span>
+    <span class="stat-unit">BPM</span>
+  </div>
+  <div class="monitor-stat" id="stat-kcal">
+    <span class="stat-label">KCAL</span>
+    <span class="stat-value" id="kcal-value">0</span>
+    <span class="stat-unit">CAL</span>
+  </div>
+  <div class="monitor-stat" id="stat-min">
+    <span class="stat-label">TIME</span>
+    <span class="stat-value" id="min-value">00:00</span>
+    <span class="stat-unit">MIN</span>
+  </div>
+  <div class="monitor-protocol">PASSIVE EXERCISE PROTOCOL</div>
+</div>
+
+<div class="ui ui-br">
+  <span class="ui-line">— MOVE UP TO HEAT &nbsp;·&nbsp; DOWN TO COOL —</span>
+</div>
+
+<!-- Large vertical thermometer (right side) -->
+<div class="thermo-vertical">
+  <div class="thermo-tick-labels" id="thermo-tick-labels"></div>
+  <div class="thermo-track has-fill" id="thermo-track">
+    <div class="thermo-ticks" id="thermo-ticks"></div>
+    <div class="thermo-indicator" id="thermo-indicator"></div>
+  </div>
+  <div class="thermo-readout">
+    <div class="thermo-num"><span id="temp-value">32</span></div>
+    <div class="thermo-unit">°C</div>
+    <div class="thermo-label" id="thermo-label">COLD</div>
+  </div>
+</div>
+
+<div class="overheat" id="overheat">CRITICAL — BODY DIET MODE</div>
+<div class="cursor" id="cursor"></div>
+
+<script>
+const thermalCanvas = document.getElementById('thermal-canvas');
+const textCanvas = document.getElementById('text-source');
+const tctx = textCanvas.getContext('2d');
+
+const gl = thermalCanvas.getContext('webgl', { antialias: false, premultipliedAlpha: false });
+
+const MAIN_TEXT = '사우나는';
+const SUB_TEXT = '수동적 운동이다';
+
+const VERT = `
+attribute vec2 a_pos;
+varying vec2 v_uv;
+void main() {
+  v_uv = a_pos * 0.5 + 0.5;
+  gl_Position = vec4(a_pos, 0.0, 1.0);
+}`;
+
+const FRAG = `
+precision highp float;
+varying vec2 v_uv;
+uniform vec2 u_resolution;
+uniform vec2 u_mouse;
+uniform float u_temp;
+uniform float u_time;
+uniform float u_overheat;
+uniform sampler2D u_textTex;
+uniform sampler2D u_heatTex;    // ping-pong에서 누적된 잔열 필드
+
+vec3 mod289(vec3 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec2 mod289(vec2 x){return x-floor(x*(1.0/289.0))*289.0;}
+vec3 permute(vec3 x){return mod289(((x*34.0)+1.0)*x);}
+float snoise(vec2 v){
+  const vec4 C = vec4(0.211324865405187,0.366025403784439,-0.577350269189626,0.024390243902439);
+  vec2 i = floor(v + dot(v, C.yy));
+  vec2 x0 = v - i + dot(i, C.xx);
+  vec2 i1 = (x0.x > x0.y) ? vec2(1.0,0.0) : vec2(0.0,1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod289(i);
+  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+  m = m*m; m = m*m;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+  vec3 g;
+  g.x = a0.x * x0.x + h.x * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+vec3 thermalRamp(float t) {
+  t = clamp(t, 0.0, 1.0);
+  vec3 c;
+  if (t < 0.10) {
+    c = mix(vec3(0.020, 0.035, 0.18), vec3(0.078, 0.235, 0.627), t / 0.10);
+  } else if (t < 0.25) {
+    c = mix(vec3(0.078, 0.235, 0.627), vec3(0.157, 0.627, 0.824), (t - 0.10) / 0.15);
+  } else if (t < 0.42) {
+    c = mix(vec3(0.157, 0.627, 0.824), vec3(0.353, 0.863, 0.549), (t - 0.25) / 0.17);
+  } else if (t < 0.58) {
+    c = mix(vec3(0.353, 0.863, 0.549), vec3(0.941, 0.902, 0.275), (t - 0.42) / 0.16);
+  } else if (t < 0.72) {
+    c = mix(vec3(0.941, 0.902, 0.275), vec3(0.980, 0.627, 0.196), (t - 0.58) / 0.14);
+  } else if (t < 0.85) {
+    c = mix(vec3(0.980, 0.627, 0.196), vec3(0.941, 0.275, 0.220), (t - 0.72) / 0.13);
+  } else if (t < 0.95) {
+    c = mix(vec3(0.941, 0.275, 0.220), vec3(1.0, 0.549, 0.784), (t - 0.85) / 0.10);
+  } else {
+    c = mix(vec3(1.0, 0.549, 0.784), vec3(1.0, 0.961, 0.902), (t - 0.95) / 0.05);
+  }
+  return c;
+}
+
+void main() {
+  vec2 uv = v_uv;
+  vec2 aspectUv = uv;
+  aspectUv.x *= u_resolution.x / u_resolution.y;
+
+  // 1. Ambient sauna heat
+  float ambient = u_temp * 0.42;
+  ambient += uv.y * u_temp * 0.22; // hot rises
+
+  // 2. 잔열 필드(FBO 누적)에서 읽음 — 텍스트/마우스 열이 시간에 따라 확산·감쇠
+  float residualHeat = texture2D(u_heatTex, uv).r;
+
+  // 3. 텍스트 코어는 여전히 직접 샘플링 (sharp edge 유지)
+  float textCore = texture2D(u_textTex, uv).r;
+
+  // 4. Convection — distorts the heat field, drifts upward
+  vec2 noiseUv = uv * vec2(3.0, 5.0);
+  noiseUv.y -= u_time * 0.08;
+  float n1 = snoise(noiseUv);
+  float n2 = snoise(uv * 7.0 + vec2(u_time * 0.04, u_time * 0.1));
+  float n3 = snoise(uv * 18.0 + vec2(-u_time * 0.06, u_time * 0.15));
+  float convection = n1 * 0.11 + n2 * 0.06 + n3 * 0.03;
+
+  // 5. Compose total heat field
+  float heat = ambient;
+  heat += residualHeat * (1.1 + u_temp * 0.5);   // 잔열이 핵심 신호
+  heat += textCore * (0.55 + u_temp * 0.45);     // 텍스트 본체는 항상 최고온
+  heat += convection * (0.16 + u_temp * 0.34);
+
+  // 텍스트는 최소 warm 유지
+  float minTextHeat = textCore * (0.32 + u_temp * 0.5);
+  heat = max(heat, minTextHeat);
+
+  // Vignette
+  float vignette = smoothstep(1.6, 0.5, length(uv - 0.5) * 1.5);
+  heat *= 0.78 + vignette * 0.22;
+
+  // Overheat — pushes everything toward white-hot
+  heat = mix(heat, heat * 1.25 + 0.15, u_overheat);
+
+  vec3 col = thermalRamp(heat);
+
+  // ===== Steam / fog layer =====
+  vec2 fogUv = uv * vec2(2.2, 1.4);
+  fogUv.y -= u_time * 0.045;
+  fogUv.x += sin(uv.y * 3.0 + u_time * 0.1) * 0.04;
+
+  float fog = snoise(fogUv * 1.4) * 0.5 + 0.5;
+  fog *= snoise(fogUv * 3.5 + vec2(11.0, u_time * 0.08)) * 0.5 + 0.7;
+  fog *= snoise(fogUv * 7.0 + vec2(-u_time * 0.06, 3.7)) * 0.3 + 0.85;
+  fog = pow(clamp(fog, 0.0, 1.0), 1.6);
+
+  float topBias = smoothstep(-0.1, 1.0, uv.y);
+  fog *= 0.4 + topBias * 0.8;
+
+  float fogAmount = smoothstep(0.25, 0.95, u_temp) * 0.55;
+  fogAmount += u_overheat * 0.4;
+  fog *= fogAmount;
+
+  vec3 fogColor = mix(vec3(0.85, 0.92, 1.0), vec3(1.0, 0.95, 0.88), u_temp);
+  col = mix(col, fogColor, clamp(fog, 0.0, 0.85));
+
+  // Scanline
+  float scan = sin(gl_FragCoord.y * 1.3) * 0.018;
+  col += scan;
+
+  // Grain
+  float grain = (fract(sin(dot(gl_FragCoord.xy + u_time * 0.3, vec2(12.9898, 78.233))) * 43758.5453) - 0.5) * 0.045;
+  col += grain;
+
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+// ===== Heat simulation fragment (ping-pong FBO) =====
+// 이전 heat 필드에서 9-tap 확산 + 감쇠 + 텍스트·마우스 열원 주입
+const SIM_FRAG = `
+precision highp float;
+varying vec2 v_uv;
+uniform vec2 u_simRes;        // FBO 해상도
+uniform sampler2D u_prevHeat; // 직전 프레임 heat
+uniform sampler2D u_textTex;  // 텍스트 소스 (항상 뜨거운 열원)
+uniform vec2 u_mouse;         // 0~1 화면 좌표 (mouse.y도 0~1)
+uniform float u_mouseHeat;    // 현재 마우스가 쏘는 열량 (온도 기반)
+uniform float u_dt;           // 델타 (sec)
+uniform float u_temp;         // 전체 온도 (ambient 주입용)
+
+void main() {
+  vec2 uv = v_uv;
+  vec2 texel = 1.0 / u_simRes;
+
+  // 9-tap 가우시안 샘플 (3x3)
+  float c = texture2D(u_prevHeat, uv).r;
+  float n  = texture2D(u_prevHeat, uv + vec2(0.0,  texel.y)).r;
+  float s  = texture2D(u_prevHeat, uv + vec2(0.0, -texel.y)).r;
+  float e  = texture2D(u_prevHeat, uv + vec2( texel.x, 0.0)).r;
+  float w_ = texture2D(u_prevHeat, uv + vec2(-texel.x, 0.0)).r;
+  float ne = texture2D(u_prevHeat, uv + vec2( texel.x,  texel.y)).r;
+  float nw = texture2D(u_prevHeat, uv + vec2(-texel.x,  texel.y)).r;
+  float se = texture2D(u_prevHeat, uv + vec2( texel.x, -texel.y)).r;
+  float sw = texture2D(u_prevHeat, uv + vec2(-texel.x, -texel.y)).r;
+
+  // 확산 — 가중치 합 16, 중심 4, 상하좌우 2, 대각 1
+  float diffuse = (c * 4.0 + (n + s + e + w_) * 2.0 + (ne + nw + se + sw)) / 16.0;
+
+  // 약한 상승 대류: 위쪽 픽셀 비중을 약간 높여 상단으로 번짐
+  float upBias = texture2D(u_prevHeat, uv + vec2(0.0, texel.y * 1.5)).r;
+  diffuse = mix(diffuse, upBias, 0.08);
+
+  // 감쇠 (식음) — 0.985 per frame (~60fps 가정)
+  // dt 기반 frame-rate 독립: decay = pow(0.985, dt*60)
+  float decay = pow(0.985, u_dt * 60.0);
+  float heat = diffuse * decay;
+
+  // 주입 1: 텍스트 텍스처 — 항상 열을 쏘는 원본
+  //   텍스트 영역은 u_temp에 따라 더 강하게 달궈짐
+  float textHeat = texture2D(u_textTex, uv).r;
+  // 텍스트 위치는 고온 유지 — max로 꽂음
+  float textSource = textHeat * (0.55 + u_temp * 0.45);
+  heat = max(heat, textSource);
+
+  // 주입 2: 마우스 위치 근처에 열 소스
+  //   u_mouse는 0~1, 반경 0.08 (화면 비율 대비)
+  vec2 mouseUv = vec2(u_mouse.x, 1.0 - u_mouse.y); // y flip
+  float md = length((uv - mouseUv) * vec2(u_simRes.x / u_simRes.y, 1.0));
+  float finger = exp(-md * 18.0) * u_mouseHeat;
+  heat += finger;
+
+  // 주입 3: 약한 ambient (상단 바이어스) — 온도에 비례
+  //   잔열이 전혀 없어도 최소 차가운 정도는 유지
+  float ambientAdd = u_temp * 0.12 * (0.4 + uv.y * 0.6);
+  heat = max(heat, ambientAdd);
+
+  // 상한 (overflow 방지)
+  heat = clamp(heat, 0.0, 1.2);
+
+  gl_FragColor = vec4(heat, 0.0, 0.0, 1.0);
+}`;
+
+function compile(type, src) {
+  const s = gl.createShader(type);
+  gl.shaderSource(s, src);
+  gl.compileShader(s);
+  if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
+    console.error(gl.getShaderInfoLog(s));
+  }
+  return s;
+}
+
+const prog = gl.createProgram();
+gl.attachShader(prog, compile(gl.VERTEX_SHADER, VERT));
+gl.attachShader(prog, compile(gl.FRAGMENT_SHADER, FRAG));
+gl.linkProgram(prog);
+
+// ===== sim program (ping-pong heat simulation) =====
+const simProg = gl.createProgram();
+gl.attachShader(simProg, compile(gl.VERTEX_SHADER, VERT));
+gl.attachShader(simProg, compile(gl.FRAGMENT_SHADER, SIM_FRAG));
+gl.linkProgram(simProg);
+if (!gl.getProgramParameter(simProg, gl.LINK_STATUS)) {
+  console.error('sim link error:', gl.getProgramInfoLog(simProg));
+}
+
+// display program 활성화 (uniform location 잡기 전)
+gl.useProgram(prog);
+
+const buf = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(prog, 'a_pos');
+gl.enableVertexAttribArray(aPos);
+gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+const uRes = gl.getUniformLocation(prog, 'u_resolution');
+const uMouse = gl.getUniformLocation(prog, 'u_mouse');
+const uTemp = gl.getUniformLocation(prog, 'u_temp');
+const uTime = gl.getUniformLocation(prog, 'u_time');
+const uOverheat = gl.getUniformLocation(prog, 'u_overheat');
+const uTextTex = gl.getUniformLocation(prog, 'u_textTex');
+const uHeatTex = gl.getUniformLocation(prog, 'u_heatTex');
+
+// sim program uniform locations
+const simUSimRes    = gl.getUniformLocation(simProg, 'u_simRes');
+const simUPrevHeat  = gl.getUniformLocation(simProg, 'u_prevHeat');
+const simUTextTex   = gl.getUniformLocation(simProg, 'u_textTex');
+const simUMouse     = gl.getUniformLocation(simProg, 'u_mouse');
+const simUMouseHeat = gl.getUniformLocation(simProg, 'u_mouseHeat');
+const simUDt        = gl.getUniformLocation(simProg, 'u_dt');
+const simUTemp      = gl.getUniformLocation(simProg, 'u_temp');
+const simAPos       = gl.getAttribLocation(simProg, 'a_pos');
+
+// Text texture (unit 0)
+const textTexture = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, textTexture);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.uniform1i(uTextTex, 0);
+gl.uniform1i(uHeatTex, 1);
+
+// ===== ping-pong heat FBO (unit 1 on display, sim pass에선 prev를 1로 바인드) =====
+const HEAT_W = 256;
+let HEAT_H = 144; // 16:9 초기값, resize에서 재계산
+const heatTex = [gl.createTexture(), gl.createTexture()];
+const heatFbo = [gl.createFramebuffer(), gl.createFramebuffer()];
+for (let i = 0; i < 2; i++) {
+  gl.bindTexture(gl.TEXTURE_2D, heatTex[i]);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, HEAT_W, HEAT_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  gl.bindFramebuffer(gl.FRAMEBUFFER, heatFbo[i]);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, heatTex[i], 0);
+  const status = gl.checkFramebufferStatus(gl.FRAMEBUFFER);
+  if (status !== gl.FRAMEBUFFER_COMPLETE) console.error('FBO not complete:', status);
+}
+gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+let heatPing = 0; // 현재 읽을 FBO index
+
+function resizeHeatFBO() {
+  const aspect = window.innerHeight / window.innerWidth;
+  HEAT_H = Math.max(64, Math.round(HEAT_W * aspect));
+  for (let i = 0; i < 2; i++) {
+    gl.bindTexture(gl.TEXTURE_2D, heatTex[i]);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, HEAT_W, HEAT_H, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+  }
+}
+resizeHeatFBO();
+
+function renderTextToTexture(weight) {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  textCanvas.width = w;
+  textCanvas.height = h;
+
+  tctx.fillStyle = '#000';
+  tctx.fillRect(0, 0, w, h);
+
+  const baseFontSize = Math.min(w * 0.135, h * 0.18);
+  const subFontSize = baseFontSize * 0.42;
+
+  tctx.fillStyle = '#fff';
+  tctx.textAlign = 'center';
+  tctx.textBaseline = 'middle';
+
+  const fontWeight = Math.round(Math.max(100, Math.min(900, weight)));
+  const tracking = ((900 - fontWeight) / 800) * 0.06 - 0.04;
+
+  tctx.font = `${fontWeight} ${baseFontSize}px "Pretendard Variable", sans-serif`;
+  if ('letterSpacing' in tctx) tctx.letterSpacing = `${tracking}em`;
+
+  // Shift text slightly left to balance the right-side thermometer
+  const cx = w / 2 - Math.min(w * 0.06, 90);
+  const cy = h / 2;
+  tctx.fillText(MAIN_TEXT, cx, cy - baseFontSize * 0.32);
+
+  tctx.font = `${fontWeight} ${subFontSize}px "Pretendard Variable", sans-serif`;
+  tctx.fillText(SUB_TEXT, cx, cy + baseFontSize * 0.55);
+
+  gl.bindTexture(gl.TEXTURE_2D, textTexture);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.LUMINANCE, gl.LUMINANCE, gl.UNSIGNED_BYTE, textCanvas);
+}
+
+let mouseX = 0.5, mouseY = 0.5;
+let targetMouseX = 0.5, targetMouseY = 0.5;
+let tempNorm = 0;
+let temp = 32;
+let overheat = 0;
+let dpr = Math.min(window.devicePixelRatio || 1, 2);
+let startTime = performance.now();
+let sessionStart = performance.now();
+let currentWeight = 900;
+
+function resize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  thermalCanvas.width = w * dpr;
+  thermalCanvas.height = h * dpr;
+  thermalCanvas.style.width = w + 'px';
+  thermalCanvas.style.height = h + 'px';
+  gl.viewport(0, 0, thermalCanvas.width, thermalCanvas.height);
+  renderTextToTexture(currentWeight);
+  resizeHeatFBO();
+}
+
+// Wait for fonts before first render so glyph shapes are correct
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => resize());
+} else {
+  setTimeout(resize, 200);
+}
+resize();
+
+window.addEventListener('resize', () => resize());
+
+const cursor = document.getElementById('cursor');
+window.addEventListener('mousemove', (e) => {
+  targetMouseX = e.clientX / window.innerWidth;
+  targetMouseY = 1 - e.clientY / window.innerHeight;
+  cursor.style.left = e.clientX + 'px';
+  cursor.style.top = e.clientY + 'px';
+});
+
+window.addEventListener('touchmove', (e) => {
+  if (e.touches[0]) {
+    targetMouseX = e.touches[0].clientX / window.innerWidth;
+    targetMouseY = 1 - e.touches[0].clientY / window.innerHeight;
+    cursor.style.left = e.touches[0].clientX + 'px';
+    cursor.style.top = e.touches[0].clientY + 'px';
+  }
+}, { passive: true });
+
+const tempValue = document.getElementById('temp-value');
+const thermoTrack = document.getElementById('thermo-track');
+const thermoIndicator = document.getElementById('thermo-indicator');
+const thermoLabel = document.getElementById('thermo-label');
+const thermoTicks = document.getElementById('thermo-ticks');
+const thermoTickLabels = document.getElementById('thermo-tick-labels');
+const hrValue = document.getElementById('hr-value');
+const kcalValue = document.getElementById('kcal-value');
+const minValue = document.getElementById('min-value');
+const overheatEl = document.getElementById('overheat');
+const statHr = document.getElementById('stat-hr');
+const statKcal = document.getElementById('stat-kcal');
+const statMin = document.getElementById('stat-min');
+const monitorStats = [statHr, statKcal, statMin];
+
+// Build tick marks once: 30, 40, 50, 60, 70, 80, 90, 100, 110
+const TEMP_MIN = 30, TEMP_MAX = 110;
+const tickStops = [30, 40, 50, 60, 70, 80, 90, 100, 110];
+tickStops.forEach((t) => {
+  const pct = ((t - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)) * 100;
+  const tick = document.createElement('div');
+  tick.className = 'thermo-tick' + (t % 20 === 0 || t === 100 ? ' major' : '');
+  tick.style.bottom = pct + '%';
+  thermoTicks.appendChild(tick);
+  if (t === 30 || t === 50 || t === 70 || t === 90 || t === 100 || t === 110) {
+    const label = document.createElement('div');
+    label.className = 'thermo-tick-label';
+    label.style.bottom = pct + '%';
+    label.textContent = t;
+    thermoTickLabels.appendChild(label);
+  }
+});
+
+function tempLabelFor(t) {
+  if (t < 40) return 'COLD';
+  if (t < 55) return 'COOL';
+  if (t < 70) return 'WARM';
+  if (t < 85) return 'HOT';
+  if (t < 100) return 'VERY HOT';
+  return 'CRITICAL';
+}
+
+function tierFor(t) {
+  if (t < 60) return null;
+  if (t < 80) return 'warm';
+  if (t < 100) return 'hot';
+  return 'crit';
+}
+
+function applyTier(el, tier) {
+  el.classList.remove('warm', 'hot', 'crit');
+  if (tier) el.classList.add(tier);
+}
+
+let lastKcalShown = 0;
+
+function updateUI() {
+  tempValue.textContent = Math.round(temp);
+
+  const pct = Math.max(0, Math.min(100, ((temp - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)) * 100));
+  thermoTrack.style.setProperty('--thermo-clip', `inset(${100 - pct}% 0 0 0)`);
+  thermoIndicator.style.bottom = pct + '%';
+  thermoLabel.textContent = tempLabelFor(temp);
+
+  // HR — base 72, climbs to ~145 at peak, with subtle wobble
+  const hrBase = 72 + Math.max(0, tempNorm) * 73 + Math.sin(performance.now() / 600) * 1.5;
+  const hrInt = Math.round(hrBase);
+  hrValue.textContent = hrInt;
+
+  // HR pulse speed = 60s / bpm
+  const beatDuration = 60 / hrInt;
+  hrValue.style.animationDuration = beatDuration.toFixed(2) + 's';
+
+  // KCAL — accumulates faster at high temp
+  const elapsed = (performance.now() - sessionStart) / 1000;
+  const kcal = Math.floor(elapsed * (0.5 + Math.max(0, tempNorm) * 4));
+  kcalValue.textContent = kcal;
+  if (kcal !== lastKcalShown) {
+    statKcal.classList.remove('tick-flash');
+    void statKcal.offsetWidth; // force reflow to restart animation
+    statKcal.classList.add('tick-flash');
+    lastKcalShown = kcal;
+  }
+
+  // Time
+  const m = Math.floor(elapsed / 60);
+  const s = Math.floor(elapsed % 60);
+  minValue.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+
+  // Apply heat tier color to all monitor stats simultaneously
+  const tier = tierFor(temp);
+  monitorStats.forEach(el => applyTier(el, tier));
+
+  if (overheat > 0.05) overheatEl.classList.add('active');
+  else overheatEl.classList.remove('active');
+}
+
+let lastWeight = 900;
+let lastFrameTime = performance.now();
+
+function loop(now) {
+  const time = (now - startTime) / 1000;
+  const dt = Math.min(0.05, (now - lastFrameTime) / 1000); // 최대 50ms 캡 (탭 전환 폭주 방지)
+  lastFrameTime = now;
+
+  mouseX += (targetMouseX - mouseX) * 0.08;
+  mouseY += (targetMouseY - mouseY) * 0.08;
+
+  const yNorm = mouseY;
+  if (yNorm > 0.95) {
+    const over = (yNorm - 0.95) / 0.05;
+    tempNorm = 1 + over * 0.25;
+    overheat += (over - overheat) * 0.05;
+  } else {
+    tempNorm = yNorm / 0.95;
+    overheat += (0 - overheat) * 0.04;
+  }
+
+  temp = 32 + tempNorm * 60;
+  if (overheat > 0) temp = 32 + tempNorm * 60 + overheat * 8;
+
+  const idleWobble = Math.sin(time * 0.7) * 0.5 + Math.sin(time * 1.9) * 0.2;
+  temp += idleWobble * 0.4 * tempNorm;
+
+  // Text diet — overheat shrinks weight
+  const targetWeight = 900 - overheat * 800;
+  currentWeight += (targetWeight - currentWeight) * 0.06;
+
+  if (Math.abs(currentWeight - lastWeight) > 4) {
+    renderTextToTexture(currentWeight);
+    lastWeight = currentWeight;
+  }
+
+  // ===== PASS 1: Heat Simulation =====
+  // prev heat FBO를 읽어 확산/감쇠/주입 → 다음 FBO에 기록
+  const readIdx = heatPing;
+  const writeIdx = 1 - heatPing;
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, heatFbo[writeIdx]);
+  gl.viewport(0, 0, HEAT_W, HEAT_H);
+  gl.useProgram(simProg);
+
+  // 같은 쿼드 vertex buffer 사용
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enableVertexAttribArray(simAPos);
+  gl.vertexAttribPointer(simAPos, 2, gl.FLOAT, false, 0, 0);
+
+  // prev heat → unit 1
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, heatTex[readIdx]);
+  gl.uniform1i(simUPrevHeat, 1);
+  // text → unit 0
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, textTexture);
+  gl.uniform1i(simUTextTex, 0);
+
+  gl.uniform2f(simUSimRes, HEAT_W, HEAT_H);
+  gl.uniform2f(simUMouse, mouseX, mouseY);
+  // 마우스 열량: 기본 약함 + 온도 영향
+  const mouseHeat = 0.12 + tempNorm * 0.22 + overheat * 0.3;
+  gl.uniform1f(simUMouseHeat, mouseHeat);
+  gl.uniform1f(simUDt, dt);
+  gl.uniform1f(simUTemp, Math.min(1.25, tempNorm));
+
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  // swap
+  heatPing = writeIdx;
+
+  // ===== PASS 2: Display =====
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, thermalCanvas.width, thermalCanvas.height);
+  gl.useProgram(prog);
+
+  gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+
+  // text → unit 0, heat → unit 1
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, textTexture);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, heatTex[heatPing]);
+
+  gl.uniform2f(uRes, thermalCanvas.width, thermalCanvas.height);
+  gl.uniform2f(uMouse, mouseX, mouseY);
+  gl.uniform1f(uTemp, Math.min(1.25, tempNorm));
+  gl.uniform1f(uTime, time);
+  gl.uniform1f(uOverheat, overheat);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+  updateUI();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>
