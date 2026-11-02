@@ -6,35 +6,33 @@
 <title>Day 261102 — 팝업 지옥에 구멍</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&family=Nanum+Gothic+Coding:wght@400;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root { --ink: #161513; --paper: #fbe824; --muted: #4a4416; --rule: #161513; --red: #b3241b; }
+  :root { --ink: #e4e4e0; --dim: #9a9a94; --muted: #6c6c68; --paper: #050505; --rule: rgba(255,255,255,0.32);
+    --green: #22ff4e; --red: #ff3030; --mono: 'IBM Plex Mono', 'Nanum Gothic Coding', monospace; }
   html, body { height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
-    font-family: 'Noto Serif KR', serif; -webkit-font-smoothing: antialiased; }
+    font-family: var(--mono); -webkit-font-smoothing: antialiased; }
   body { cursor: crosshair; user-select: none; }
   button { font: inherit; cursor: pointer; }
   [data-eat], .popup { will-change: transform; }
-  .eaten { visibility: hidden; }
-  .sans { font-family: 'Pretendard Variable', sans-serif; }
 
-  /* ───── 신문 1면 ───── */
-  .page { height: 100vh; max-width: 1280px; margin: 0 auto; padding: 1.4vh 2.4vw 1.6vh;
+  /* ───── 신문 1면 (코드 화면) ───── */
+  .page { height: 100vh; max-width: 1280px; margin: 0 auto; padding: 4.2vh 3.2vw 4.6vh;
     display: grid; grid-template-rows: auto auto auto minmax(0, 1.05fr) minmax(0, 1fr) auto; }
-
   .masthead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; }
-  .ear { border: 1px solid var(--rule); padding: 5px 9px; font-family: 'Pretendard Variable', sans-serif;
-    font-size: 10.5px; line-height: 1.45; font-weight: 600; justify-self: start; }
+  .ear { border: 1px solid var(--green); color: var(--green); padding: 5px 9px; font-size: 10px; line-height: 1.5; justify-self: start; }
   .ear.right { justify-self: end; text-align: right; }
-  .ear b { font-size: 13px; display: block; }
-  .logo { font-weight: 900; font-size: clamp(34px, 5.4vw, 74px); letter-spacing: -0.05em; line-height: 1; }
+  .ear b { font-size: 12px; display: block; }
+  .logo { font-weight: 700; font-size: clamp(28px, 4.4vw, 62px); letter-spacing: -0.04em; line-height: 1; }
+  .logo::after { content: '_'; color: var(--green); }
   .dateline { display: flex; justify-content: space-between; margin-top: 0.8vh; padding: 3px 0;
-    border-top: 1px solid var(--rule); border-bottom: 3px double var(--rule);
-    font-family: 'Pretendard Variable', sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
-  .banner { font-weight: 900; font-size: clamp(30px, 5.6vw, 82px); letter-spacing: -0.055em; line-height: 1.05;
-    text-align: center; padding: 0.8vh 0 1vh; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+    border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); font-size: 10px; color: var(--dim); }
+  .banner { font-weight: 700; font-size: clamp(24px, 4.4vw, 64px); letter-spacing: -0.05em; line-height: 1.1;
+    padding: 0.8vh 0 1vh; border-bottom: 1px solid var(--rule); white-space: nowrap; }
+  .banner::before { content: '> '; color: var(--green); }
 
   .row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); min-height: 0; border-bottom: 1px solid var(--rule); }
   .col { min-height: 0; padding: 1vh 0.9vw; border-left: 1px solid var(--rule); display: flex; flex-direction: column; gap: 0.7vh; }
@@ -42,8 +40,8 @@
   .col:last-child { padding-right: 0; }
   .span2 { grid-column: span 2; }
 
-  .photo { flex: 1; min-height: 0; position: relative; overflow: hidden; filter: grayscale(1) contrast(1.15); }
-  .photo::after { content: ''; position: absolute; inset: 0; mix-blend-mode: multiply; opacity: 0.55;
+  .photo { flex: 1; min-height: 0; position: relative; overflow: hidden; filter: grayscale(1) contrast(1.2) brightness(0.8); }
+  .photo::after { content: ''; position: absolute; inset: 0; mix-blend-mode: multiply; opacity: 0.6;
     background: radial-gradient(circle, #000 0.7px, transparent 1.1px) 0 0 / 3px 3px; }
   .ph-street { background:
       radial-gradient(ellipse 30% 9% at 50% 72%, #000 60%, #222 75%, transparent 78%),
@@ -54,65 +52,87 @@
       radial-gradient(ellipse 22% 8% at 45% 78%, #000 60%, transparent 66%),
       repeating-linear-gradient(-12deg, #111 0 10px, #e8e2c8 10px 20px) 0 62% / 100% 7px no-repeat,
       linear-gradient(#c9c6bf, #7d7a74); }
-  .ph-line::before { content: ''; position: absolute; left: 12%; right: 12%; bottom: 30%; height: 38%;
-    background: radial-gradient(ellipse 6% 50% at 10% 100%, #2a2a2a 98%, transparent) ,
-      radial-gradient(ellipse 6% 46% at 30% 100%, #333 98%, transparent),
-      radial-gradient(ellipse 6% 52% at 72% 100%, #262626 98%, transparent),
-      radial-gradient(ellipse 6% 44% at 90% 100%, #3a3a3a 98%, transparent); }
   .ph-top { background: radial-gradient(circle at 50% 50%, #000 9%, #3d3d3d 11%, transparent 13%),
       radial-gradient(circle at 30% 30%, #9a9a9a 0 7%, transparent 7.5%),
       radial-gradient(circle at 74% 64%, #8a8a8a 0 5%, transparent 5.5%),
-      radial-gradient(circle at 60% 24%, #a5a5a5 0 4%, transparent 4.5%),
       radial-gradient(circle, #c4c4c4 0 46%, #7a7a7a 47%, #1b1b1b 48%); }
-  .ph-top::before { content: ''; position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1;
-    transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; z-index: 1; }
 
-  .caption { font-family: 'Pretendard Variable', sans-serif; font-size: 10px; line-height: 1.45; }
-  .caption b { font-weight: 800; letter-spacing: 0.02em; }
-  .credit { font-family: 'Pretendard Variable', sans-serif; font-size: 8.5px; color: var(--muted); text-align: right; }
+  /* 탐지 박스 · 라벨 */
+  .shot { flex: 1; min-height: 0; position: relative; display: flex; }
+  .scan { position: absolute; border: 2px solid var(--green); box-shadow: 0 0 6px rgba(34,255,78,0.7); pointer-events: none; }
+  .scan.dash { border-style: dashed; box-shadow: none; }
+  .lbl { position: absolute; font-size: 11px; color: var(--green); text-shadow: 0 0 6px rgba(34,255,78,0.8); white-space: nowrap; }
+  .lbl.red { color: var(--red); text-shadow: 0 0 6px rgba(255,48,48,0.8); }
+  .tagbar { background: var(--green); color: #031a07; font-size: 10px; font-weight: 700; padding: 2px 6px; letter-spacing: 0.04em; align-self: flex-start; }
 
-  h2.hed { font-weight: 900; font-size: clamp(17px, 1.75vw, 26px); line-height: 1.18; letter-spacing: -0.04em; }
-  h2.hed.big { font-size: clamp(22px, 2.6vw, 38px); }
-  h2.hed.it { font-style: italic; font-weight: 700; }
-  h3.sub { font-weight: 900; font-size: 13px; letter-spacing: -0.02em; }
-  .by { font-family: 'Pretendard Variable', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
-  .text { flex: 1; min-height: 0; overflow: hidden; font-size: 11px; line-height: 1.55; text-align: justify; word-break: keep-all; color: #2a2825; }
-  .text.c2 { columns: 2; column-gap: 1vw; column-rule: 1px solid rgba(0,0,0,0.28); }
-  .text p + p { text-indent: 1em; }
-  .cont { font-family: 'Pretendard Variable', sans-serif; font-size: 9.5px; font-weight: 700; text-align: right; }
-  .brief { border-bottom: 1px solid rgba(0,0,0,0.28); padding-bottom: 0.6vh; }
-  .brief h4 { font-weight: 900; font-size: 12.5px; letter-spacing: -0.03em; margin-bottom: 2px; }
-  .brief p { font-size: 10.5px; line-height: 1.5; color: #2a2825; }
-  .box-hed { font-weight: 900; font-size: clamp(20px, 2vw, 30px); line-height: 1; letter-spacing: -0.05em; border-bottom: 3px solid var(--rule); padding-bottom: 4px; }
+  .caption { font-size: 10px; line-height: 1.5; color: var(--dim); }
+  .caption b { color: var(--ink); }
+  .credit { font-size: 9px; color: var(--muted); text-align: right; }
+  h2.hed { font-weight: 700; font-size: clamp(15px, 1.5vw, 22px); line-height: 1.25; letter-spacing: -0.04em; }
+  h2.hed.big { font-size: clamp(18px, 2.1vw, 30px); }
+  h2.hed.it::before { content: '// '; color: var(--green); }
+  .by { font-size: 9px; color: var(--green); letter-spacing: 0.04em; }
+  .by::before { content: '@'; }
+  .text { flex: 1; min-height: 0; overflow: hidden; font-size: 10.5px; line-height: 1.6; color: #b9b9b4; word-break: keep-all; }
+  .text.c2 { columns: 2; column-gap: 1vw; column-rule: 1px solid rgba(255,255,255,0.14); }
+  .text p { margin-bottom: 0.5em; }
+  .text b { color: var(--green); font-weight: 400; }
+  .cont { font-size: 9.5px; color: var(--green); text-align: right; }
+  .brief { border-bottom: 1px dashed rgba(255,255,255,0.2); padding-bottom: 0.6vh; }
+  .brief h4 { font-weight: 700; font-size: 11.5px; letter-spacing: -0.03em; margin-bottom: 2px; }
+  .brief h4::before { content: '[!] '; color: var(--red); }
+  .brief p { font-size: 10px; line-height: 1.5; color: #a5a5a0; }
+  .box-hed { font-weight: 700; font-size: clamp(16px, 1.7vw, 24px); line-height: 1.1; letter-spacing: -0.05em; border-bottom: 2px solid var(--green); padding-bottom: 4px; }
 
-  .bottom { display: grid; grid-template-columns: 4fr 2fr; gap: 0; padding-top: 0.9vh; }
+  .bottom { display: grid; grid-template-columns: 4fr 2fr; padding-top: 0.9vh; }
   .bottom .left { padding-right: 1vw; }
-  .bottom .bh { font-weight: 900; font-size: clamp(18px, 2.1vw, 30px); letter-spacing: -0.05em; text-align: center; margin-bottom: 0.5vh; }
+  .bottom .bh { font-weight: 700; font-size: clamp(15px, 1.7vw, 24px); letter-spacing: -0.05em; margin-bottom: 0.5vh; }
+  .bottom .bh::before { content: '$ '; color: var(--green); }
   .bottom .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1vw; }
-  .bottom .pair h3 { font-size: 13.5px; font-weight: 900; letter-spacing: -0.03em; }
-  .index { border-left: 1px solid var(--rule); padding-left: 1vw; font-family: 'Pretendard Variable', sans-serif; }
-  .index h4 { font-size: 11px; font-weight: 800; border-bottom: 2px solid var(--rule); padding-bottom: 3px; margin-bottom: 4px; }
-  .index ul { list-style: none; columns: 2; column-gap: 1vw; font-size: 10px; line-height: 1.6; }
-  .index li { display: flex; justify-content: space-between; border-bottom: 1px dotted rgba(0,0,0,0.45); }
+  .bottom .pair h3 { font-size: 12px; font-weight: 700; letter-spacing: -0.03em; }
+  .index { border-left: 1px solid var(--rule); padding-left: 1vw; }
+  .index h4 { font-size: 10.5px; color: var(--green); border-bottom: 1px solid var(--green); padding-bottom: 3px; margin-bottom: 4px; }
+  .index ul { list-style: none; columns: 2; column-gap: 1vw; font-size: 9.5px; line-height: 1.7; color: var(--dim); }
+  .index li { display: flex; justify-content: space-between; border-bottom: 1px dotted rgba(255,255,255,0.2); }
 
-  /* ───── 팝업들 ───── */
-  .popup { position: fixed; z-index: 35; background: #fff; color: var(--ink); border-radius: 10px;
-    box-shadow: 0 10px 40px rgba(0,0,0,0.22); font-size: 14px; padding: 16px 18px;
-    animation: popin 0.35s cubic-bezier(.34,1.56,.64,1) both; }
-  @keyframes popin { from { opacity: 0; transform: scale(0.6); } }
-  .popup .x { position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 18px; color: #999; line-height: 1; }
-  .popup h4 { font-size: 16px; margin-bottom: 6px; letter-spacing: -0.02em; }
-  .popup .btns { display: flex; gap: 8px; margin-top: 12px; }
-  .popup .btns button { flex: 1; border: 0; border-radius: 6px; padding: 9px 10px; background: var(--ink); color: #fff; font-weight: 700; font-size: 13px; }
-  .popup .btns button + button { background: #eee; color: var(--ink); }
-  .popup.dark { background: #1b1b1b; color: #fff; }
-  .popup.video { padding: 0; overflow: hidden; width: 280px; }
-  .popup.video .screen { height: 158px; background: linear-gradient(120deg, #111, #333); display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px; }
-  .popup.video .screen span { background: rgba(0,0,0,0.7); color: #fff; font-size: 12px; padding: 5px 10px; border: 1px solid #666; }
-  .popup.bar { left: 0 !important; right: 0; border-radius: 0; display: flex; align-items: center; gap: 16px; justify-content: center; }
+  /* 화면 HUD (빨려 들지 않는 카메라 프레임) */
+  .hud { position: fixed; inset: 14px; z-index: 50; pointer-events: none; font-size: 11px; color: #d0d0cc; }
+  .hud .c { position: absolute; width: 22vw; height: 6vh; border: 2px solid #d0d0cc; }
+  .hud .tl { left: 0; top: 0; border-right: 0; border-bottom: 0; }
+  .hud .tr { right: 0; top: 0; border-left: 0; border-bottom: 0; }
+  .hud .bl { left: 0; bottom: 0; border-right: 0; border-top: 0; }
+  .hud .br { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+  .hud .t { position: absolute; top: 10px; }
+  .hud .b { position: absolute; bottom: 10px; display: flex; justify-content: space-between; left: 20px; right: 20px; letter-spacing: 0.08em; }
+  .hud .rec { color: var(--red); }
+  .hud .rec::before { content: '● '; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* ───── 팝업들 (레트로 OS 창) ───── */
+  .popup { position: fixed; z-index: 35; background: #d9d9d9; color: #111; border: 1px solid #000;
+    box-shadow: 1px 1px 0 #fff inset, 3px 3px 0 rgba(0,0,0,0.6); font-size: 12px; font-family: var(--mono);
+    animation: popin 0.25s steps(4) both; }
+  @keyframes popin { from { opacity: 0; transform: scale(0.85); } }
+  .popup .tbar { display: flex; align-items: center; gap: 6px; height: 19px; padding: 0 5px; border-bottom: 1px solid #000;
+    background: repeating-linear-gradient(#d9d9d9 0 1px, #8a8a8a 1px 2px) 0 4px / 100% 11px no-repeat, #d9d9d9; }
+  .popup .tbar span { background: #d9d9d9; padding: 0 6px; margin: 0 auto; font-size: 11px; font-weight: 700; white-space: nowrap; }
+  .popup .tbar .x, .popup .tbar i { width: 11px; height: 11px; border: 1px solid #000; background: #d9d9d9; flex: none; padding: 0; }
+  .popup .pbody { padding: 12px 14px; line-height: 1.5; }
+  .popup h4 { font-size: 13px; margin-bottom: 6px; }
+  .popup .btns { display: flex; gap: 8px; margin-top: 10px; }
+  .popup .btns button { flex: 1; border: 1px solid #000; border-radius: 4px; padding: 5px 8px; background: #fff; color: #111; font-size: 11px; box-shadow: 1px 1px 0 #000; }
+  .popup .btns button:first-child { outline: 2px solid #000; outline-offset: 1px; }
+  .popup.dark .pbody { background: #000; color: var(--green); text-shadow: 0 0 5px rgba(34,255,78,0.7); }
+  .popup.video { width: 280px; }
+  .popup.video .pbody { padding: 0; }
+  .popup.video .screen { height: 150px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px;
+    background: repeating-linear-gradient(0deg, #ff3b6b 0 3px, #19d3ff 3px 5px, #000 5px 9px, #ffe14d 9px 11px, #2a2aff 11px 15px, #000 15px 22px); }
+  .popup.video .screen span { background: #000; color: #fff; font-size: 11px; padding: 4px 8px; border: 1px solid #fff; }
+  .popup.bar { left: 0 !important; right: 0; }
+  .popup.bar .pbody { display: flex; align-items: center; gap: 16px; justify-content: center; padding: 8px 14px; }
   .popup.bar .btns { margin: 0; }
-  .popup.scam { background: radial-gradient(circle, #fff36b, #ff9d00); text-align: center; font-weight: 800; }
-  .popup.scam h4 { font-size: 22px; color: var(--red); }
+  .popup.scam .pbody { background: #ffe600; text-align: center; font-weight: 700; }
+  .popup.scam h4 { font-size: 20px; color: #e00000; }
 
   #gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 30; pointer-events: none; }
 
@@ -135,36 +155,49 @@
 <body>
 <div class="page">
   <header class="masthead">
-    <div class="ear" data-eat><b>오늘: 맑음</b>내일: 구멍 주의<br>날씨 정보 49면</div>
+    <div class="ear" data-eat><b>STATUS: online</b>weather=맑음<br>tomorrow=구멍 주의</div>
     <div class="logo" data-eat>매일매일일보</div>
-    <div class="ear right" data-eat><b>최종판</b>FINAL EDITION<br>1,000원</div>
+    <div class="ear right" data-eat><b>FINAL_EDITION</b>build 2611<br>price=1,000원</div>
   </header>
-  <div class="dateline" data-eat><span>56면</span><span>서울 · 2026년 11월 2일 월요일</span><span>제 2611호</span></div>
+  <div class="dateline" data-eat><span>$ cat front_page.html</span><span>2026-11-02 MON · SEOUL</span><span>56 pages</span></div>
 
   <h1 class="banner" data-eat>지하철역 앞에 구멍, 출근길 멈췄다</h1>
 
   <section class="row">
     <div class="col">
-      <figure class="photo ph-street" data-eat>
-        <i style="left:30%;top:40%;transform:rotate(-24deg)"></i><i style="left:58%;top:52%;transform:rotate(38deg)"></i><i style="left:44%;top:60%;transform:rotate(70deg) scale(.7)"></i>
-      </figure>
-      <p class="caption" data-eat><b>빨려 드는 전단지</b> — 2일 오전 8시 41분, 지하철역 1번 출구 앞 인도에 생긴 구멍으로 전단지가 빨려 들어가고 있다.</p>
+      <div class="shot" data-eat>
+        <figure class="photo ph-street"><i style="left:30%;top:40%;transform:rotate(-24deg)"></i><i style="left:58%;top:52%;transform:rotate(38deg)"></i><i style="left:44%;top:60%;transform:rotate(70deg) scale(.7)"></i></figure>
+        <div class="scan" style="left:22%;top:58%;width:56%;height:28%"></div>
+        <div class="lbl" style="left:22%;top:calc(86% + 2px)">hole_01 · 98%</div>
+      </div>
+      <p class="caption" data-eat><b>빨려 드는 전단지</b> — 08:41, 1번 출구 앞 인도에 생긴 구멍으로 전단지가 빨려 들어가고 있다.</p>
     </div>
     <div class="col span2">
-      <figure class="photo ph-line" data-eat></figure>
-      <p class="caption" data-eat><b>현장 통제</b> — 관계자들이 구멍 주변에 통제선을 치고 있다. 통제선 안쪽의 휴대폰 알림은 모두 사라진 것으로 전해졌다.</p>
-      <p class="credit" data-eat>사진=독자 제공</p>
+      <div class="shot" data-eat>
+        <figure class="photo ph-line"></figure>
+        <div class="scan dash" style="left:30%;top:66%;width:34%;height:22%"></div>
+        <div class="lbl" style="left:30%;top:calc(66% - 16px)">searching....</div>
+        <div class="lbl red" style="left:6%;top:12%">where am i</div>
+      </div>
+      <p class="caption" data-eat><b>현장 통제</b> — 관계자들이 구멍 주변에 통제선을 치고 있다. 통제선 안쪽의 휴대폰 알림은 모두 사라졌다.</p>
+      <p class="credit" data-eat>src=독자 제공</p>
     </div>
     <div class="col span2">
-      <figure class="photo ph-top" data-eat></figure>
-      <p class="caption" data-eat><b>구멍의 위치</b> — 위에서 내려다본 현장 사진에 구멍의 위치를 흰 원으로 표시했다. 지름은 약 1m로 추정된다.</p>
-      <p class="credit" data-eat>사진=매일매일일보 항공촬영</p>
+      <div class="shot" data-eat>
+        <figure class="photo ph-top"></figure>
+        <div class="scan" style="left:40%;top:38%;width:20%;height:24%"></div>
+        <div class="lbl" style="left:62%;top:30%">a way out ??????????</div>
+        <div class="lbl" style="left:40%;top:calc(62% + 2px)">online</div>
+      </div>
+      <p class="caption" data-eat><b>구멍의 위치</b> — 위에서 내려다본 현장. 구멍의 위치를 초록 박스로 표시했다. 지름 약 1m.</p>
+      <p class="credit" data-eat>src=매일매일일보 drone_cam</p>
     </div>
     <div class="col">
+      <div class="tagbar" data-eat>ID: NOTI_999</div>
       <h2 class="hed big" data-eat>알림 999개 먼저 사라져</h2>
-      <div class="by" data-eat>김구멍 기자</div>
-      <div class="text" data-eat><p>구멍이 가장 먼저 삼킨 것은 휴대폰 알림이었다. 출구 앞을 지나던 직장인들은 “잠금 화면의 빨간 숫자가 하나씩 줄어들더니 0이 됐다”고 입을 모았다.</p><p>뒤이어 쿠키 동의 창과 뉴스레터 구독 창, 앱 설치 권유 배너가 차례로 빨려 들어갔다. 한 시민은 “닫기 버튼을 찾지 않아도 되는 아침은 처음”이라고 말했다.</p><p>관계 당국은 구멍의 깊이와 원인을 조사하고 있으며</p></div>
-      <div class="cont" data-eat>▶ 3면에 계속</div>
+      <div class="by" data-eat>kim.gumeong</div>
+      <div class="text" data-eat><p>구멍이 가장 먼저 삼킨 것은 휴대폰 알림이었다. 출구 앞을 지나던 직장인들은 “잠금 화면의 빨간 숫자가 하나씩 줄어들더니 0이 됐다”고 입을 모았다.</p><p>뒤이어 쿠키 동의 창과 뉴스레터 구독 창, 앱 설치 배너가 차례로 빨려 들어갔다. 한 시민은 “닫기 버튼을 찾지 않아도 되는 아침은 처음”이라고 말했다.</p><p>관계 당국은 구멍의 깊이와 원인을 조사하고 있으며</p></div>
+      <div class="cont" data-eat>→ goto page_03</div>
     </div>
   </section>
 
@@ -177,16 +210,16 @@
     </div>
     <div class="col span2">
       <h2 class="hed it" data-eat>목격자 “휴대폰이 손에서 미끄러졌다”</h2>
-      <div class="by" data-eat>박틈새 기자</div>
-      <div class="text c2" data-eat><p>구멍 바로 옆에서 버스를 기다리던 직장인 이모(34)씨는 “손에 쥔 휴대폰이 구멍 쪽으로 기울어지는 느낌이 들어 두 손으로 꽉 붙잡았다”고 말했다.</p><p>이씨는 “화면에 떠 있던 광고가 먼저 길게 늘어나며 빨려 들어갔고, 그다음엔 읽지도 않은 기사 제목들이 글자 단위로 흩어졌다”고 설명했다.</p><p>근처 편의점 직원은 “계산대 옆 전단지와 할인 스티커가 소용돌이처럼 돌다가 사라졌다”며 “이상하게 속은 시원했다”고 덧붙였다.</p><p>현장을 지나던 시민들은 걸음을 멈추고 구멍을 내려다봤지만, 구멍 안쪽은 아무것도 보이지 않을 만큼 어두웠다고 전했다.</p></div>
+      <div class="by" data-eat>park.teumsae</div>
+      <div class="text c2" data-eat><p>구멍 바로 옆에서 버스를 기다리던 직장인 이모(34)씨는 “손에 쥔 휴대폰이 구멍 쪽으로 기울어지는 느낌이 들어 두 손으로 꽉 붙잡았다”고 말했다.</p><p>이씨는 “화면에 떠 있던 광고가 먼저 길게 늘어나며 빨려 들어갔고, 그다음엔 읽지도 않은 기사 제목들이 글자 단위로 흩어졌다”고 설명했다.</p><p>근처 편의점 직원은 “계산대 옆 전단지와 할인 스티커가 소용돌이처럼 돌다가 사라졌다”며 “이상하게 속은 시원했다”고 덧붙였다.</p><p>시민들은 걸음을 멈추고 구멍을 내려다봤지만, 구멍 안쪽은 아무것도 보이지 않을 만큼 어두웠다고 전했다.</p></div>
     </div>
     <div class="col">
-      <h2 class="hed" data-eat>구멍 관측 일지</h2>
-      <div class="text" data-eat><p><b>08:41</b> 1번 출구 앞 인도에서 첫 목격.</p><p><b>08:43</b> 지름 약 30cm. 주변 전단지가 빨려 들어감.</p><p><b>08:47</b> 지름 약 1m로 커짐. 휴대폰 알림이 사라지기 시작.</p><p><b>08:52</b> 통제선 설치. 구멍 주변이 어두워졌다는 증언이 잇따름.</p><p><b>09:05</b> 원인 조사 착수.</p></div>
+      <h2 class="hed" data-eat>구멍 관측 로그</h2>
+      <div class="text" data-eat><p><b>08:41</b> 1번 출구 앞 인도에서 첫 목격.</p><p><b>08:43</b> 지름 약 30cm. 주변 전단지가 빨려 들어감.</p><p><b>08:47</b> 지름 약 1m. 휴대폰 알림이 사라지기 시작.</p><p><b>08:52</b> 통제선 설치. 주변이 어두워졌다는 증언.</p><p><b>09:05</b> 원인 조사 착수. status=AFK</p></div>
     </div>
     <div class="col span2">
       <h2 class="hed" data-eat>팝업 닫기 버튼, 평균 2.3개 숨겨져</h2>
-      <div class="by" data-eat>최여백 기자</div>
+      <div class="by" data-eat>choi.yeobaek</div>
       <div class="text c2" data-eat><p>국내 뉴스 사이트 100곳을 조사한 결과 기사 한 건을 끝까지 읽으려면 평균 2.3개의 닫기 버튼을 찾아야 하는 것으로 나타났다.</p><p>닫기 버튼의 평균 크기는 가로세로 11픽셀로, 광고 본문의 1%에도 미치지 못했다. 응답자의 68%는 “닫기 버튼을 누르려다 광고를 누른 적이 있다”고 답했다.</p><p>전문가들은 “오늘 생긴 구멍이 이 문제를 가장 확실하게 해결한 셈”이라고 평가했다.</p></div>
       <div class="brief" data-eat><h4>월요병, 과학적으로 실재한다</h4><p>연구진은 월요일 오전 집중력이 금요일보다 23% 낮다고 밝혔다.</p></div>
     </div>
@@ -196,15 +229,23 @@
     <div class="left">
       <div class="bh" data-eat>11월의 첫 월요일 — 구멍 이후의 도시</div>
       <div class="pair">
-        <div data-eat><h3>시민들 “속이 다 시원하다”</h3><p class="caption">출근길 시민 다수가 불편보다 후련함을 먼저 말했다. ▶ 5면</p></div>
-        <div data-eat><h3>전문가 “원인은 정보 과잉”</h3><p class="caption">넘치는 알림과 광고가 한곳에 몰리며 구멍이 생겼다는 분석이 나왔다. ▶ 6면</p></div>
+        <div data-eat><h3>시민들 “속이 다 시원하다”</h3><p class="caption">출근길 시민 다수가 불편보다 후련함을 먼저 말했다. → page_05</p></div>
+        <div data-eat><h3>전문가 “원인은 정보 과잉”</h3><p class="caption">넘치는 알림과 광고가 한곳에 몰리며 구멍이 생겼다는 분석. → page_06</p></div>
       </div>
     </div>
     <div class="index" data-eat>
-      <h4>오늘의 지면</h4>
-      <ul><li><span>사회</span><span>3</span></li><li><span>경제</span><span>12</span></li><li><span>국제</span><span>18</span></li><li><span>IT·과학</span><span>24</span></li><li><span>오피니언</span><span>30</span></li><li><span>스포츠</span><span>42</span></li><li><span>날씨</span><span>49</span></li><li><span>광고</span><span>50–56</span></li></ul>
+      <h4>index.txt</h4>
+      <ul><li><span>사회</span><span>03</span></li><li><span>경제</span><span>12</span></li><li><span>국제</span><span>18</span></li><li><span>IT·과학</span><span>24</span></li><li><span>오피니언</span><span>30</span></li><li><span>스포츠</span><span>42</span></li><li><span>날씨</span><span>49</span></li><li><span>광고</span><span>50–56</span></li></ul>
     </div>
   </section>
+</div>
+
+<div class="hud" aria-hidden="true">
+  <div class="c tl"></div><div class="c tr"></div><div class="c bl"></div><div class="c br"></div>
+  <div class="t" style="left:20px" id="clock">2026-11-02 08:41:00</div>
+  <div class="t" style="left:50%;transform:translateX(-50%)">▮▮▮▯ 65%</div>
+  <div class="t rec" style="right:20px">REC</div>
+  <div class="b"><span>MAEIL-MAEIL</span><span>2026</span><span>HOLE</span><span>ARCHIVE</span></div>
 </div>
 
 <canvas id="gl"></canvas>
@@ -240,18 +281,18 @@ function register(el, popup) {
 
 /* ───── 팝업 지옥 ───── */
 const POPUPS = [
-  { cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
-  { cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
-  { cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 290 },
-  { cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
-  { cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
-  { cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:22px;color:#ffb400">★★★★★</span><div class="btns"><button>제출</button></div>', w: 240 },
-  { cls: 'dark', html: '💬 상담원 연결 중…<br><span style="opacity:.7">무엇을 도와드릴까요?</span>', w: 220 },
-  { cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
-  { cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 300 },
-  { cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
-  { cls: 'dark', html: '🔥 지금 237명이 이 기사를 보고 있어요', w: 250 },
-  { cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 200 },
+  { title: 'cookie_consent.sys', cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
+  { title: 'newsletter.app', cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
+  { title: 'push_notification', cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 300 },
+  { title: 'ad_player.mov', cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
+  { title: 'app_download', cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
+  { title: 'survey_v2', cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:20px">★★★★★</span><div class="btns"><button>제출</button></div>', w: 240 },
+  { title: 'live_chat', cls: 'dark', html: '> 상담원 연결 중…<br>> 무엇을 도와드릴까요?_', w: 240 },
+  { title: 'WINNER!!!.exe', cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
+  { title: 'adblock_detected', cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 310 },
+  { title: 'login_wall', cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
+  { title: 'realtime_viewers', cls: 'dark', html: '> 지금 237명이 이 기사를 보고 있어요', w: 270 },
+  { title: 'fortune.txt', cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 220 },
 ];
 const MAX_POPUPS = 26;
 
@@ -261,7 +302,7 @@ function spawnPopup() {
   spawned++;
   const el = document.createElement('div');
   el.className = 'popup ' + t.cls;
-  el.innerHTML = '<button class="x" aria-label="닫기">×</button>' + t.html;
+  el.innerHTML = '<div class="tbar"><button class="x" aria-label="닫기"></button><span>' + t.title + '</span><i></i></div><div class="pbody">' + t.html + '</div>';
   if (t.w) el.style.width = t.w + 'px';
   el.style.visibility = 'hidden';
   document.body.appendChild(el);
@@ -320,7 +361,7 @@ const clamp01 = v => Math.max(0, Math.min(1, v));
 const glc = document.getElementById('gl');
 const gl = glc.getContext('webgl', { antialias: true });
 const F = 900;
-const PAPER = [0xfb / 255, 0xe8 / 255, 0x24 / 255];
+const PAPER = [0x05 / 255, 0x05 / 255, 0x05 / 255];
 
 const VS = `
 attribute vec2 aPolar;
@@ -398,9 +439,9 @@ fitCanvas();
 let snapReady = null;
 function takeSnapshot() {
   snapReady = document.fonts.ready.then(() => html2canvas(document.body, {
-    backgroundColor: '#fbe824', scale: DPR, logging: false,
+    backgroundColor: '#050505', scale: DPR, logging: false,
     x: 0, y: 0, width: innerWidth, height: innerHeight, windowWidth: innerWidth, windowHeight: innerHeight,
-    ignoreElements: el => el.classList.contains('popup') || el.id === 'gl' || el.id === 'hint' || el.classList.contains('back'),
+    ignoreElements: el => el.classList.contains('popup') || el.id === 'gl' || el.id === 'hint' || el.classList.contains('back') || el.classList.contains('hud'),
   })).then(c => {
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
@@ -662,6 +703,12 @@ glc.style.visibility = 'hidden';
 takeSnapshot();
 startSpawning();
 requestAnimationFrame(step);
+
+const clockEl = document.getElementById('clock'), clockStart = Date.now();
+setInterval(() => {
+  const t = new Date(Date.UTC(2026, 10, 2, 8, 41, 0) + (Date.now() - clockStart));
+  clockEl.textContent = t.toISOString().slice(0, 19).replace('T', ' ');
+}, 1000);
 </script>
 </body>
 </html>
