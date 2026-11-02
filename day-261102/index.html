@@ -437,7 +437,7 @@ function drawWell() {
 
 /* ───── 팝업 빨아들이기 ───── */
 // 버티기: 구멍 쪽으로 기울고 늘어지며 떨다가 장력이 한계를 넘으면 끊긴다
-// 떨어지기: 속도·가속도로 소용돌이치며 낙하, 깔때기와 같은 원근으로 그린다
+// 떨어지기: 회전 없이 구멍 쪽으로 곧장 가속 낙하, 깔때기와 같은 원근으로 그린다
 function wellDepth(d) {
   const R = Rh();
   return -3.2 * R * Math.pow(R / (d + 0.35 * R + 1), 1.6) * hole.close;
@@ -445,12 +445,10 @@ function wellDepth(d) {
 
 function breakFree(it) {
   const dx = hole.x - it.cx, dy = hole.y - it.cy, d = Math.hypot(dx, dy) || 1;
-  const side = Math.random() < 0.5 ? 1 : -1;
   it.state = 'fall';
   it.x = it.cx; it.y = it.cy;
-  it.vx = dx / d * 160 - dy / d * 90 * side;
-  it.vy = dy / d * 160 + dx / d * 90 * side;
-  it.spin = 0; it.spinV = (Math.random() - 0.5) * 4;
+  it.vx = dx / d * 160;
+  it.vy = dy / d * 160;
   it.el.style.animation = 'none';
   sweep(1600, 260, 0.09, 0.09);
 }
@@ -474,24 +472,22 @@ function stepPopups(dt) {
       const ang = Math.atan2(uy, ux);
       it.el.style.transform =
         `translate(${ux * lean + (Math.random() - 0.5) * jit}px, ${uy * lean + (Math.random() - 0.5) * jit}px) ` +
-        `rotate(${ang}rad) scale(${1 + pull * 0.12 + strain * 0.18}, ${1 - strain * 0.1}) rotate(${-ang + (Math.random() - 0.5) * strain * 0.08}rad)`;
+        `rotate(${ang}rad) scale(${1 + pull * 0.12 + strain * 0.18}, ${1 - strain * 0.1}) rotate(${-ang}rad)`;
       continue;
     }
 
     const a = 1.4e6 / Math.pow(Math.max(d, 30), 1.2);
     it.vx += ux * a * dt; it.vy += uy * a * dt;
     const vr = it.vx * ux + it.vy * uy, vtx = it.vx - vr * ux, vty = it.vy - vr * uy;
-    it.vx -= vtx * 1.8 * dt; it.vy -= vty * 1.8 * dt;
+    it.vx -= vtx * 6 * dt; it.vy -= vty * 6 * dt;
     it.x += it.vx * dt; it.y += it.vy * dt;
-    it.spinV += (Math.random() - 0.5) * dt * 6;
-    it.spin += it.spinV * dt * (1 + 600 / (d + 60));
 
     const Z = wellDepth(d), s = F / (F - Z);
     const sx = cam.x + (it.x - cam.x) * s, sy = cam.y + (it.y - cam.y) * s;
     const speed = Math.hypot(it.vx, it.vy), k = 1 + Math.min(2.6, speed / 1100);
     const va = Math.atan2(it.vy, it.vx), sc = s * Math.min(1, d / 40 + 0.15);
     it.el.style.transform =
-      `translate(${sx - it.cx}px, ${sy - it.cy}px) rotate(${va}rad) scale(${sc * k}, ${sc / k}) rotate(${-va + it.spin}rad)`;
+      `translate(${sx - it.cx}px, ${sy - it.cy}px) rotate(${va}rad) scale(${sc * k}, ${sc / k}) rotate(${-va}rad)`;
     it.el.style.filter = `brightness(${Math.exp(Z / (2 * Rh() + 1))})`;
     if (d < 8 || sc < 0.03 || (vr < 0 && d < 30)) {
       it.state = 'eaten';
