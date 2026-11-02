@@ -332,13 +332,13 @@ void main() {
   float rp = aPolar.x * uRmax, a = aPolar.y;
   vUv = (uHole + (rp + uS) * vec2(cos(a), sin(a))) / uView;
   float k = rp + 0.35 * uRh + 1.0;
-  float Z = -1.6 * uRh * uRh / k * uClose;
-  float slope = 1.6 * uRh * uRh / (k * k) * uClose;
+  float Z = -3.2 * uRh * pow(uRh / k, 1.6) * uClose;
+  float slope = 5.12 * pow(uRh / k, 2.6) * uClose;
   float tw = 2.4 * uRh / (rp + 0.5 * uRh + 1.0) * clamp(uS / 250.0, 0.0, 1.0) * uClose;
   vec2 P = uHole + rp * vec2(cos(a + tw), sin(a + tw));
   vec2 scr = uCam + (P - uCam) * (${F.toFixed(1)} / (${F.toFixed(1)} - Z));
-  vShade = exp(Z / (1.2 * uRh + 1.0)) / (1.0 + 0.55 * slope);
-  gl_Position = vec4(scr.x / uView.x * 2.0 - 1.0, 1.0 - scr.y / uView.y * 2.0, clamp(-Z / 8000.0, 0.0, 1.0) * 2.0 - 1.0, 1.0);
+  vShade = exp(Z / (2.0 * uRh + 1.0)) / (1.0 + 0.3 * slope);
+  gl_Position = vec4(scr.x / uView.x * 2.0 - 1.0, 1.0 - scr.y / uView.y * 2.0, clamp(-Z / 20000.0, 0.0, 1.0) * 2.0 - 1.0, 1.0);
 }`;
 const FS = `
 precision mediump float;
@@ -415,7 +415,7 @@ let pressing = false, spitT = 0, last = performance.now();
 
 const Rh = () => (34 + Math.min(hole.S * 0.22, 280)) * hole.open;
 function throat() {
-  const R = Rh(), Z = -1.6 * R * R / (0.35 * R + 1) * hole.close, s = F / (F - Z);
+  const R = Rh(), Z = -3.2 * R * Math.pow(R / (0.35 * R + 1), 1.6) * hole.close, s = F / (F - Z);
   return { x: cam.x + (hole.x - cam.x) * s, y: cam.y + (hole.y - cam.y) * s };
 }
 
