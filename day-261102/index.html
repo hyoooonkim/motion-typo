@@ -315,12 +315,11 @@ function sweep(from, to, dur, vol) {
 const gulp = size => sweep(900 - Math.min(size, 600), 60, 0.22, 0.12);
 
 /* ───── 중력 우물 ───── */
-// 페이지를 한 장으로 찍어 구멍 중심의 극좌표 메시에 입히고, 1/r 깊이로 휘게 한다
+// 페이지를 한 장으로 찍어 구멍 중심의 극좌표 메시에 입히고, 1/r 깊이로 휘게 한다. 페이지 바깥은 빈 우주(검정)
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const glc = document.getElementById('gl');
 const gl = glc.getContext('webgl', { antialias: true });
 const F = 900;
-const PAPER = [0xf1 / 255, 0xec / 255, 0xe2 / 255];
 
 const VS = `
 attribute vec2 aPolar;
@@ -343,12 +342,11 @@ void main() {
 const FS = `
 precision mediump float;
 uniform sampler2D uTex;
-uniform vec3 uPaper;
 varying vec2 vUv;
 varying float vShade;
 void main() {
   bool out_ = vUv.x < 0.0 || vUv.x > 1.0 || vUv.y < 0.0 || vUv.y > 1.0;
-  vec3 c = out_ ? uPaper : texture2D(uTex, vUv).rgb;
+  vec3 c = out_ ? vec3(0.0) : texture2D(uTex, vUv).rgb;
   gl_FragColor = vec4(c * vShade, 1.0);
 }`;
 
@@ -364,7 +362,7 @@ gl.attachShader(prog, shader(gl.FRAGMENT_SHADER, FS));
 gl.linkProgram(prog);
 gl.useProgram(prog);
 const U = {};
-for (const n of ['uHole', 'uView', 'uCam', 'uS', 'uRh', 'uClose', 'uRmax', 'uTex', 'uPaper']) U[n] = gl.getUniformLocation(prog, n);
+for (const n of ['uHole', 'uView', 'uCam', 'uS', 'uRh', 'uClose', 'uRmax', 'uTex']) U[n] = gl.getUniformLocation(prog, n);
 
 // 극좌표 메시: 반지름은 구멍 가까이 촘촘하게
 const NR = 200, NA = 320, verts = [];
@@ -431,7 +429,6 @@ function drawWell() {
   gl.uniform1f(U.uClose, hole.close);
   gl.uniform1f(U.uRmax, Math.hypot(innerWidth, innerHeight) * 2.5);
   gl.uniform1i(U.uTex, 0);
-  gl.uniform3fv(U.uPaper, PAPER);
   gl.drawArrays(gl.TRIANGLES, 0, VCOUNT);
 }
 
@@ -498,7 +495,7 @@ function step(now) {
     hole.close += (0 - hole.close) * 0.06;
     if (hole.close < 0.01) {
       phase = 'done';
-      glc.style.visibility = 'hidden';
+      hintEl.style.color = '#8a8a8a';
       hintEl.textContent = '다시 클릭하면 뱉어내요';
       hintEl.style.opacity = 1;
     }
@@ -543,6 +540,7 @@ function finishSpit() {
   spawned = 0;
   phase = 'idle';
   hintEl.textContent = HINT_START;
+  hintEl.style.color = '';
   hintEl.style.opacity = 1;
   startSpawning();
 }
