@@ -95,31 +95,42 @@
   .index ul { list-style: none; columns: 2; column-gap: 1vw; font-size: 9.5px; line-height: 1.7; color: var(--dim); }
   .index li { display: flex; justify-content: space-between; border-bottom: 1px dotted rgba(0,0,0,0.3); }
 
-  /* ───── 팝업들 (레트로 OS 창) ───── */
-  .popup { position: fixed; z-index: 35; background: #d9d9d9; color: #111; border: 1px solid #000;
-    box-shadow: 1px 1px 0 #fff inset, 3px 3px 0 rgba(0,0,0,0.6); font-size: 12px; font-family: var(--mono);
-    animation: popin 0.25s steps(4) both; }
-  @keyframes popin { from { opacity: 0; transform: scale(0.85); } }
-  .popup .tbar { display: flex; align-items: center; gap: 6px; height: 19px; padding: 0 5px; border-bottom: 1px solid #000;
-    background: repeating-linear-gradient(#d9d9d9 0 1px, #8a8a8a 1px 2px) 0 4px / 100% 11px no-repeat, #d9d9d9; }
-  .popup .tbar span { background: #d9d9d9; padding: 0 6px; margin: 0 auto; font-size: 11px; font-weight: 700; white-space: nowrap; }
-  .popup .tbar .x, .popup .tbar i { width: 11px; height: 11px; border: 1px solid #000; background: #d9d9d9; flex: none; padding: 0; }
-  .popup .pbody { padding: 12px 14px; line-height: 1.5; }
-  .popup h4 { font-size: 13px; margin-bottom: 6px; }
+  /* ───── 팝업들 (디지털 터미널 창) ───── */
+  .popup { position: fixed; z-index: 35; background: #050805; color: var(--green); border: 1px solid var(--green);
+    box-shadow: 0 0 14px rgba(0,212,58,0.45), inset 0 0 18px rgba(0,212,58,0.12); font-size: 12px; font-family: var(--mono);
+    text-shadow: 0 0 4px rgba(0,212,58,0.6); animation: popin 0.22s steps(3) both; }
+  .popup::after { content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 3px); }
+  @keyframes popin { 0% { opacity: 0; transform: scaleY(0.05); } 60% { opacity: 1; transform: scaleY(1.04); } }
+  .popup .tbar { display: flex; align-items: center; height: 18px; padding: 0 6px; background: var(--green); color: #021405; text-shadow: none; }
+  .popup .tbar span { order: 1; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
+  .popup .tbar span::before { content: '■ '; }
+  .popup .tbar i { order: 2; flex: 1; }
+  .popup .tbar .x { order: 3; border: 0; background: none; color: #021405; font-size: 10.5px; font-weight: 700; padding: 0; }
+  .popup .tbar .x::after { content: '[x]'; }
+  .popup .pbody { padding: 10px 12px 12px; line-height: 1.6; }
+  .popup .pbody::after { content: '_'; animation: blink 1s steps(1) infinite; }
+  @keyframes blink { 50% { opacity: 0; } }
+  .popup h4 { font-size: 12.5px; color: #eaffee; margin-bottom: 4px; }
+  .popup h4::before { content: '> '; color: var(--green); }
   .popup .btns { display: flex; gap: 8px; margin-top: 10px; }
-  .popup .btns button { flex: 1; border: 1px solid #000; border-radius: 4px; padding: 5px 8px; background: #fff; color: #111; font-size: 11px; box-shadow: 1px 1px 0 #000; }
-  .popup .btns button:first-child { outline: 2px solid #000; outline-offset: 1px; }
-  .popup.dark .pbody { background: #000; color: var(--green); text-shadow: 0 0 5px rgba(34,255,78,0.7); }
+  .popup .btns button { flex: 1; border: 1px solid var(--green); background: transparent; color: var(--green); padding: 4px 6px; font-size: 11px; text-shadow: inherit; }
+  .popup .btns button::before { content: '[ '; }
+  .popup .btns button::after { content: ' ]'; }
+  .popup .btns button:first-child { background: var(--green); color: #021405; text-shadow: none; }
   .popup.video { width: 280px; }
   .popup.video .pbody { padding: 0; }
+  .popup.video .pbody::after { content: none; }
   .popup.video .screen { height: 150px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px;
     background: repeating-linear-gradient(0deg, #ff3b6b 0 3px, #19d3ff 3px 5px, #000 5px 9px, #ffe14d 9px 11px, #2a2aff 11px 15px, #000 15px 22px); }
-  .popup.video .screen span { background: #000; color: #fff; font-size: 11px; padding: 4px 8px; border: 1px solid #fff; }
+  .popup.video .screen span { background: #000; color: var(--green); font-size: 11px; padding: 4px 8px; border: 1px solid var(--green); }
   .popup.bar { left: 0 !important; right: 0; }
-  .popup.bar .pbody { display: flex; align-items: center; gap: 16px; justify-content: center; padding: 8px 14px; }
+  .popup.bar .pbody { display: flex; align-items: center; gap: 16px; justify-content: center; padding: 7px 14px; }
+  .popup.bar .pbody::after { content: none; }
   .popup.bar .btns { margin: 0; }
-  .popup.scam .pbody { background: #ffe600; text-align: center; font-weight: 700; }
-  .popup.scam h4 { font-size: 20px; color: #e00000; }
+  .popup.scam { --green: #ff3030; color: #ff3030; border-color: #ff3030; box-shadow: 0 0 14px rgba(255,48,48,0.5), inset 0 0 18px rgba(255,48,48,0.15); text-shadow: 0 0 4px rgba(255,48,48,0.7); text-align: center; }
+  .popup.scam h4 { font-size: 18px; color: #fff; }
+  .popup.scam h4::before { content: '!! '; color: #ff3030; }
 
   #gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 30; pointer-events: none; }
 
@@ -236,7 +247,7 @@ const hintEl = document.getElementById('hint');
 const HINT_START = hintEl.textContent;
 
 const pageEl = document.querySelector('.page');
-let phase = 'idle'; // idle → eating → collapse → done → spit → idle
+let phase = 'idle'; // idle → eating → engulf → done → spit → idle
 let items = [];
 let spawned = 0;
 let spawnTimer = null;
@@ -260,23 +271,23 @@ function register(el, popup) {
 
 /* ───── 팝업 지옥 ───── */
 const POPUPS = [
-  { title: 'cookie_consent.sys', cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
+  { title: 'cookie_consent.sys', cls: 'bar dark', at: 'bottom', html: 'COLLECT=ALL · 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
   { title: 'newsletter.app', cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
-  { title: 'push_notification', cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 300 },
+  { title: 'push_notification', cls: '', html: '<h4>알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 300 },
   { title: 'ad_player.mov', cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
-  { title: 'app_download', cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
-  { title: 'survey_v2', cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:20px">★★★★★</span><div class="btns"><button>제출</button></div>', w: 240 },
-  { title: 'live_chat', cls: 'dark', html: '> 상담원 연결 중…<br>> 무엇을 도와드릴까요?_', w: 240 },
+  { title: 'app_download', cls: 'bar', at: 'top', html: '$ install app --now · 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
+  { title: 'survey_v2', cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4>rating = ★★★★★<div class="btns"><button>제출</button></div>', w: 240 },
+  { title: 'live_chat', cls: 'dark', html: '> 상담원 연결 중…<br>> 무엇을 도와드릴까요?', w: 240 },
   { title: 'WINNER!!!.exe', cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
-  { title: 'adblock_detected', cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 310 },
+  { title: 'adblock_detected', cls: '', html: '<h4>ERROR 403 · 광고 차단 감지</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 310 },
   { title: 'login_wall', cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
   { title: 'realtime_viewers', cls: 'dark', html: '> 지금 237명이 이 기사를 보고 있어요', w: 270 },
-  { title: 'fortune.txt', cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 220 },
+  { title: 'fortune.txt', cls: '', html: 'fortune.today = "구멍 조심"', w: 220 },
 ];
 const MAX_POPUPS = 26;
 
 function spawnPopup() {
-  if (spawned >= MAX_POPUPS || phase === 'collapse' || phase === 'done' || phase === 'spit') return;
+  if (spawned >= MAX_POPUPS || phase === 'engulf' || phase === 'done' || phase === 'spit') return;
   const t = POPUPS[spawned % POPUPS.length];
   spawned++;
   const el = document.createElement('div');
@@ -429,7 +440,8 @@ function takeSnapshot() {
 }
 
 /* ───── 상태 ───── */
-const hole = { x: 0, y: 0, S: 0, Smax: 1, open: 0, close: 1 };
+const hole = { x: 0, y: 0, S: 0, Smax: 1, open: 0, close: 1, grow: 1 };
+const mouthRho = () => { const rp = 0.9 * Rh(); return rp * F / (F - wellDepth(rp)); };
 const cam = { x: innerWidth / 2, y: innerHeight / 2, tx: innerWidth / 2, ty: innerHeight / 2 };
 let pressing = false, spitT = 0, last = performance.now();
 
@@ -469,7 +481,7 @@ void main() {
   float r = length(d), th = atan(d.y, d.x), rho = max(uRho, 1.0);
   if (uPass < 0.5) {
     float dark = exp(-pow(r / (rho * 1.9), 2.0)) * uGlow;
-    gl_FragColor = vec4(mix(vec3(1.0), vec3(0.02, 0.02, 0.10), dark), 1.0);
+    gl_FragColor = vec4(mix(vec3(1.0), vec3(0.0, 0.0, 0.03), dark), 1.0);
     return;
   }
   float sum = 0.0;
@@ -508,7 +520,7 @@ function drawGlow() {
   gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
   gl.uniform2f(GU.uView, innerWidth, innerHeight);
   gl.uniform2f(GU.uT, cam.x + (hole.x - cam.x) * s, cam.y + (hole.y - cam.y) * s);
-  gl.uniform1f(GU.uRho, rp * s);
+  gl.uniform1f(GU.uRho, rp * s * hole.grow);
   gl.uniform1f(GU.uTime, performance.now() / 1000);
   gl.uniform1f(GU.uGlow, hole.open * hole.close);
   gl.uniform1f(GU.uDPR, DPR);
@@ -602,29 +614,32 @@ function step(now) {
   if (phase === 'eating') {
     hole.open += (1 - hole.open) * 0.05;
     hole.S += (14 + hole.S * 0.42) * dt * (pressing ? 2.6 : 1) * hole.open;
+    hole.grow = 1 + 2.5 * Math.pow(hole.S / hole.Smax, 2);
     if (hole.S >= hole.Smax) {
       hole.S = hole.Smax;
       spawned = MAX_POPUPS;
       clearInterval(spawnTimer);
-      if (items.length === 0) phase = 'collapse';
+      if (items.length === 0) { phase = 'engulf'; hole.growEnd = hole.grow; }
     }
-  } else if (phase === 'collapse') {
-    hole.close += (0 - hole.close) * 0.06;
-    if (hole.close < 0.01) {
+  } else if (phase === 'engulf') {
+    // 마지막엔 구멍 자체가 화면보다 커지며 전부 검게 덮는다
+    hole.grow *= 1 + 2.4 * dt;
+    if (mouthRho() * hole.grow > Math.hypot(innerWidth, innerHeight) * 1.6) {
       phase = 'done';
-      glc.style.visibility = 'hidden';
+      hintEl.style.color = '#8a8a8a';
       hintEl.textContent = '다시 클릭하면 뱉어내요';
       hintEl.style.opacity = 1;
     }
   } else if (phase === 'spit') {
-    spitT = Math.min(1, spitT + dt / 2.2);
-    hole.close = clamp01(spitT * 4);
+    spitT = Math.min(1, spitT + dt / 2.6);
+    hole.grow = Math.max(1, hole.growMax * (1 - clamp01(spitT * 3.5)));
+    hole.close = 1;
     hole.S = hole.Smax * (1 - easeInOut(spitT));
     hole.open = 1 - Math.pow(spitT, 6);
     if (spitT >= 1) finishSpit();
   }
 
-  if (phase === 'eating' || phase === 'collapse') stepPopups(dt);
+  if (phase === 'eating' || phase === 'engulf') stepPopups(dt);
   if (rumbleGain) rumbleGain.gain.setTargetAtTime(phase === 'done' || phase === 'idle' ? 0 : Math.min(0.14, Rh() / 700) * hole.close, ac.currentTime, 0.1);
   if (glc.style.visibility === 'visible') drawWell();
   requestAnimationFrame(step);
@@ -634,7 +649,7 @@ function openHole(x, y) {
   phase = 'opening';
   hintEl.style.opacity = 0;
   snapReady.then(() => {
-    Object.assign(hole, { x, y, S: 0, open: 0, close: 1 });
+    Object.assign(hole, { x, y, S: 0, open: 0, close: 1, grow: 1 });
     hole.Smax = Math.max(...[[0, 0], [innerWidth, 0], [0, innerHeight], [innerWidth, innerHeight]].map(([cx, cy]) => Math.hypot(cx - x, cy - y))) + 40;
     glc.style.visibility = 'visible';
     pageEl.style.visibility = 'hidden';
@@ -645,6 +660,7 @@ function openHole(x, y) {
 function spitBack() {
   phase = 'spit';
   spitT = 0;
+  hole.growMax = hole.grow;
   hintEl.style.opacity = 0;
   glc.style.visibility = 'visible';
   sweep(70, 1100, 1.6, 0.14);
@@ -653,10 +669,11 @@ function spitBack() {
 function finishSpit() {
   pageEl.style.visibility = '';
   glc.style.visibility = 'hidden';
-  Object.assign(hole, { S: 0, open: 0, close: 1 });
+  Object.assign(hole, { S: 0, open: 0, close: 1, grow: 1 });
   spawned = 0;
   phase = 'idle';
   hintEl.textContent = HINT_START;
+  hintEl.style.color = '';
   hintEl.style.opacity = 1;
   startSpawning();
 }
