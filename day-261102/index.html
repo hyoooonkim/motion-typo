@@ -10,55 +10,89 @@
 <link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root { --ink: #151515; --muted: #8a8a8a; --line: #e4e4e4; --red: #e0261b; --bg: #fbfaf7; }
-  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
-    font-family: 'Pretendard Variable', sans-serif; -webkit-font-smoothing: antialiased; }
+  :root { --ink: #161513; --paper: #f1ece2; --muted: #5f5a52; --rule: #161513; --red: #b3241b; }
+  html, body { height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
+    font-family: 'Noto Serif KR', serif; -webkit-font-smoothing: antialiased; }
   body { cursor: crosshair; user-select: none; }
   button { font: inherit; cursor: pointer; }
   [data-eat], .popup { will-change: transform; }
   .eaten { visibility: hidden; }
+  .sans { font-family: 'Pretendard Variable', sans-serif; }
 
-  /* ───── 신문 본문 ───── */
-  .page { height: 100vh; display: flex; flex-direction: column; padding: 0 3vw; }
-  .topad { margin: 10px auto 0; width: min(900px, 100%); height: 54px; border-radius: 4px;
-    background: repeating-linear-gradient(45deg, #ffe14d 0 14px, #ffd000 14px 28px);
-    display: flex; align-items: center; justify-content: center; gap: 14px;
-    font-weight: 800; font-size: 15px; letter-spacing: -0.02em; }
-  .topad span { background: var(--ink); color: #ffe14d; padding: 4px 10px; border-radius: 3px; }
-  .mast { display: flex; align-items: flex-end; justify-content: space-between;
-    padding: 14px 0 10px; border-bottom: 3px double var(--ink); }
-  .logo { font-family: 'Noto Serif KR', serif; font-weight: 900; font-size: clamp(26px, 3.2vw, 42px); letter-spacing: -0.04em; }
-  .mast .meta { font-size: 12px; color: var(--muted); text-align: right; line-height: 1.6; }
-  nav.gnb { display: flex; gap: 2px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 600; }
-  nav.gnb span { padding: 4px 12px; }
-  .ticker { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; border-bottom: 1px solid var(--line); }
-  .ticker b { background: var(--red); color: #fff; padding: 2px 8px; font-size: 11px; letter-spacing: 0.05em; }
+  /* ───── 신문 1면 ───── */
+  .page { height: 100vh; max-width: 1280px; margin: 0 auto; padding: 1.4vh 2.4vw 1.6vh;
+    display: grid; grid-template-rows: auto auto auto minmax(0, 1.05fr) minmax(0, 1fr) auto; }
 
-  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 2.1fr 1fr; gap: 3vw; padding: 18px 0; }
-  .main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
-  .kicker { font-size: 12px; font-weight: 700; color: var(--red); }
-  h1.headline { font-family: 'Noto Serif KR', serif; font-weight: 900; font-size: clamp(26px, 3vw, 44px);
-    line-height: 1.25; letter-spacing: -0.035em; position: relative; z-index: 5; }
-  .byline { font-size: 12px; color: var(--muted); }
-  .photo { height: clamp(120px, 24vh, 260px); border-radius: 2px; position: relative; overflow: hidden;
-    background: linear-gradient(#cfd3d6, #a9aeb2); }
-  .photo::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
-    background: repeating-linear-gradient(90deg, #8d9195 0 2px, #9a9ea2 2px 60px); }
-  .photo::after { content: ''; position: absolute; left: 38%; bottom: 14%; width: 26%; height: 22%;
-    border-radius: 50%; background: radial-gradient(#000 55%, #2a2a2a 70%, transparent 72%); }
-  .photo figcaption { position: absolute; right: 10px; bottom: 6px; font-size: 11px; color: #fff; }
-  .main p { font-family: 'Noto Serif KR', serif; font-weight: 500; font-size: 15px; line-height: 1.75; color: #333; }
-  .inad { border: 1px solid var(--line); padding: 10px 14px; font-size: 13px; display: flex; justify-content: space-between; background: #fff; }
-  .inad em { font-style: normal; color: var(--muted); font-size: 11px; }
+  .masthead { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 2vw; }
+  .ear { border: 1px solid var(--rule); padding: 5px 9px; font-family: 'Pretendard Variable', sans-serif;
+    font-size: 10.5px; line-height: 1.45; font-weight: 600; justify-self: start; }
+  .ear.right { justify-self: end; text-align: right; }
+  .ear b { font-size: 13px; display: block; }
+  .logo { font-weight: 900; font-size: clamp(34px, 5.4vw, 74px); letter-spacing: -0.05em; line-height: 1; }
+  .dateline { display: flex; justify-content: space-between; margin-top: 0.8vh; padding: 3px 0;
+    border-top: 1px solid var(--rule); border-bottom: 3px double var(--rule);
+    font-family: 'Pretendard Variable', sans-serif; font-size: 10.5px; font-weight: 600; letter-spacing: 0.02em; }
+  .banner { font-weight: 900; font-size: clamp(30px, 5.6vw, 82px); letter-spacing: -0.055em; line-height: 1.05;
+    text-align: center; padding: 0.8vh 0 1vh; border-bottom: 1px solid var(--rule); white-space: nowrap; }
 
-  .side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
-  .side h3 { font-size: 13px; font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
-  .rank { display: flex; gap: 10px; font-size: 13.5px; line-height: 1.45; padding: 4px 0; border-bottom: 1px solid var(--line); }
-  .rank i { font-style: normal; font-weight: 800; color: var(--red); width: 14px; }
-  .sidead { flex: 1; min-height: 90px; max-height: 220px; border-radius: 4px; color: #fff; padding: 14px;
-    background: linear-gradient(135deg, #ff3d7f, #7a3dff); display: flex; flex-direction: column; justify-content: space-between; }
-  .sidead b { font-size: 22px; line-height: 1.2; letter-spacing: -0.03em; }
-  .sidead small { opacity: 0.8; font-size: 11px; }
+  .row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); min-height: 0; border-bottom: 1px solid var(--rule); }
+  .col { min-height: 0; padding: 1vh 0.9vw; border-left: 1px solid var(--rule); display: flex; flex-direction: column; gap: 0.7vh; }
+  .col:first-child { border-left: 0; padding-left: 0; }
+  .col:last-child { padding-right: 0; }
+  .span2 { grid-column: span 2; }
+
+  .photo { flex: 1; min-height: 0; position: relative; overflow: hidden; filter: grayscale(1) contrast(1.15); }
+  .photo::after { content: ''; position: absolute; inset: 0; mix-blend-mode: multiply; opacity: 0.55;
+    background: radial-gradient(circle, #000 0.7px, transparent 1.1px) 0 0 / 3px 3px; }
+  .ph-street { background:
+      radial-gradient(ellipse 30% 9% at 50% 72%, #000 60%, #222 75%, transparent 78%),
+      repeating-linear-gradient(100deg, transparent 0 34px, rgba(0,0,0,0.18) 34px 36px),
+      linear-gradient(#d9d6cf 0 38%, #8f8c86 38% 40%, #b4b0a8 40%); }
+  .ph-street i { position: absolute; width: 9px; height: 12px; background: #eee; border: 1px solid #555; }
+  .ph-line { background:
+      radial-gradient(ellipse 22% 8% at 45% 78%, #000 60%, transparent 66%),
+      repeating-linear-gradient(-12deg, #111 0 10px, #e8e2c8 10px 20px) 0 62% / 100% 7px no-repeat,
+      linear-gradient(#c9c6bf, #7d7a74); }
+  .ph-line::before { content: ''; position: absolute; left: 12%; right: 12%; bottom: 30%; height: 38%;
+    background: radial-gradient(ellipse 6% 50% at 10% 100%, #2a2a2a 98%, transparent) ,
+      radial-gradient(ellipse 6% 46% at 30% 100%, #333 98%, transparent),
+      radial-gradient(ellipse 6% 52% at 72% 100%, #262626 98%, transparent),
+      radial-gradient(ellipse 6% 44% at 90% 100%, #3a3a3a 98%, transparent); }
+  .ph-top { background: radial-gradient(circle at 50% 50%, #000 9%, #3d3d3d 11%, transparent 13%),
+      radial-gradient(circle at 30% 30%, #9a9a9a 0 7%, transparent 7.5%),
+      radial-gradient(circle at 74% 64%, #8a8a8a 0 5%, transparent 5.5%),
+      radial-gradient(circle at 60% 24%, #a5a5a5 0 4%, transparent 4.5%),
+      radial-gradient(circle, #c4c4c4 0 46%, #7a7a7a 47%, #1b1b1b 48%); }
+  .ph-top::before { content: ''; position: absolute; left: 50%; top: 50%; width: 22%; aspect-ratio: 1;
+    transform: translate(-50%, -50%); border: 2px solid #fff; border-radius: 50%; z-index: 1; }
+
+  .caption { font-family: 'Pretendard Variable', sans-serif; font-size: 10px; line-height: 1.45; }
+  .caption b { font-weight: 800; letter-spacing: 0.02em; }
+  .credit { font-family: 'Pretendard Variable', sans-serif; font-size: 8.5px; color: var(--muted); text-align: right; }
+
+  h2.hed { font-weight: 900; font-size: clamp(17px, 1.75vw, 26px); line-height: 1.18; letter-spacing: -0.04em; }
+  h2.hed.big { font-size: clamp(22px, 2.6vw, 38px); }
+  h2.hed.it { font-style: italic; font-weight: 700; }
+  h3.sub { font-weight: 900; font-size: 13px; letter-spacing: -0.02em; }
+  .by { font-family: 'Pretendard Variable', sans-serif; font-size: 9px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
+  .text { flex: 1; min-height: 0; overflow: hidden; font-size: 11px; line-height: 1.55; text-align: justify; word-break: keep-all; color: #2a2825; }
+  .text.c2 { columns: 2; column-gap: 1vw; column-rule: 1px solid #bdb6aa; }
+  .text p + p { text-indent: 1em; }
+  .cont { font-family: 'Pretendard Variable', sans-serif; font-size: 9.5px; font-weight: 700; text-align: right; }
+  .brief { border-bottom: 1px solid #bdb6aa; padding-bottom: 0.6vh; }
+  .brief h4 { font-weight: 900; font-size: 12.5px; letter-spacing: -0.03em; margin-bottom: 2px; }
+  .brief p { font-size: 10.5px; line-height: 1.5; color: #2a2825; }
+  .box-hed { font-weight: 900; font-size: clamp(20px, 2vw, 30px); line-height: 1; letter-spacing: -0.05em; border-bottom: 3px solid var(--rule); padding-bottom: 4px; }
+
+  .bottom { display: grid; grid-template-columns: 4fr 2fr; gap: 0; padding-top: 0.9vh; }
+  .bottom .left { padding-right: 1vw; }
+  .bottom .bh { font-weight: 900; font-size: clamp(18px, 2.1vw, 30px); letter-spacing: -0.05em; text-align: center; margin-bottom: 0.5vh; }
+  .bottom .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1vw; }
+  .bottom .pair h3 { font-size: 13.5px; font-weight: 900; letter-spacing: -0.03em; }
+  .index { border-left: 1px solid var(--rule); padding-left: 1vw; font-family: 'Pretendard Variable', sans-serif; }
+  .index h4 { font-size: 11px; font-weight: 800; border-bottom: 2px solid var(--rule); padding-bottom: 3px; margin-bottom: 4px; }
+  .index ul { list-style: none; columns: 2; column-gap: 1vw; font-size: 10px; line-height: 1.6; }
+  .index li { display: flex; justify-content: space-between; border-bottom: 1px dotted #8f887c; }
 
   /* ───── 팝업들 ───── */
   .popup { position: fixed; z-index: 20; background: #fff; color: var(--ink); border-radius: 10px;
@@ -79,7 +113,212 @@
   .popup.scam { background: radial-gradient(circle, #fff36b, #ff9d00); text-align: center; font-weight: 800; }
   .popup.scam h4 { font-size: 22px; color: var(--red); }
 
-  /* ───── 블랙홀 렌더링 ───── */
+  /* 뒤 캔버스(어둠·원반 뒤쪽) → 빨려드는 요소(z 40) → 앞 캔버스(그림자·원반 앞쪽·빛 고리) */
+  canvas.space { position: fixed; inset: 0; pointer-events: none; }
+  #back { z-index: 30; }
+  #front { z-index: 45; }
+
+  .hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+    font-size: 12px; color: var(--muted); letter-spacing: 0.02em; pointer-events: none; transition: opacity 0.6s; }
+  .back { position: fixed; left: 20px; top: 16px; z-index: 60; font-size: 12px; color: var(--muted); text-decoration: none; }
+
+  @media (max-width: 760px) {
+    .masthead { grid-template-columns: 1fr; justify-items: center; }
+    .ear { display: none; }
+    .banner { white-space: normal; }
+    .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .row .col:nth-child(n+3) { display: none; }
+    .row .span2 { grid-column: span 1; }
+    .bottom { grid-template-columns: 1fr; }
+    .index { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="masthead">
+    <div class="ear" data-eat><b>오늘: 맑음</b>내일: 구멍 주의<br>날씨 정보 49면</div>
+    <div class="logo" data-eat>매일매일일보</div>
+    <div class="ear right" data-eat><b>최종판</b>FINAL EDITION<br>1,000원</div>
+  </header>
+  <div class="dateline" data-eat><span>56면</span><span>서울 · 2026년 11월 2일 월요일</span><span>제 2611호</span></div>
+
+  <h1 class="banner" data-eat>지하철역 앞에 구멍, 출근길 멈췄다</h1>
+
+  <section class="row">
+    <div class="col">
+      <figure class="photo ph-street" data-eat>
+        <i style="left:30%;top:40%;transform:rotate(-24deg)"></i><i style="left:58%;top:52%;transform:rotate(38deg)"></i><i style="left:44%;top:60%;transform:rotate(70deg) scale(.7)"></i>
+      </figure>
+      <p class="caption" data-eat><b>빨려 드는 전단지</b> — 2일 오전 8시 41분, 지하철역 1번 출구 앞 인도에 생긴 구멍으로 전단지가 빨려 들어가고 있다.</p>
+    </div>
+    <div class="col span2">
+      <figure class="photo ph-line" data-eat></figure>
+      <p class="caption" data-eat><b>현장 통제</b> — 관계자들이 구멍 주변에 통제선을 치고 있다. 통제선 안쪽의 휴대폰 알림은 모두 사라진 것으로 전해졌다.</p>
+      <p class="credit" data-eat>사진=독자 제공</p>
+    </div>
+    <div class="col span2">
+      <figure class="photo ph-top" data-eat></figure>
+      <p class="caption" data-eat><b>구멍의 위치</b> — 위에서 내려다본 현장 사진에 구멍의 위치를 흰 원으로 표시했다. 지름은 약 1m로 추정된다.</p>
+      <p class="credit" data-eat>사진=매일매일일보 항공촬영</p>
+    </div>
+    <div class="col">
+      <h2 class="hed big" data-eat>알림 999개 먼저 사라져</h2>
+      <div class="by" data-eat>김구멍 기자</div>
+      <div class="text" data-eat><p>구멍이 가장 먼저 삼킨 것은 휴대폰 알림이었다. 출구 앞을 지나던 직장인들은 “잠금 화면의 빨간 숫자가 하나씩 줄어들더니 0이 됐다”고 입을 모았다.</p><p>뒤이어 쿠키 동의 창과 뉴스레터 구독 창, 앱 설치 권유 배너가 차례로 빨려 들어갔다. 한 시민은 “닫기 버튼을 찾지 않아도 되는 아침은 처음”이라고 말했다.</p><p>관계 당국은 구멍의 깊이와 원인을 조사하고 있으며</p></div>
+      <div class="cont" data-eat>▶ 3면에 계속</div>
+    </div>
+  </section>
+
+  <section class="row">
+    <div class="col">
+      <div class="box-hed" data-eat>주요 뉴스<br>한눈에</div>
+      <div class="brief" data-eat><h4>팝업 업계 긴급 회의</h4><p>사라진 팝업 2만여 개의 행방을 두고 업계가 대책 마련에 나섰다.</p></div>
+      <div class="brief" data-eat><h4>쿠키 동의 버튼 실종</h4><p>‘모두 동의’ 버튼이 사라졌다는 신고가 오전에만 300건 넘게 접수됐다.</p></div>
+      <div class="brief" data-eat><h4>뉴스레터 37종 반송</h4><p>구독 확인 메일이 일제히 되돌아왔다.</p></div>
+    </div>
+    <div class="col span2">
+      <h2 class="hed it" data-eat>목격자 “휴대폰이 손에서 미끄러졌다”</h2>
+      <div class="by" data-eat>박틈새 기자</div>
+      <div class="text c2" data-eat><p>구멍 바로 옆에서 버스를 기다리던 직장인 이모(34)씨는 “손에 쥔 휴대폰이 구멍 쪽으로 기울어지는 느낌이 들어 두 손으로 꽉 붙잡았다”고 말했다.</p><p>이씨는 “화면에 떠 있던 광고가 먼저 길게 늘어나며 빨려 들어갔고, 그다음엔 읽지도 않은 기사 제목들이 글자 단위로 흩어졌다”고 설명했다.</p><p>근처 편의점 직원은 “계산대 옆 전단지와 할인 스티커가 소용돌이처럼 돌다가 사라졌다”며 “이상하게 속은 시원했다”고 덧붙였다.</p><p>현장을 지나던 시민들은 걸음을 멈추고 구멍을 내려다봤지만, 구멍 안쪽은 아무것도 보이지 않을 만큼 어두웠다고 전했다.</p></div>
+    </div>
+    <div class="col">
+      <h2 class="hed" data-eat>구멍 관측 일지</h2>
+      <div class="text" data-eat><p><b>08:41</b> 1번 출구 앞 인도에서 첫 목격.</p><p><b>08:43</b> 지름 약 30cm. 주변 전단지가 빨려 들어감.</p><p><b>08:47</b> 지름 약 1m로 커짐. 휴대폰 알림이 사라지기 시작.</p><p><b>08:52</b> 통제선 설치. 구멍 주변이 어두워졌다는 증언이 잇따름.</p><p><b>09:05</b> 원인 조사 착수.</p></div>
+    </div>
+    <div class="col span2">
+      <h2 class="hed" data-eat>팝업 닫기 버튼, 평균 2.3개 숨겨져</h2>
+      <div class="by" data-eat>최여백 기자</div>
+      <div class="text c2" data-eat><p>국내 뉴스 사이트 100곳을 조사한 결과 기사 한 건을 끝까지 읽으려면 평균 2.3개의 닫기 버튼을 찾아야 하는 것으로 나타났다.</p><p>닫기 버튼의 평균 크기는 가로세로 11픽셀로, 광고 본문의 1%에도 미치지 못했다. 응답자의 68%는 “닫기 버튼을 누르려다 광고를 누른 적이 있다”고 답했다.</p><p>전문가들은 “오늘 생긴 구멍이 이 문제를 가장 확실하게 해결한 셈”이라고 평가했다.</p></div>
+      <div class="brief" data-eat><h4>월요병, 과학적으로 실재한다</h4><p>연구진은 월요일 오전 집중력이 금요일보다 23% 낮다고 밝혔다.</p></div>
+    </div>
+  </section>
+
+  <section class="bottom">
+    <div class="left">
+      <div class="bh" data-eat>11월의 첫 월요일 — 구멍 이후의 도시</div>
+      <div class="pair">
+        <div data-eat><h3>시민들 “속이 다 시원하다”</h3><p class="caption">출근길 시민 다수가 불편보다 후련함을 먼저 말했다. ▶ 5면</p></div>
+        <div data-eat><h3>전문가 “원인은 정보 과잉”</h3><p class="caption">넘치는 알림과 광고가 한곳에 몰리며 구멍이 생겼다는 분석이 나왔다. ▶ 6면</p></div>
+      </div>
+    </div>
+    <div class="index" data-eat>
+      <h4>오늘의 지면</h4>
+      <ul><li><span>사회</span><span>3</span></li><li><span>경제</span><span>12</span></li><li><span>국제</span><span>18</span></li><li><span>IT·과학</span><span>24</span></li><li><span>오피니언</span><span>30</span></li><li><span>스포츠</span><span>42</span></li><li><span>날씨</span><span>49</span></li><li><span>광고</span><span>50–56</span></li></ul>
+    </div>
+  </section>
+</div>
+
+<canvas class="space" id="back"></canvas>
+<canvas class="space" id="front"></canvas>
+<a class="back" href="../index.html">← motion-typo</a>
+<div class="hint" id="hint">아무 데나 클릭해서 구멍 내기</div>
+
+<script>
+const hintEl = document.getElementById('hint');
+const HINT_START = hintEl.textContent;
+
+const hole = { x: 0, y: 0, tx: 0, ty: 0, r: 0, mass: 0, active: false };
+let phase = 'idle'; // idle → eating → collapse → done → spit → idle
+let items = [];
+let spawned = 0;
+let spawnTimer = null;
+
+function measure(it) {
+  it.el.style.transform = '';
+  const b = it.el.getBoundingClientRect();
+  it.cx = b.left + b.width / 2;
+  it.cy = b.top + b.height / 2;
+  it.w = it.el.offsetWidth;
+  it.h = it.el.offsetHeight;
+}
+
+function register(el, popup) {
+  const it = { el, popup, state: 'idle' };
+  measure(it);
+  items.push(it);
+  return it;
+}
+
+document.querySelectorAll('[data-eat]').forEach(el => register(el, false));
+
+/* ───── 팝업 지옥 ───── */
+const POPUPS = [
+  { cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
+  { cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
+  { cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 290 },
+  { cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
+  { cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
+  { cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:22px;color:#ffb400">★★★★★</span><div class="btns"><button>제출</button></div>', w: 240 },
+  { cls: 'dark', html: '💬 상담원 연결 중…<br><span style="opacity:.7">무엇을 도와드릴까요?</span>', w: 220 },
+  { cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
+  { cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 300 },
+  { cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
+  { cls: 'dark', html: '🔥 지금 237명이 이 기사를 보고 있어요', w: 250 },
+  { cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 200 },
+];
+const MAX_POPUPS = 26;
+
+function spawnPopup() {
+  if (spawned >= MAX_POPUPS || phase === 'collapse' || phase === 'done' || phase === 'spit') return;
+  const t = POPUPS[spawned % POPUPS.length];
+  spawned++;
+  const el = document.createElement('div');
+  el.className = 'popup ' + t.cls;
+  el.innerHTML = '<button class="x" aria-label="닫기">×</button>' + t.html;
+  if (t.w) el.style.width = t.w + 'px';
+  el.style.visibility = 'hidden';
+  document.body.appendChild(el);
+  const vw = innerWidth, vh = innerHeight;
+  if (t.at === 'bottom') el.style.bottom = '0';
+  else if (t.at === 'top') el.style.top = '0';
+  else {
+    el.style.left = (10 + Math.random() * Math.max(0, vw - el.offsetWidth - 20)) + 'px';
+    el.style.top = (40 + Math.random() * Math.max(0, vh - el.offsetHeight - 60)) + 'px';
+  }
+  el.style.visibility = '';
+  el.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (e.target.closest('button')) { spawnPopup(); spawnPopup(); }
+  });
+  register(el, true);
+}
+
+function startSpawning() {
+  clearInterval(spawnTimer);
+  [300, 900, 1500, 2200].forEach(ms => setTimeout(spawnPopup, ms));
+  spawnTimer = setInterval(spawnPopup, 2300);
+}
+
+/* ───── 소리 ───── */
+let ac, rumbleGain;
+function initAudio() {
+  if (ac) { ac.resume(); return; }
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ac.createOscillator(), osc2 = ac.createOscillator();
+  const lp = ac.createBiquadFilter();
+  rumbleGain = ac.createGain();
+  osc.type = 'sawtooth'; osc.frequency.value = 38;
+  osc2.type = 'sine'; osc2.frequency.value = 55;
+  lp.type = 'lowpass'; lp.frequency.value = 140;
+  rumbleGain.gain.value = 0;
+  osc.connect(lp); osc2.connect(lp); lp.connect(rumbleGain); rumbleGain.connect(ac.destination);
+  osc.start(); osc2.start();
+}
+function sweep(from, to, dur, vol) {
+  if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(), now = ac.currentTime;
+  o.type = 'sine';
+  o.frequency.setValueAtTime(from, now);
+  o.frequency.exponentialRampToValueAtTime(to, now + dur);
+  g.gain.setValueAtTime(vol, now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + dur + 0.02);
+}
+const gulp = size => sweep(900 - Math.min(size, 600), 60, 0.22, 0.12);
+
+/* ───── 블랙홀 렌더링 ───── */
 const TAU = Math.PI * 2;
 const TILT = 0.26, ROT = -0.32;
 const clamp01 = v => Math.max(0, Math.min(1, v));
