@@ -433,6 +433,78 @@ function drawWell() {
   gl.uniform1i(U.uTex, 0);
   gl.uniform3fv(U.uPaper, PAPER);
   gl.drawArrays(gl.TRIANGLES, 0, VCOUNT);
+  drawGlow();
+}
+
+/* ───── 목 부분 빛 ───── */
+// 1차: 구멍 주변을 남색 어둠으로 곱해 누르고, 2차: 일렁이는 파란 가닥 고리와 안개를 더한다
+const GLOW_VS = `attribute vec2 aPos; void main() { gl_Position = vec4(aPos, 0.0, 1.0); }`;
+const GLOW_FS = `
+precision highp float;
+uniform vec2 uView, uT;
+uniform float uRho, uTime, uGlow, uDPR, uPass;
+void main() {
+  vec2 p = vec2(gl_FragCoord.x, uView.y * uDPR - gl_FragCoord.y) / uDPR;
+  vec2 d = p - uT;
+  float r = length(d), th = atan(d.y, d.x), rho = max(uRho, 1.0);
+  if (uPass < 0.5) {
+    float dark = exp(-pow(r / (rho * 1.9), 2.0)) * uGlow;
+    gl_FragColor = vec4(mix(vec3(1.0), vec3(0.02, 0.02, 0.10), dark), 1.0);
+    return;
+  }
+  float sum = 0.0;
+  for (int k = 0; k < 16; k++) {
+    float fk = float(k);
+    float rk = rho * (1.0 + 0.07 * sin(3.0 * th + uTime * 1.1 + fk * 0.7)
+                          + 0.045 * sin(5.0 * th - uTime * 0.8 + fk * 1.9)
+                          + 0.03 * sin(2.0 * th + uTime * 0.5 + fk * 3.1)
+                          + (fk - 8.0) * 0.006);
+    float w = rho * 0.010 + 0.8;
+    sum += exp(-pow((r - rk) / w, 2.0)) * (0.35 + 0.65 * (0.5 + 0.5 * sin(th + fk + uTime * 0.7)));
+  }
+  sum /= 5.0;
+  float core = exp(-pow((r - rho) / (rho * 0.035 + 1.0), 2.0));
+  float grain = fract(sin(dot(floor(p) + floor(uTime * 24.0), vec2(12.9898, 78.233))) * 43758.5453);
+  float haze = exp(-pow((r - rho) / (rho * 0.5), 2.0)) * 0.5 * (0.7 + 0.3 * sin(th * 2.0 - uTime * 0.6)) * (0.6 + 0.8 * grain);
+  vec3 col = vec3(0.22, 0.25, 1.0) * (sum * 0.9 + haze) + vec3(0.85, 0.9, 1.0) * (core * 0.9 + sum * sum * 0.35);
+  gl_FragColor = vec4(col * uGlow, 1.0);
+}`;
+const glowProg = gl.createProgram();
+gl.attachShader(glowProg, shader(gl.VERTEX_SHADER, GLOW_VS));
+gl.attachShader(glowProg, shader(gl.FRAGMENT_SHADER, GLOW_FS));
+gl.linkProgram(glowProg);
+const GU = {};
+for (const n of ['uView', 'uT', 'uRho', 'uTime', 'uGlow', 'uDPR', 'uPass']) GU[n] = gl.getUniformLocation(glowProg, n);
+const quad = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, -1, 1, 1, -1, 1, 1]), gl.STATIC_DRAW);
+const aPos = gl.getAttribLocation(glowProg, 'aPos');
+
+function drawGlow() {
+  const rp = 0.9 * Rh(), s = F / (F - wellDepth(rp));
+  gl.useProgram(glowProg);
+  gl.bindBuffer(gl.ARRAY_BUFFER, quad);
+  gl.enableVertexAttribArray(aPos);
+  gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 0, 0);
+  gl.uniform2f(GU.uView, innerWidth, innerHeight);
+  gl.uniform2f(GU.uT, cam.x + (hole.x - cam.x) * s, cam.y + (hole.y - cam.y) * s);
+  gl.uniform1f(GU.uRho, rp * s);
+  gl.uniform1f(GU.uTime, performance.now() / 1000);
+  gl.uniform1f(GU.uGlow, hole.open * hole.close);
+  gl.uniform1f(GU.uDPR, DPR);
+  gl.disable(gl.DEPTH_TEST);
+  gl.enable(gl.BLEND);
+  gl.blendFunc(gl.DST_COLOR, gl.ZERO);
+  gl.uniform1f(GU.uPass, 0);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.blendFunc(gl.ONE, gl.ONE);
+  gl.uniform1f(GU.uPass, 1);
+  gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.disable(gl.BLEND);
+  gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(prog);
+  gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+  gl.vertexAttribPointer(aPolar, 2, gl.FLOAT, false, 0, 0);
 }
 
 /* ───── 팝업 빨아들이기 ───── */
