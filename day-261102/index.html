@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 261102 — 팝업 지옥에 구멍</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root { --ink: #151515; --muted: #8a8a8a; --line: #e4e4e4; --red: #e0261b; --bg: #fbfaf7; }
+  html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--ink);
+    font-family: 'Pretendard Variable', sans-serif; -webkit-font-smoothing: antialiased; }
+  body { cursor: crosshair; user-select: none; }
+  button { font: inherit; cursor: pointer; }
+  [data-eat], .popup { will-change: transform; }
+  .eaten { visibility: hidden; }
+
+  /* ───── 신문 본문 ───── */
+  .page { height: 100vh; display: flex; flex-direction: column; padding: 0 3vw; }
+  .topad { margin: 10px auto 0; width: min(900px, 100%); height: 54px; border-radius: 4px;
+    background: repeating-linear-gradient(45deg, #ffe14d 0 14px, #ffd000 14px 28px);
+    display: flex; align-items: center; justify-content: center; gap: 14px;
+    font-weight: 800; font-size: 15px; letter-spacing: -0.02em; }
+  .topad span { background: var(--ink); color: #ffe14d; padding: 4px 10px; border-radius: 3px; }
+  .mast { display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 14px 0 10px; border-bottom: 3px double var(--ink); }
+  .logo { font-family: 'Noto Serif KR', serif; font-weight: 900; font-size: clamp(26px, 3.2vw, 42px); letter-spacing: -0.04em; }
+  .mast .meta { font-size: 12px; color: var(--muted); text-align: right; line-height: 1.6; }
+  nav.gnb { display: flex; gap: 2px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 14px; font-weight: 600; }
+  nav.gnb span { padding: 4px 12px; }
+  .ticker { display: flex; align-items: center; gap: 10px; padding: 8px 0; font-size: 13px; border-bottom: 1px solid var(--line); }
+  .ticker b { background: var(--red); color: #fff; padding: 2px 8px; font-size: 11px; letter-spacing: 0.05em; }
+
+  .body { flex: 1; min-height: 0; display: grid; grid-template-columns: 2.1fr 1fr; gap: 3vw; padding: 18px 0; }
+  .main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .kicker { font-size: 12px; font-weight: 700; color: var(--red); }
+  h1.headline { font-family: 'Noto Serif KR', serif; font-weight: 900; font-size: clamp(26px, 3vw, 44px);
+    line-height: 1.25; letter-spacing: -0.035em; position: relative; z-index: 5; }
+  .byline { font-size: 12px; color: var(--muted); }
+  .photo { height: clamp(120px, 24vh, 260px); border-radius: 2px; position: relative; overflow: hidden;
+    background: linear-gradient(#cfd3d6, #a9aeb2); }
+  .photo::before { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 55%;
+    background: repeating-linear-gradient(90deg, #8d9195 0 2px, #9a9ea2 2px 60px); }
+  .photo::after { content: ''; position: absolute; left: 38%; bottom: 14%; width: 26%; height: 22%;
+    border-radius: 50%; background: radial-gradient(#000 55%, #2a2a2a 70%, transparent 72%); }
+  .photo figcaption { position: absolute; right: 10px; bottom: 6px; font-size: 11px; color: #fff; }
+  .main p { font-family: 'Noto Serif KR', serif; font-weight: 500; font-size: 15px; line-height: 1.75; color: #333; }
+  .inad { border: 1px solid var(--line); padding: 10px 14px; font-size: 13px; display: flex; justify-content: space-between; background: #fff; }
+  .inad em { font-style: normal; color: var(--muted); font-size: 11px; }
+
+  .side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .side h3 { font-size: 13px; font-weight: 800; border-bottom: 2px solid var(--ink); padding-bottom: 6px; }
+  .rank { display: flex; gap: 10px; font-size: 13.5px; line-height: 1.45; padding: 4px 0; border-bottom: 1px solid var(--line); }
+  .rank i { font-style: normal; font-weight: 800; color: var(--red); width: 14px; }
+  .sidead { flex: 1; min-height: 90px; max-height: 220px; border-radius: 4px; color: #fff; padding: 14px;
+    background: linear-gradient(135deg, #ff3d7f, #7a3dff); display: flex; flex-direction: column; justify-content: space-between; }
+  .sidead b { font-size: 22px; line-height: 1.2; letter-spacing: -0.03em; }
+  .sidead small { opacity: 0.8; font-size: 11px; }
+
+  /* ───── 팝업들 ───── */
+  .popup { position: fixed; z-index: 20; background: #fff; color: var(--ink); border-radius: 10px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.22); font-size: 14px; padding: 16px 18px;
+    animation: popin 0.35s cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes popin { from { opacity: 0; transform: scale(0.6); } }
+  .popup .x { position: absolute; top: 6px; right: 8px; border: 0; background: none; font-size: 18px; color: #999; line-height: 1; }
+  .popup h4 { font-size: 16px; margin-bottom: 6px; letter-spacing: -0.02em; }
+  .popup .btns { display: flex; gap: 8px; margin-top: 12px; }
+  .popup .btns button { flex: 1; border: 0; border-radius: 6px; padding: 9px 10px; background: var(--ink); color: #fff; font-weight: 700; font-size: 13px; }
+  .popup .btns button + button { background: #eee; color: var(--ink); }
+  .popup.dark { background: #1b1b1b; color: #fff; }
+  .popup.video { padding: 0; overflow: hidden; width: 280px; }
+  .popup.video .screen { height: 158px; background: linear-gradient(120deg, #111, #333); display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px; }
+  .popup.video .screen span { background: rgba(0,0,0,0.7); color: #fff; font-size: 12px; padding: 5px 10px; border: 1px solid #666; }
+  .popup.bar { left: 0 !important; right: 0; border-radius: 0; display: flex; align-items: center; gap: 16px; justify-content: center; }
+  .popup.bar .btns { margin: 0; }
+  .popup.scam { background: radial-gradient(circle, #fff36b, #ff9d00); text-align: center; font-weight: 800; }
+  .popup.scam h4 { font-size: 22px; color: var(--red); }
+
+  /* ───── 블랙홀 ───── */
+  #hole { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 50; pointer-events: none; }
+  #hole .disk, #hole .core { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
+  #hole .disk { width: calc(var(--r) * 3.4); height: calc(var(--r) * 3.4); filter: blur(calc(var(--r) * 0.12));
+    background: conic-gradient(from 0deg, transparent, #ffb35c, #fff3d6, transparent 40%, #ff7a2f, transparent 70%, #ffd38a, transparent);
+    -webkit-mask: radial-gradient(circle, transparent 28%, #000 31%, #000 44%, transparent 62%);
+            mask: radial-gradient(circle, transparent 28%, #000 31%, #000 44%, transparent 62%);
+    animation: spin 2.4s linear infinite; opacity: 0.85; }
+  #hole .core { width: calc(var(--r) * 2); height: calc(var(--r) * 2);
+    background: radial-gradient(circle, #000 62%, #000 66%, rgba(0,0,0,0.5) 72%, transparent 76%);
+    box-shadow: 0 0 calc(var(--r) * 0.6) calc(var(--r) * 0.1) rgba(255,160,70,0.35); }
+  @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+  .hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
+    font-size: 12px; color: var(--muted); letter-spacing: 0.02em; pointer-events: none; transition: opacity 0.6s; }
+  .back { position: fixed; left: 20px; top: 16px; z-index: 60; font-size: 12px; color: var(--muted); text-decoration: none; }
+
+  @media (max-width: 720px) {
+    .body { grid-template-columns: 1fr; }
+    .side { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="topad" data-eat>🎉 오늘만 특가! <span>지금 클릭</span> 놓치면 평생 후회</div>
+
+  <header class="mast">
+    <div class="logo" data-eat>매일매일일보</div>
+    <div class="meta" data-eat>2026년 11월 2일 월요일<br>구독 · 로그인 · 전자판</div>
+  </header>
+
+  <nav class="gnb">
+    <span data-eat>정치</span><span data-eat>경제</span><span data-eat>사회</span><span data-eat>국제</span>
+    <span data-eat>IT·과학</span><span data-eat>연예</span><span data-eat>스포츠</span><span data-eat>오피니언</span><span data-eat>포토</span>
+  </nav>
+
+  <div class="ticker" data-eat><b>속보</b> 단독 속보 긴급 단독… 자세한 내용은 앱에서 확인하세요</div>
+
+  <div class="body">
+    <article class="main">
+      <div class="kicker" data-eat>사회 · 단독</div>
+      <h1 class="headline" id="headline">출근길 지하철역 앞에 정체불명의 구멍… 원인은 아직</h1>
+      <div class="byline" data-eat>김구멍 기자 · 입력 2026.11.02 08:41 · 수정 08:42 · 댓글 999+</div>
+      <figure class="photo" data-eat><figcaption>사진=독자 제공</figcaption></figure>
+      <p data-eat>2일 오전 서울의 한 지하철역 앞 인도에 지름 약 1m의 구멍이 생겨 출근길 시민들이 발걸음을 멈췄다.</p>
+      <div class="inad" data-eat>👉 이 기사와 함께 많이 본 상품 <em>AD</em></div>
+      <p data-eat>목격자들은 구멍 근처에 있던 전단지와 휴대폰 알림이 “쏙 빨려 들어갔다”고 전했다. 관계 당국은 정확한 원인을 조사 중이다.</p>
+    </article>
+
+    <aside class="side">
+      <h3 data-eat>많이 본 뉴스</h3>
+      <div class="rank" data-eat><i>1</i>“그 구멍 나도 봤다” 목격담 잇따라</div>
+      <div class="rank" data-eat><i>2</i>월요병, 과학적으로 실재한다</div>
+      <div class="rank" data-eat><i>3</i>팝업 닫기 버튼, 평균 2.3개 숨겨져 있어</div>
+      <div class="rank" data-eat><i>4</i>11월 첫 주 날씨, 구멍 뚫린 듯 맑아</div>
+      <div class="rank" data-eat><i>5</i>“알림 999개, 다 읽은 사람 없다”</div>
+      <div class="sidead" data-eat><b>당신만을 위한<br>맞춤 광고</b><small>방금 검색하신 그 상품, 아직 기다려요</small></div>
+    </aside>
+  </div>
+</div>
+
+<div id="hole"><div class="disk"></div><div class="core"></div></div>
+<a class="back" href="../index.html">← motion-typo</a>
+<div class="hint" id="hint">아무 데나 클릭해서 구멍 내기</div>
+
+<script>
+const holeEl = document.getElementById('hole');
+const hintEl = document.getElementById('hint');
+const headline = document.getElementById('headline');
+const HINT_START = hintEl.textContent;
+
+const hole = { x: 0, y: 0, tx: 0, ty: 0, r: 0, mass: 0, active: false };
+let phase = 'idle'; // idle → eating → collapse → done → spit → idle
+let items = [];
+let spawned = 0;
+let spawnTimer = null;
+
+function measure(it) {
+  it.el.style.transform = '';
+  const b = it.el.getBoundingClientRect();
+  it.cx = b.left + b.width / 2;
+  it.cy = b.top + b.height / 2;
+  it.w = it.el.offsetWidth;
+  it.h = it.el.offsetHeight;
+}
+
+function register(el, popup) {
+  const it = { el, popup, anchor: el === headline, state: 'idle' };
+  measure(it);
+  items.push(it);
+  return it;
+}
+
+document.querySelectorAll('[data-eat]').forEach(el => register(el, false));
+register(headline, false);
+
+/* ───── 팝업 지옥 ───── */
+const POPUPS = [
+  { cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
+  { cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
+  { cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 290 },
+  { cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
+  { cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
+  { cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:22px;color:#ffb400">★★★★★</span><div class="btns"><button>제출</button></div>', w: 240 },
+  { cls: 'dark', html: '💬 상담원 연결 중…<br><span style="opacity:.7">무엇을 도와드릴까요?</span>', w: 220 },
+  { cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
+  { cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 300 },
+  { cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
+  { cls: 'dark', html: '🔥 지금 237명이 이 기사를 보고 있어요', w: 250 },
+  { cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 200 },
+];
+const MAX_POPUPS = 26;
+
+function spawnPopup() {
+  if (spawned >= MAX_POPUPS || phase === 'collapse' || phase === 'done' || phase === 'spit') return;
+  const t = POPUPS[spawned % POPUPS.length];
+  spawned++;
+  const el = document.createElement('div');
+  el.className = 'popup ' + t.cls;
+  el.innerHTML = '<button class="x" aria-label="닫기">×</button>' + t.html;
+  if (t.w) el.style.width = t.w + 'px';
+  el.style.visibility = 'hidden';
+  document.body.appendChild(el);
+  const vw = innerWidth, vh = innerHeight;
+  if (t.at === 'bottom') el.style.bottom = '0';
+  else if (t.at === 'top') el.style.top = '0';
+  else {
+    el.style.left = (10 + Math.random() * Math.max(0, vw - el.offsetWidth - 20)) + 'px';
+    el.style.top = (40 + Math.random() * Math.max(0, vh - el.offsetHeight - 60)) + 'px';
+  }
+  el.style.visibility = '';
+  el.addEventListener('pointerdown', e => {
+    e.stopPropagation();
+    if (e.target.closest('button')) { spawnPopup(); spawnPopup(); }
+  });
+  register(el, true);
+}
+
+function startSpawning() {
+  clearInterval(spawnTimer);
+  [300, 900, 1500, 2200].forEach(ms => setTimeout(spawnPopup, ms));
+  spawnTimer = setInterval(spawnPopup, 2300);
+}
+
+/* ───── 소리 ───── */
+let ac, rumbleGain;
+function initAudio() {
+  if (ac) { ac.resume(); return; }
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  const osc = ac.createOscillator(), osc2 = ac.createOscillator();
+  const lp = ac.createBiquadFilter();
+  rumbleGain = ac.createGain();
+  osc.type = 'sawtooth'; osc.frequency.value = 38;
+  osc2.type = 'sine'; osc2.frequency.value = 55;
+  lp.type = 'lowpass'; lp.frequency.value = 140;
+  rumbleGain.gain.value = 0;
+  osc.connect(lp); osc2.connect(lp); lp.connect(rumbleGain); rumbleGain.connect(ac.destination);
+  osc.start(); osc2.start();
+}
+function sweep(from, to, dur, vol) {
+  if (!ac) return;
+  const o = ac.createOscillator(), g = ac.createGain(), now = ac.currentTime;
+  o.type = 'sine';
+  o.frequency.setValueAtTime(from, now);
+  o.frequency.exponentialRampToValueAtTime(to, now + dur);
+  g.gain.setValueAtTime(vol, now);
+  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + dur + 0.02);
+}
+const gulp = size => sweep(900 - Math.min(size, 600), 60, 0.22, 0.12);
+
+/* ───── 블랙홀 ───── */
+const clamp01 = v => Math.max(0, Math.min(1, v));
+
+function startFall(it, dx, dy, d) {
+  it.state = 'fall';
+  it.pr = d; it.r0 = Math.max(d, 1);
+  it.pa = Math.atan2(-dy, -dx);
+  it.spin = 0;
+  it.el.style.animation = 'none';
+  it.el.style.zIndex = 40;
+  if (!it.popup) it.el.style.position = 'relative';
+}
+
+function eat(it) {
+  it.state = 'eaten';
+  it.el.classList.add('eaten');
+  hole.mass += Math.min(it.w * it.h, 80000);
+  gulp(Math.sqrt(it.w * it.h));
+}
+
+function step() {
+  hole.x += (hole.tx - hole.x) * 0.07;
+  hole.y += (hole.ty - hole.y) * 0.07;
+
+  let targetR = 0;
+  if (phase === 'eating') targetR = Math.min(140, 20 + Math.sqrt(hole.mass) * 0.13);
+  if (phase === 'spit') targetR = 60;
+  hole.r += (targetR - hole.r) * (phase === 'collapse' ? 0.05 : 0.08);
+
+  holeEl.style.transform = `translate(${hole.x}px, ${hole.y}px)`;
+  holeEl.style.setProperty('--r', hole.r + 'px');
+  holeEl.style.display = hole.r > 0.5 ? '' : 'none';
+  if (rumbleGain) rumbleGain.gain.setTargetAtTime(Math.min(0.14, hole.r / 900), ac.currentTime, 0.1);
+
+  if (phase === 'eating') {
+    let left = 0;
+    for (const it of items) {
+      if (it.state === 'eaten') continue;
+      const dx = hole.x - it.cx, dy = hole.y - it.cy;
+      const d = Math.hypot(dx, dy) || 1;
+      const size = Math.sqrt(it.w * it.h);
+
+      if (it.state === 'idle') {
+        if (!it.anchor) left++;
+        const reach = hole.r * (it.popup ? 6 : 3.6) + size * 0.5;
+        const pull = clamp01(1 - d / reach);
+        const capture = hole.r * (it.popup ? 2.4 : 1.3) + size * (it.popup ? 0.5 : 0.3);
+        if (!it.anchor && d < capture) { startFall(it, dx, dy, d); continue; }
+        const k = pull * pull * (it.anchor ? 10 : 22);
+        it.el.style.transform = pull > 0
+          ? `translate(${dx / d * k}px, ${dy / d * k}px) rotate(${(Math.random() - 0.5) * pull * 3}deg)`
+          : '';
+        continue;
+      }
+
+      left++;
+      it.pr = it.pr * 0.955 - 1.2;
+      it.pa += Math.min(0.35, 2.2 / Math.max(it.pr, 8));
+      it.spin += 0.08;
+      const s = clamp01(it.pr / it.r0);
+      const shrink = Math.pow(s, 0.8);
+      const stretch = 1 + (1 - s) * 2.2;
+      const px = hole.x + Math.cos(it.pa) * it.pr - it.cx;
+      const py = hole.y + Math.sin(it.pa) * it.pr - it.cy;
+      it.el.style.transform =
+        `translate(${px}px, ${py}px) rotate(${it.pa}rad) scale(${shrink * stretch}, ${shrink / stretch}) rotate(${-it.pa + it.spin}rad)`;
+      it.el.style.opacity = Math.min(1, s * 3);
+      if (it.pr < 2 || shrink < 0.03) eat(it);
+    }
+    if (left === 0 && spawned >= MAX_POPUPS) phase = 'collapse';
+    if (left === 0 && spawned < MAX_POPUPS && spawned >= POPUPS.length) {
+      spawned = MAX_POPUPS;
+      clearInterval(spawnTimer);
+    }
+  }
+
+  if (phase === 'collapse' && hole.r < 1) {
+    phase = 'done';
+    headline.style.transform = '';
+    hintEl.textContent = '다시 클릭하면 뱉어내요';
+    hintEl.style.opacity = 1;
+  }
+
+  requestAnimationFrame(step);
+}
+
+function spitBack() {
+  phase = 'spit';
+  sweep(70, 1100, 0.9, 0.14);
+  const eaten = items.filter(it => it.state === 'eaten');
+  items = items.filter(it => !it.popup);
+  eaten.forEach((it, i) => {
+    if (it.popup) { it.el.remove(); return; }
+    const el = it.el;
+    el.style.transition = 'none';
+    el.style.opacity = 1;
+    el.style.transform = `translate(${hole.x - it.cx}px, ${hole.y - it.cy}px) scale(0.05) rotate(${Math.random() * 720 - 360}deg)`;
+    el.classList.remove('eaten');
+    void el.offsetWidth;
+    el.style.transition = `transform 0.9s cubic-bezier(.2,1.5,.4,1) ${i * 35}ms`;
+    el.style.transform = '';
+  });
+  const total = 900 + eaten.length * 35;
+  setTimeout(() => {
+    items.forEach(it => {
+      it.state = 'idle';
+      it.el.style.transition = it.el.style.zIndex = it.el.style.position = '';
+      measure(it);
+    });
+    hole.mass = 0;
+    hole.active = false;
+    spawned = 0;
+    phase = 'idle';
+    hintEl.textContent = HINT_START;
+    startSpawning();
+  }, total);
+}
+
+addEventListener('pointermove', e => { hole.tx = e.clientX; hole.ty = e.clientY; });
+addEventListener('pointerdown', e => {
+  initAudio();
+  hole.tx = e.clientX; hole.ty = e.clientY;
+  if (phase === 'idle') {
+    hole.x = e.clientX; hole.y = e.clientY;
+    hole.active = true;
+    phase = 'eating';
+    hintEl.style.opacity = 0;
+  } else if (phase === 'done') {
+    hole.x = e.clientX; hole.y = e.clientY;
+    hintEl.style.opacity = 0;
+    spitBack();
+  }
+});
+addEventListener('resize', () => items.forEach(it => { if (it.state === 'idle') measure(it); }));
+
+startSpawning();
+requestAnimationFrame(step);
+</script>
+</body>
+</html>
