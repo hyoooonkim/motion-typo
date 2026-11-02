@@ -95,42 +95,43 @@
   .index ul { list-style: none; columns: 2; column-gap: 1vw; font-size: 9.5px; line-height: 1.7; color: var(--dim); }
   .index li { display: flex; justify-content: space-between; border-bottom: 1px dotted rgba(0,0,0,0.3); }
 
-  /* ───── 팝업들 (디지털 터미널 창) ───── */
-  .popup { position: fixed; z-index: 35; background: #050805; color: var(--green); border: 1px solid var(--green);
-    box-shadow: 0 0 14px rgba(0,212,58,0.45), inset 0 0 18px rgba(0,212,58,0.12); font-size: 12px; font-family: var(--mono);
-    text-shadow: 0 0 4px rgba(0,212,58,0.6); animation: popin 0.22s steps(3) both; }
-  .popup::after { content: ''; position: absolute; inset: 0; pointer-events: none;
-    background: repeating-linear-gradient(0deg, rgba(255,255,255,0.05) 0 1px, transparent 1px 3px); }
-  @keyframes popin { 0% { opacity: 0; transform: scaleY(0.05); } 60% { opacity: 1; transform: scaleY(1.04); } }
-  .popup .tbar { display: flex; align-items: center; height: 18px; padding: 0 6px; background: var(--green); color: #021405; text-shadow: none; }
-  .popup .tbar span { order: 1; font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; white-space: nowrap; }
-  .popup .tbar span::before { content: '■ '; }
-  .popup .tbar i { order: 2; flex: 1; }
-  .popup .tbar .x { order: 3; border: 0; background: none; color: #021405; font-size: 10.5px; font-weight: 700; padding: 0; }
-  .popup .tbar .x::after { content: '[x]'; }
-  .popup .pbody { padding: 10px 12px 12px; line-height: 1.6; }
-  .popup .pbody::after { content: '_'; animation: blink 1s steps(1) infinite; }
-  @keyframes blink { 50% { opacity: 0; } }
-  .popup h4 { font-size: 12.5px; color: #eaffee; margin-bottom: 4px; }
-  .popup h4::before { content: '> '; color: var(--green); }
-  .popup .btns { display: flex; gap: 8px; margin-top: 10px; }
-  .popup .btns button { flex: 1; border: 1px solid var(--green); background: transparent; color: var(--green); padding: 4px 6px; font-size: 11px; text-shadow: inherit; }
-  .popup .btns button::before { content: '[ '; }
-  .popup .btns button::after { content: ' ]'; }
-  .popup .btns button:first-child { background: var(--green); color: #021405; text-shadow: none; }
+  /* ───── 팝업들: 평소엔 깔끔한 요즘 팝업, .code 가 붙으면 디지털 코드로 변환 ───── */
+  .popup { position: fixed; z-index: 35; background: #fff; color: #151515; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.18); font-family: 'Pretendard Variable', sans-serif; font-size: 14px;
+    animation: popin 0.35s cubic-bezier(.34,1.56,.64,1) both; }
+  @keyframes popin { from { opacity: 0; transform: scale(0.6); } }
+  .popup .pbody { position: relative; z-index: 1; padding: 18px 20px; line-height: 1.5; }
+  .popup .x { position: absolute; z-index: 2; top: 8px; right: 12px; border: 0; background: none; font-size: 22px; color: #aaa; line-height: 1; }
+  .popup h4 { font-size: 17px; font-weight: 800; margin-bottom: 6px; letter-spacing: -0.02em; padding-right: 18px; }
+  .popup .btns { display: flex; gap: 8px; margin-top: 14px; }
+  .popup .btns button { flex: 1; border: 0; border-radius: 8px; padding: 11px 10px; background: #151515; color: #fff; font-weight: 700; font-size: 13px; }
+  .popup .btns button + button { background: #eee; color: #151515; }
+  .popup.dark { background: #1b1b1b; color: #fff; }
   .popup.video { width: 280px; }
   .popup.video .pbody { padding: 0; }
-  .popup.video .pbody::after { content: none; }
-  .popup.video .screen { height: 150px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px;
-    background: repeating-linear-gradient(0deg, #ff3b6b 0 3px, #19d3ff 3px 5px, #000 5px 9px, #ffe14d 9px 11px, #2a2aff 11px 15px, #000 15px 22px); }
-  .popup.video .screen span { background: #000; color: var(--green); font-size: 11px; padding: 4px 8px; border: 1px solid var(--green); }
-  .popup.bar { left: 0 !important; right: 0; }
-  .popup.bar .pbody { display: flex; align-items: center; gap: 16px; justify-content: center; padding: 7px 14px; }
-  .popup.bar .pbody::after { content: none; }
+  .popup.video .screen { height: 158px; background: linear-gradient(120deg, #111, #333); display: flex; align-items: flex-end; justify-content: flex-end; padding: 8px; }
+  .popup.video .screen span { background: rgba(0,0,0,0.7); color: #fff; font-size: 12px; padding: 5px 10px; border: 1px solid #666; }
+  .popup.bar { left: 0 !important; right: 0; border-radius: 0; }
+  .popup.bar .pbody { display: flex; align-items: center; gap: 16px; justify-content: center; padding: 10px 20px; }
   .popup.bar .btns { margin: 0; }
-  .popup.scam { --green: #ff3030; color: #ff3030; border-color: #ff3030; box-shadow: 0 0 14px rgba(255,48,48,0.5), inset 0 0 18px rgba(255,48,48,0.15); text-shadow: 0 0 4px rgba(255,48,48,0.7); text-align: center; }
-  .popup.scam h4 { font-size: 18px; color: #fff; }
-  .popup.scam h4::before { content: '!! '; color: #ff3030; }
+  .popup.scam { background: radial-gradient(circle, #fff36b, #ff9d00); text-align: center; font-weight: 800; }
+  .popup.scam h4 { font-size: 22px; color: #e0261b; }
+  .popup .matrix, .popup .ctag { display: none; }
+
+  .popup.code { background: #010d04 !important; color: #3dff6e !important; font-family: var(--mono);
+    box-shadow: 0 0 0 1px rgba(61,255,110,0.6), 0 0 26px rgba(61,255,110,0.45); text-shadow: 0 0 6px rgba(61,255,110,0.9); }
+  .popup.code .matrix { display: block; position: absolute; inset: 0; z-index: 0; font: 10px/10px var(--mono); color: #1aff55;
+    opacity: 0.5; white-space: pre; overflow: hidden; letter-spacing: 2px;
+    -webkit-mask: linear-gradient(180deg, transparent, #000 25%, #000 75%, transparent); mask: linear-gradient(180deg, transparent, #000 25%, #000 75%, transparent); }
+  .popup.code::after { content: ''; position: absolute; inset: 0; z-index: 3; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,0.38) 0 1px, transparent 1px 3px); }
+  .popup.code h4, .popup.code b { color: #c8ffd6; }
+  .popup.code .btns button { background: transparent !important; color: #3dff6e !important; border: 1px solid rgba(61,255,110,0.8); border-radius: 0; }
+  .popup.code .x { color: #3dff6e; }
+  .popup.code .screen { background: repeating-linear-gradient(0deg, rgba(61,255,110,0.25) 0 2px, transparent 2px 5px); }
+  .popup.code .screen span { background: #000; color: #3dff6e; border-color: #3dff6e; }
+  .popup.code .ctag { display: block; position: absolute; z-index: 2; left: 10px; bottom: 5px; font: 9px var(--mono); color: #3dff6e; opacity: 0.85; }
+  .popup.slice { clip-path: inset(var(--c1, 0) 0 var(--c2, 0) 0); }
 
   #gl { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 30; pointer-events: none; }
 
@@ -271,18 +272,18 @@ function register(el, popup) {
 
 /* ───── 팝업 지옥 ───── */
 const POPUPS = [
-  { title: 'cookie_consent.sys', cls: 'bar dark', at: 'bottom', html: 'COLLECT=ALL · 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
+  { title: 'cookie_consent.sys', cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
   { title: 'newsletter.app', cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
-  { title: 'push_notification', cls: '', html: '<h4>알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 300 },
+  { title: 'push_notification', cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 300 },
   { title: 'ad_player.mov', cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
-  { title: 'app_download', cls: 'bar', at: 'top', html: '$ install app --now · 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
-  { title: 'survey_v2', cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4>rating = ★★★★★<div class="btns"><button>제출</button></div>', w: 240 },
-  { title: 'live_chat', cls: 'dark', html: '> 상담원 연결 중…<br>> 무엇을 도와드릴까요?', w: 240 },
-  { title: 'WINNER!!!.exe', cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
-  { title: 'adblock_detected', cls: '', html: '<h4>ERROR 403 · 광고 차단 감지</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 310 },
-  { title: 'login_wall', cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
-  { title: 'realtime_viewers', cls: 'dark', html: '> 지금 237명이 이 기사를 보고 있어요', w: 270 },
-  { title: 'fortune.txt', cls: '', html: 'fortune.today = "구멍 조심"', w: 220 },
+  { title: 'app_download', cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
+  { title: 'survey_v2', cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:22px;color:#ffb400">★★★★★</span><div class="btns"><button>제출</button></div>', w: 260 },
+  { title: 'live_chat', cls: 'dark', html: '💬 상담원 연결 중…<br><span style="opacity:.7">무엇을 도와드릴까요?</span>', w: 240 },
+  { title: 'WINNER!!!.exe', cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 270 },
+  { title: 'adblock_detected', cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 330 },
+  { title: 'login_wall', cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 280 },
+  { title: 'realtime_viewers', cls: 'dark', html: '🔥 지금 237명이 이 기사를 보고 있어요', w: 270 },
+  { title: 'fortune.txt', cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 230 },
 ];
 const MAX_POPUPS = 26;
 
@@ -292,7 +293,7 @@ function spawnPopup() {
   spawned++;
   const el = document.createElement('div');
   el.className = 'popup ' + t.cls;
-  el.innerHTML = '<div class="tbar"><button class="x" aria-label="닫기"></button><span>' + t.title + '</span><i></i></div><div class="pbody">' + t.html + '</div>';
+  el.innerHTML = '<div class="matrix"></div><button class="x" aria-label="닫기">×</button><div class="pbody">' + t.html + '</div><div class="ctag">' + t.title + '</div>';
   if (t.w) el.style.width = t.w + 'px';
   el.style.visibility = 'hidden';
   document.body.appendChild(el);
@@ -308,7 +309,8 @@ function spawnPopup() {
     e.stopPropagation();
     if (e.target.closest('button')) { spawnPopup(); spawnPopup(); }
   });
-  register(el, true);
+  const it = register(el, true);
+  it.mx = el.querySelector('.matrix');
 }
 
 function startSpawning() {
@@ -568,6 +570,7 @@ function stepPopups(dt) {
       const pull = clamp01(1 - (d - hole.S) / 380) * hole.open;
       it.tension = (it.tension || 0) + pull * pull * dt * 1.3;
       it.limit = it.limit || 1.1 + Math.random() * 0.9;
+      it.pullv = pull; it.strainv = clamp01(it.tension / it.limit);
       if (d < hole.S + size * 0.3 || it.tension > it.limit) { breakFree(it); continue; }
       if (pull <= 0) { it.el.style.transform = ''; continue; }
       const strain = clamp01(it.tension / it.limit);
@@ -601,6 +604,46 @@ function stepPopups(dt) {
   }
   items = items.filter(it => it.state !== 'eaten');
 }
+
+/* ───── 팝업 깜빡임: 평범한 창 ↔ 디지털 코드 ───── */
+// 평소엔 가끔 몇 번 깜빡이고, 구멍에 끌릴수록 자주, 끊겨 떨어질 땐 코드 상태로 굳는다
+const MATRIX_CH = 'アイウエオカキクケコサシスセソタチツテトナニヌネノ0123456789ABCDEF<>/{}[]=;:*+#';
+function matrixText(it) {
+  const cols = Math.ceil(it.w / 8), rows = Math.ceil(it.h / 10);
+  let s = '';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) s += Math.random() < 0.55 ? MATRIX_CH[Math.random() * MATRIX_CH.length | 0] : ' ';
+    s += '\n';
+  }
+  return s;
+}
+function setCode(it, on) {
+  it.el.classList.toggle('code', on);
+  if (on) it.mx.textContent = matrixText(it);
+}
+function jitter(it, amt) {
+  if (amt <= 0) { it.el.style.translate = ''; it.el.classList.remove('slice'); return; }
+  it.el.style.translate = `${(Math.random() - 0.5) * 12 * amt}px 0`;
+  if (Math.random() < 0.45 * amt) {
+    it.el.classList.add('slice');
+    it.el.style.setProperty('--c1', Math.random() * 40 + '%');
+    it.el.style.setProperty('--c2', Math.random() * 40 + '%');
+  } else it.el.classList.remove('slice');
+}
+setInterval(() => {
+  const now = performance.now();
+  for (const it of items) {
+    if (!it.mx) continue;
+    const danger = it.state === 'fall' ? 1 : Math.max(it.strainv || 0, (it.pullv || 0) * 0.6);
+    if (danger > 0.75) { setCode(it, Math.random() > 0.08); jitter(it, 0.4 + danger * 0.6); continue; }
+    if (!it.burst && now > (it.nextGlitch ||= now + 800 + Math.random() * 2500)) it.burst = 2 + (Math.random() * 4 | 0);
+    if (!it.burst) continue;
+    const on = !it.el.classList.contains('code');
+    setCode(it, on);
+    jitter(it, on ? 1 : 0);
+    if (!on && --it.burst === 0) it.nextGlitch = now + (900 + Math.random() * 3200) * (1 - danger * 0.85);
+  }
+}, 70);
 
 /* ───── 루프 ───── */
 const easeInOut = x => x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
