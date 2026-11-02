@@ -11,7 +11,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  :root { --ink: #111111; --dim: #555552; --muted: #8a8a86; --paper: #f4f4f1; --rule: rgba(0,0,0,0.35);
+  :root { --ink: #111111; --dim: #555552; --muted: #8a8a86; --paper: #ffffff; --rule: rgba(0,0,0,0.35);
     --green: #00d43a; --red: #ff3030; --mono: 'IBM Plex Mono', 'Nanum Gothic Coding', monospace; }
   html, body { height: 100%; overflow: hidden; background: var(--paper); color: var(--ink);
     font-family: var(--mono); -webkit-font-smoothing: antialiased; }
@@ -340,7 +340,7 @@ const clamp01 = v => Math.max(0, Math.min(1, v));
 const glc = document.getElementById('gl');
 const gl = glc.getContext('webgl', { antialias: true });
 const F = 900;
-const PAPER = [0xf4 / 255, 0xf4 / 255, 0xf1 / 255];
+const PAPER = [1, 1, 1];
 
 const VS = `
 attribute vec2 aPolar;
@@ -418,7 +418,7 @@ fitCanvas();
 let snapReady = null;
 function takeSnapshot() {
   snapReady = document.fonts.ready.then(() => html2canvas(document.body, {
-    backgroundColor: '#f4f4f1', scale: DPR, logging: false,
+    backgroundColor: '#ffffff', scale: DPR, logging: false,
     x: 0, y: 0, width: innerWidth, height: innerHeight, windowWidth: innerWidth, windowHeight: innerHeight,
     ignoreElements: el => el.classList.contains('popup') || el.id === 'gl' || el.id === 'hint' || el.classList.contains('back'),
   })).then(c => {
