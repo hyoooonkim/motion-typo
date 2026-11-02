@@ -79,235 +79,212 @@
   .popup.scam { background: radial-gradient(circle, #fff36b, #ff9d00); text-align: center; font-weight: 800; }
   .popup.scam h4 { font-size: 22px; color: var(--red); }
 
-  /* ───── 블랙홀 ───── */
-  #hole { position: fixed; left: 0; top: 0; width: 0; height: 0; z-index: 50; pointer-events: none; }
-  #hole .disk, #hole .core { position: absolute; border-radius: 50%; transform: translate(-50%, -50%); }
-  #hole .disk { width: calc(var(--r) * 3.4); height: calc(var(--r) * 3.4); filter: blur(calc(var(--r) * 0.12));
-    background: conic-gradient(from 0deg, transparent, #ffb35c, #fff3d6, transparent 40%, #ff7a2f, transparent 70%, #ffd38a, transparent);
-    -webkit-mask: radial-gradient(circle, transparent 28%, #000 31%, #000 44%, transparent 62%);
-            mask: radial-gradient(circle, transparent 28%, #000 31%, #000 44%, transparent 62%);
-    animation: spin 2.4s linear infinite; opacity: 0.85; }
-  #hole .core { width: calc(var(--r) * 2); height: calc(var(--r) * 2);
-    background: radial-gradient(circle, #000 62%, #000 66%, rgba(0,0,0,0.5) 72%, transparent 76%);
-    box-shadow: 0 0 calc(var(--r) * 0.6) calc(var(--r) * 0.1) rgba(255,160,70,0.35); }
-  @keyframes spin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-
-  .hint { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 60;
-    font-size: 12px; color: var(--muted); letter-spacing: 0.02em; pointer-events: none; transition: opacity 0.6s; }
-  .back { position: fixed; left: 20px; top: 16px; z-index: 60; font-size: 12px; color: var(--muted); text-decoration: none; }
-
-  @media (max-width: 720px) {
-    .body { grid-template-columns: 1fr; }
-    .side { display: none; }
-  }
-</style>
-</head>
-<body>
-<div class="page">
-  <div class="topad" data-eat>🎉 오늘만 특가! <span>지금 클릭</span> 놓치면 평생 후회</div>
-
-  <header class="mast">
-    <div class="logo" data-eat>매일매일일보</div>
-    <div class="meta" data-eat>2026년 11월 2일 월요일<br>구독 · 로그인 · 전자판</div>
-  </header>
-
-  <nav class="gnb">
-    <span data-eat>정치</span><span data-eat>경제</span><span data-eat>사회</span><span data-eat>국제</span>
-    <span data-eat>IT·과학</span><span data-eat>연예</span><span data-eat>스포츠</span><span data-eat>오피니언</span><span data-eat>포토</span>
-  </nav>
-
-  <div class="ticker" data-eat><b>속보</b> 단독 속보 긴급 단독… 자세한 내용은 앱에서 확인하세요</div>
-
-  <div class="body">
-    <article class="main">
-      <div class="kicker" data-eat>사회 · 단독</div>
-      <h1 class="headline" id="headline">출근길 지하철역 앞에 정체불명의 구멍… 원인은 아직</h1>
-      <div class="byline" data-eat>김구멍 기자 · 입력 2026.11.02 08:41 · 수정 08:42 · 댓글 999+</div>
-      <figure class="photo" data-eat><figcaption>사진=독자 제공</figcaption></figure>
-      <p data-eat>2일 오전 서울의 한 지하철역 앞 인도에 지름 약 1m의 구멍이 생겨 출근길 시민들이 발걸음을 멈췄다.</p>
-      <div class="inad" data-eat>👉 이 기사와 함께 많이 본 상품 <em>AD</em></div>
-      <p data-eat>목격자들은 구멍 근처에 있던 전단지와 휴대폰 알림이 “쏙 빨려 들어갔다”고 전했다. 관계 당국은 정확한 원인을 조사 중이다.</p>
-    </article>
-
-    <aside class="side">
-      <h3 data-eat>많이 본 뉴스</h3>
-      <div class="rank" data-eat><i>1</i>“그 구멍 나도 봤다” 목격담 잇따라</div>
-      <div class="rank" data-eat><i>2</i>월요병, 과학적으로 실재한다</div>
-      <div class="rank" data-eat><i>3</i>팝업 닫기 버튼, 평균 2.3개 숨겨져 있어</div>
-      <div class="rank" data-eat><i>4</i>11월 첫 주 날씨, 구멍 뚫린 듯 맑아</div>
-      <div class="rank" data-eat><i>5</i>“알림 999개, 다 읽은 사람 없다”</div>
-      <div class="sidead" data-eat><b>당신만을 위한<br>맞춤 광고</b><small>방금 검색하신 그 상품, 아직 기다려요</small></div>
-    </aside>
-  </div>
-</div>
-
-<div id="hole"><div class="disk"></div><div class="core"></div></div>
-<a class="back" href="../index.html">← motion-typo</a>
-<div class="hint" id="hint">아무 데나 클릭해서 구멍 내기</div>
-
-<script>
-const holeEl = document.getElementById('hole');
-const hintEl = document.getElementById('hint');
-const headline = document.getElementById('headline');
-const HINT_START = hintEl.textContent;
-
-const hole = { x: 0, y: 0, tx: 0, ty: 0, r: 0, mass: 0, active: false };
-let phase = 'idle'; // idle → eating → collapse → done → spit → idle
-let items = [];
-let spawned = 0;
-let spawnTimer = null;
-
-function measure(it) {
-  it.el.style.transform = '';
-  const b = it.el.getBoundingClientRect();
-  it.cx = b.left + b.width / 2;
-  it.cy = b.top + b.height / 2;
-  it.w = it.el.offsetWidth;
-  it.h = it.el.offsetHeight;
-}
-
-function register(el, popup) {
-  const it = { el, popup, anchor: el === headline, state: 'idle' };
-  measure(it);
-  items.push(it);
-  return it;
-}
-
-document.querySelectorAll('[data-eat]').forEach(el => register(el, false));
-register(headline, false);
-
-/* ───── 팝업 지옥 ───── */
-const POPUPS = [
-  { cls: 'bar dark', at: 'bottom', html: '🍪 이 사이트는 당신의 모든 것을 수집합니다.<div class="btns"><button>모두 동의</button><button>그래도 동의</button></div>' },
-  { cls: '', html: '<h4>잠깐! 떠나시기 전에…</h4>매일 아침 뉴스레터 37종을 보내드려요<div class="btns"><button>구독하기</button><button>나중에 구독하기</button></div>', w: 300 },
-  { cls: '', html: '<h4>🔔 알림을 보내려고 합니다</h4>매일매일일보가 새벽 3시에도 속보를 알려드려요<div class="btns"><button>허용</button><button>허용</button></div>', w: 290 },
-  { cls: 'video', html: '<div class="screen"><span>광고 · 5초 후 건너뛰기</span></div>' },
-  { cls: 'bar', at: 'top', html: '📱 앱에서 보면 더 편해요! <div class="btns"><button>앱 열기</button></div>' },
-  { cls: '', html: '<h4>이 기사가 도움이 되셨나요?</h4><span style="font-size:22px;color:#ffb400">★★★★★</span><div class="btns"><button>제출</button></div>', w: 240 },
-  { cls: 'dark', html: '💬 상담원 연결 중…<br><span style="opacity:.7">무엇을 도와드릴까요?</span>', w: 220 },
-  { cls: 'scam', html: '<h4>축 당첨!</h4>1,000,000번째 방문자입니다<div class="btns"><button>상품 받기</button></div>', w: 260 },
-  { cls: '', html: '<h4>광고 차단 프로그램을 꺼주세요 🙏</h4>광고는 저희의 소중한 수입원입니다<div class="btns"><button>껐어요</button><button>끌게요</button></div>', w: 300 },
-  { cls: '', html: '<h4>회원만 끝까지 볼 수 있어요</h4>3초면 가입 완료!<div class="btns"><button>로그인</button><button>회원가입</button></div>', w: 260 },
-  { cls: 'dark', html: '🔥 지금 237명이 이 기사를 보고 있어요', w: 250 },
-  { cls: '', html: '🔮 오늘의 운세: <b>구멍 조심</b>', w: 200 },
-];
-const MAX_POPUPS = 26;
-
-function spawnPopup() {
-  if (spawned >= MAX_POPUPS || phase === 'collapse' || phase === 'done' || phase === 'spit') return;
-  const t = POPUPS[spawned % POPUPS.length];
-  spawned++;
-  const el = document.createElement('div');
-  el.className = 'popup ' + t.cls;
-  el.innerHTML = '<button class="x" aria-label="닫기">×</button>' + t.html;
-  if (t.w) el.style.width = t.w + 'px';
-  el.style.visibility = 'hidden';
-  document.body.appendChild(el);
-  const vw = innerWidth, vh = innerHeight;
-  if (t.at === 'bottom') el.style.bottom = '0';
-  else if (t.at === 'top') el.style.top = '0';
-  else {
-    el.style.left = (10 + Math.random() * Math.max(0, vw - el.offsetWidth - 20)) + 'px';
-    el.style.top = (40 + Math.random() * Math.max(0, vh - el.offsetHeight - 60)) + 'px';
-  }
-  el.style.visibility = '';
-  el.addEventListener('pointerdown', e => {
-    e.stopPropagation();
-    if (e.target.closest('button')) { spawnPopup(); spawnPopup(); }
-  });
-  register(el, true);
-}
-
-function startSpawning() {
-  clearInterval(spawnTimer);
-  [300, 900, 1500, 2200].forEach(ms => setTimeout(spawnPopup, ms));
-  spawnTimer = setInterval(spawnPopup, 2300);
-}
-
-/* ───── 소리 ───── */
-let ac, rumbleGain;
-function initAudio() {
-  if (ac) { ac.resume(); return; }
-  ac = new (window.AudioContext || window.webkitAudioContext)();
-  const osc = ac.createOscillator(), osc2 = ac.createOscillator();
-  const lp = ac.createBiquadFilter();
-  rumbleGain = ac.createGain();
-  osc.type = 'sawtooth'; osc.frequency.value = 38;
-  osc2.type = 'sine'; osc2.frequency.value = 55;
-  lp.type = 'lowpass'; lp.frequency.value = 140;
-  rumbleGain.gain.value = 0;
-  osc.connect(lp); osc2.connect(lp); lp.connect(rumbleGain); rumbleGain.connect(ac.destination);
-  osc.start(); osc2.start();
-}
-function sweep(from, to, dur, vol) {
-  if (!ac) return;
-  const o = ac.createOscillator(), g = ac.createGain(), now = ac.currentTime;
-  o.type = 'sine';
-  o.frequency.setValueAtTime(from, now);
-  o.frequency.exponentialRampToValueAtTime(to, now + dur);
-  g.gain.setValueAtTime(vol, now);
-  g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-  o.connect(g); g.connect(ac.destination);
-  o.start(now); o.stop(now + dur + 0.02);
-}
-const gulp = size => sweep(900 - Math.min(size, 600), 60, 0.22, 0.12);
-
-/* ───── 블랙홀 ───── */
+  /* ───── 블랙홀 렌더링 ───── */
+const TAU = Math.PI * 2;
+const TILT = 0.26, ROT = -0.32;
 const clamp01 = v => Math.max(0, Math.min(1, v));
+const pick = arr => arr[Math.random() * arr.length | 0];
+const DISK_PAL = [[255,255,255], [170,200,255], [255,212,178], [196,176,255], [120,165,255]];
+const TEXT_PAL = [[255,186,104], [255,240,222], [110,220,255], [255,120,200], [176,255,168], [255,228,110]];
 
+const back = document.getElementById('back'), front = document.getElementById('front');
+const bctx = back.getContext('2d'), fctx = front.getContext('2d');
+let DPR = 1;
+function fitCanvas() {
+  DPR = Math.min(2, devicePixelRatio || 1);
+  for (const c of [back, front]) { c.width = innerWidth * DPR; c.height = innerHeight * DPR; }
+}
+fitCanvas();
+
+const strands = Array.from({ length: 300 }, () => ({
+  rr: 1.35 + Math.pow(Math.random(), 1.7) * 2.4, a: Math.random() * TAU, len: 0.4 + Math.random() * 2.4,
+  w: 0.35 + Math.random() * 1.5, al: 0.1 + Math.random() * 0.55, c: pick(DISK_PAL),
+}));
+const lensed = Array.from({ length: 120 }, () => {
+  const under = Math.random() < 0.22;
+  return { rr: 1.04 + Math.pow(Math.random(), 2) * (under ? 0.16 : 0.5), a: Math.random() * TAU,
+    len: 0.5 + Math.random() * 2, w: 0.3 + Math.random() * 1.1, al: 0.12 + Math.random() * 0.5, c: pick(DISK_PAL), under };
+});
+const stars = Array.from({ length: 280 }, () => ({ rr: 1.1 + Math.random() * 3.6, a: Math.random() * TAU, s: 0.3 + Math.random() * 1.2, tw: Math.random() * TAU }));
+const parts = [];
+let flare = 1, shake = 0, clock = 0;
+const pageEl = document.querySelector('.page');
+
+// 원반 위 각도 구간 [a0, a0+len] 중 앞(0~π)/뒤(π~2π)에 걸친 조각만 그린다
+function arcPieces(a0, len, back) {
+  a0 = ((a0 % TAU) + TAU) % TAU;
+  const lo = back ? Math.PI : 0, out = [];
+  for (const k of [0, TAU]) {
+    const s = Math.max(a0, lo + k), e = Math.min(a0 + len, lo + Math.PI + k);
+    if (e > s) out.push([s, e]);
+  }
+  return out;
+}
+const doppler = t => 0.3 + 0.7 * Math.pow(0.5 + 0.5 * Math.cos(t - 0.35), 2);
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${a})`;
+
+function drawStrands(ctx, list, R, sq, isBack, sc) {
+  for (const s of list) {
+    if (s.under !== undefined && s.under === isBack) continue;
+    for (const [a, b] of arcPieces(s.a, s.len, isBack)) {
+      ctx.beginPath();
+      ctx.ellipse(hole.x, hole.y, s.rr * R, s.rr * R * sq, ROT, a, b);
+      ctx.lineWidth = s.w * sc;
+      ctx.strokeStyle = rgba(s.c, Math.min(1, s.al * doppler((a + b) / 2) * flare));
+      ctx.stroke();
+    }
+  }
+}
+
+function partPos(p, R) {
+  const m = p.r0 > 3.4 * R ? clamp01(1 - (p.pr - 3.4 * R) / (p.r0 - 3.4 * R)) : 1;
+  const lx = Math.cos(p.pa) * p.pr, ly = Math.sin(p.pa) * p.pr * (1 - (1 - TILT) * m);
+  const rot = ROT * m, cr = Math.cos(rot), sr = Math.sin(rot);
+  return { x: hole.x + lx * cr - ly * sr, y: hole.y + lx * sr + ly * cr, back: m > 0.5 && Math.sin(p.pa) < 0, ang: p.pa + Math.PI / 2 + rot };
+}
+
+function drawParts(ctx, R, isBack) {
+  ctx.font = '600 12px "Pretendard Variable", monospace';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const p of parts) {
+    const q = partPos(p, R);
+    if (q.back !== isBack) continue;
+    const a = clamp01(p.life) * clamp01((p.pr - R) / (R * 0.4));
+    if (a <= 0.01) continue;
+    ctx.save();
+    ctx.translate(q.x, q.y); ctx.rotate(q.ang); ctx.scale(p.size / 12, p.size / 12);
+    ctx.fillStyle = rgba(p.c, a * 0.35);
+    ctx.fillRect(-p.trail, -0.6, p.trail, 1.2);
+    ctx.fillStyle = rgba(p.c, a);
+    ctx.fillText(p.ch, 0, 0);
+    ctx.restore();
+  }
+}
+
+function render() {
+  const R = hole.r;
+  for (const ctx of [bctx, fctx]) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, innerWidth, innerHeight); }
+  if (R < 0.5) return;
+  const sc = Math.max(0.6, Math.min(1.7, R / 70));
+
+  // 뒤: 우주의 어둠 → 렌즈로 휜 별 → 원반 뒤쪽 결 → 원반 뒤로 넘어간 글자
+  const halo = bctx.createRadialGradient(hole.x, hole.y, 0, hole.x, hole.y, R * 4.8);
+  halo.addColorStop(0, 'rgba(2,3,8,1)'); halo.addColorStop(0.5, 'rgba(2,3,8,1)');
+  halo.addColorStop(0.72, 'rgba(4,6,16,0.82)'); halo.addColorStop(1, 'rgba(4,6,16,0)');
+  bctx.fillStyle = halo;
+  bctx.fillRect(hole.x - R * 4.8, hole.y - R * 4.8, R * 9.6, R * 9.6);
+  bctx.globalCompositeOperation = 'lighter';
+  for (const st of stars) {
+    const d = st.rr * R, dl = d + (1.15 * R) * (1.15 * R) / d;
+    const al = (0.35 + 0.65 * Math.sin(clock * 2 + st.tw) ** 2) * clamp01(1 - dl / (R * 3.8));
+    bctx.fillStyle = `rgba(220,230,255,${al})`;
+    bctx.fillRect(hole.x + Math.cos(st.a) * dl, hole.y + Math.sin(st.a) * dl, st.s, st.s);
+  }
+  const glow = bctx.createRadialGradient(hole.x, hole.y, R, hole.x, hole.y, R * 3.2);
+  glow.addColorStop(0, `rgba(120,150,255,${0.16 * flare})`); glow.addColorStop(1, 'rgba(120,150,255,0)');
+  bctx.fillStyle = glow;
+  bctx.fillRect(hole.x - R * 3.2, hole.y - R * 3.2, R * 6.4, R * 6.4);
+  drawStrands(bctx, strands, R, TILT, true, sc);
+  drawParts(bctx, R, true);
+  bctx.globalCompositeOperation = 'source-over';
+
+  // 앞: 그림자 → 원반 앞쪽 결 → 위로 휘어 넘어간 빛 고리 → 광자 고리 → 앞쪽 글자
+  fctx.fillStyle = '#000';
+  fctx.beginPath(); fctx.arc(hole.x, hole.y, R, 0, TAU); fctx.fill();
+  fctx.globalCompositeOperation = 'lighter';
+  drawStrands(fctx, strands, R, TILT, false, sc);
+  drawStrands(fctx, lensed, R, 1.06, true, sc);
+  drawStrands(fctx, lensed, R, 1.06, false, sc);
+  fctx.beginPath(); fctx.ellipse(hole.x, hole.y, R * 1.02, R * 1.06, ROT, 0, TAU);
+  fctx.lineWidth = 7 * sc; fctx.strokeStyle = `rgba(255,236,220,${0.08 * flare})`; fctx.stroke();
+  fctx.lineWidth = 1.1 * sc; fctx.strokeStyle = `rgba(255,246,236,${Math.min(1, 0.85 * flare)})`; fctx.stroke();
+  drawParts(fctx, R, false);
+  fctx.globalCompositeOperation = 'source-over';
+}
+
+/* ───── 빨아들이기 ───── */
 function startFall(it, dx, dy, d) {
   it.state = 'fall';
   it.pr = d; it.r0 = Math.max(d, 1);
   it.pa = Math.atan2(-dy, -dx);
   it.spin = 0;
+  it.text = (it.el.innerText || '').replace(/\s+/g, '') || '▮▯▪▫◼◻';
+  it.ti = 0;
   it.el.style.animation = 'none';
   it.el.style.zIndex = 40;
   if (!it.popup) it.el.style.position = 'relative';
 }
 
+function emit(it, n, shrink) {
+  for (let i = 0; i < n && parts.length < 1600; i++) {
+    const ch = it.text[it.ti++ % it.text.length];
+    const ox = (Math.random() - 0.5) * it.w * shrink, oy = (Math.random() - 0.5) * it.h * shrink;
+    const x = Math.cos(it.pa) * it.pr + ox, y = Math.sin(it.pa) * it.pr + oy;
+    const pr = Math.hypot(x, y);
+    parts.push({ ch, pr, r0: pr, pa: Math.atan2(y, x), c: pick(TEXT_PAL), size: 8 + Math.random() * 7,
+      trail: 8 + Math.random() * 26, life: 1, decay: 0.003 + Math.random() * 0.01,
+      band: Math.random() < 0.4 ? hole.r * (1.5 + Math.random() * 1.8) : 0 });
+  }
+}
+
 function eat(it) {
   it.state = 'eaten';
   it.el.classList.add('eaten');
-  hole.mass += Math.min(it.w * it.h, 80000);
+  const area = Math.min(it.w * it.h, 80000);
+  hole.mass += area;
+  flare = Math.min(2.2, flare + 0.25 + area / 60000);
+  shake = Math.min(10, shake + area / 9000);
   gulp(Math.sqrt(it.w * it.h));
 }
 
+function stepParts(R) {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.pa += 0.05 * Math.pow((R * 1.4) / Math.max(p.pr, R * 1.1), 1.5);
+    if (p.band && p.pr < p.band) { p.pr *= 0.9985; p.life -= p.decay; }
+    else p.pr = p.pr * 0.965 - 0.8;
+    if (p.pr < R * 0.95 || p.life <= 0) parts.splice(i, 1);
+  }
+}
+
 function step() {
+  clock += 1 / 60;
   hole.x += (hole.tx - hole.x) * 0.07;
   hole.y += (hole.ty - hole.y) * 0.07;
 
   let targetR = 0;
-  if (phase === 'eating') targetR = Math.min(140, 20 + Math.sqrt(hole.mass) * 0.13);
+  if (phase === 'eating') targetR = Math.min(120, 20 + Math.sqrt(hole.mass) * 0.12);
   if (phase === 'spit') targetR = 60;
-  hole.r += (targetR - hole.r) * (phase === 'collapse' ? 0.05 : 0.08);
+  hole.r += (targetR - hole.r) * (phase === 'collapse' ? 0.04 : 0.08);
+  flare += (1 - flare) * 0.05;
+  shake *= 0.88;
+  pageEl.style.transform = shake > 0.3 ? `translate(${(Math.random() - 0.5) * shake}px, ${(Math.random() - 0.5) * shake}px)` : '';
 
-  holeEl.style.transform = `translate(${hole.x}px, ${hole.y}px)`;
-  holeEl.style.setProperty('--r', hole.r + 'px');
-  holeEl.style.display = hole.r > 0.5 ? '' : 'none';
+  for (const s of strands) s.a += 0.022 * Math.pow(1.35 / s.rr, 1.5);
+  for (const s of lensed) s.a += 0.03 * Math.pow(1.04 / s.rr, 1.5);
   if (rumbleGain) rumbleGain.gain.setTargetAtTime(Math.min(0.14, hole.r / 900), ac.currentTime, 0.1);
 
   if (phase === 'eating') {
     let left = 0;
     for (const it of items) {
       if (it.state === 'eaten') continue;
+      left++;
       const dx = hole.x - it.cx, dy = hole.y - it.cy;
       const d = Math.hypot(dx, dy) || 1;
       const size = Math.sqrt(it.w * it.h);
 
       if (it.state === 'idle') {
-        if (!it.anchor) left++;
-        const reach = hole.r * (it.popup ? 6 : 3.6) + size * 0.5;
+        const reach = hole.r * (it.popup ? 6 : 3.8) + size * 0.5;
         const pull = clamp01(1 - d / reach);
-        const capture = hole.r * (it.popup ? 2.4 : 1.3) + size * (it.popup ? 0.5 : 0.3);
-        if (!it.anchor && d < capture) { startFall(it, dx, dy, d); continue; }
-        const k = pull * pull * (it.anchor ? 10 : 22);
+        const capture = hole.r * (it.popup ? 2.4 : 1.4) + size * (it.popup ? 0.5 : 0.3);
+        if (d < capture) { startFall(it, dx, dy, d); continue; }
+        const k = pull * pull * 22;
         it.el.style.transform = pull > 0
           ? `translate(${dx / d * k}px, ${dy / d * k}px) rotate(${(Math.random() - 0.5) * pull * 3}deg)`
           : '';
         continue;
       }
 
-      left++;
       it.pr = it.pr * 0.955 - 1.2;
       it.pa += Math.min(0.35, 2.2 / Math.max(it.pr, 8));
       it.spin += 0.08;
@@ -319,6 +296,7 @@ function step() {
       it.el.style.transform =
         `translate(${px}px, ${py}px) rotate(${it.pa}rad) scale(${shrink * stretch}, ${shrink / stretch}) rotate(${-it.pa + it.spin}rad)`;
       it.el.style.opacity = Math.min(1, s * 3);
+      emit(it, 2 + Math.min(6, it.w * it.h / 8000) | 0, shrink);
       if (it.pr < 2 || shrink < 0.03) eat(it);
     }
     if (left === 0 && spawned >= MAX_POPUPS) phase = 'collapse';
@@ -327,14 +305,15 @@ function step() {
       clearInterval(spawnTimer);
     }
   }
+  stepParts(Math.max(hole.r, 1));
 
-  if (phase === 'collapse' && hole.r < 1) {
+  if (phase === 'collapse' && hole.r < 1 && parts.length === 0) {
     phase = 'done';
-    headline.style.transform = '';
     hintEl.textContent = '다시 클릭하면 뱉어내요';
     hintEl.style.opacity = 1;
   }
 
+  render();
   requestAnimationFrame(step);
 }
 
@@ -362,6 +341,7 @@ function spitBack() {
       measure(it);
     });
     hole.mass = 0;
+    parts.length = 0;
     hole.active = false;
     spawned = 0;
     phase = 'idle';
@@ -385,7 +365,7 @@ addEventListener('pointerdown', e => {
     spitBack();
   }
 });
-addEventListener('resize', () => items.forEach(it => { if (it.state === 'idle') measure(it); }));
+addEventListener('resize', () => { fitCanvas(); items.forEach(it => { if (it.state === 'idle') measure(it); }); });
 
 startSpawning();
 requestAnimationFrame(step);
