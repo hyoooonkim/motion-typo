@@ -88,21 +88,12 @@ function paintStrip(strip, c0, c1, p0, p1, fwd, th, alpha) {
 }
 
 // 원근 통로: 앞 조각의 나가는 변 → 다음 조각의 들어오는 변. 가장자리 픽셀이 늘어나고, 일정 간격으로 작아지며 반복된다
-function corridor(A, sa, B, sb, kind) {
+function corridor(A, sa, B, sb) {
   let [a0, a1] = edgePts(A, sa), [b0, b1] = edgePts(B, sb), flip = false;
   if (dist(a0, b0) + dist(a1, b1) > dist(a0, b1) + dist(a1, b0)) { [b0, b1] = [b1, b0]; flip = true; }
   const sA = A.strips[sa], sB = B.strips[sb], mA = mid(a0, a1), mB = mid(b0, b1);
-  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), squeeze = 0.45 + rnd() * 0.35, period = 5 + (rnd() * 6 | 0);
-  const line = t => {
-    const e = smooth(t);
-    let p0 = L2(a0, b0, e), p1 = L2(a1, b1, e);
-    if (kind !== 'turn') {
-      const m = mid(p0, p1), f = kind === 'hour' ? 1 - squeeze * Math.sin(Math.PI * t) : 1;
-      p0 = [m[0] + (p0[0] - m[0]) * f, m[1] + (p0[1] - m[1]) * f];
-      p1 = [m[0] + (p1[0] - m[0]) * f, m[1] + (p1[1] - m[1]) * f];
-    }
-    return [p0, p1];
-  };
+  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), period = 5 + (rnd() * 6 | 0);
+  const line = t => { const e = smooth(t); return [L2(a0, b0, e), L2(a1, b1, e)]; };
   for (let k = 0; k < steps; k++) {
     const t = k / steps, [p0, p1] = line(t), [q0, q1] = line((k + 1) / steps);
     const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy) || 1;
@@ -168,19 +159,17 @@ function render() {
     u.tilt = rnd() < 0.25 ? (rnd() < 0.5 ? -1 : 1) * (3 + rnd() * 5) * Math.PI / 180 : 0;
   });
 
-  // 통로 목록을 먼저 만들고, 곧은 통로 중 딱 하나만 둥글게 오므라드는 모래시계로
   const links = [];
   units.forEach((u, i) => {
     if (u.type !== 'C') return;
     const A = units[i - 1], B = units[i + 1];
     if (!A || !B) return;
     const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
-    links.push({ A, B, sa, sb, turn: (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R') });
+    links.push({ A, B, sa, sb });
   });
-  const straights = links.filter(l => !l.turn), hourglass = straights[rnd() * straights.length | 0];
   for (const l of links) {
     l.A.strips[l.sa] ||= edgeStrip(l.A.pc, l.sa); l.B.strips[l.sb] ||= edgeStrip(l.B.pc, l.sb);
-    corridor(l.A, l.sa, l.B, l.sb, l.turn ? 'turn' : l === hourglass ? 'hour' : 'plain');
+    corridor(l.A, l.sa, l.B, l.sb);
   }
   panels.forEach(u => {
     ctx.save();
