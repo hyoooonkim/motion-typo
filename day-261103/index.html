@@ -8,6 +8,9 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; background: #fff; }
   canvas#road { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .modes { position: fixed; right: 14px; bottom: 8px; display: flex; gap: 12px; }
+  .modes button { border: 0; background: none; font: 11px sans-serif; color: #bbb; cursor: pointer; }
+  .modes button.on { color: #333; }
   .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: #bbb; text-decoration: none; }
 </style>
 </head>
@@ -15,6 +18,7 @@
 <canvas id="road"></canvas>
 
 <a class="back" href="../index.html">←</a>
+<div class="modes"><button data-m="keep" class="on">잔상 남기기</button><button data-m="follow">따라오기</button></div>
 
 <script>
 const PHOTOS = ['01-seoul', '02-suwon', '03-pyeongtaek', '04-cheonan', '05-daejeon', '06-okcheon', '07-gimcheon', '08-daegu', '09-miryang', '10-busan']
@@ -86,11 +90,11 @@ function paintStrip(strip, c0, c1, p0, p1, fwd, th, alpha) {
 }
 
 // 원근 통로: 앞 조각의 나가는 변 → 다음 조각의 들어오는 변. 가장자리 픽셀이 늘어나고, 일정 간격으로 작아지며 반복된다
-function corridor(A, sa, B, sb) {
+function corridor(A, sa, B, sb, period) {
   let [a0, a1] = edgePts(A, sa), [b0, b1] = edgePts(B, sb), flip = false;
   if (dist(a0, b0) + dist(a1, b1) > dist(a0, b1) + dist(a1, b0)) { [b0, b1] = [b1, b0]; flip = true; }
   const sA = A.strips[sa], sB = B.strips[sb], mA = mid(a0, a1), mB = mid(b0, b1);
-  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), period = 5 + (rnd() * 6 | 0);
+  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4));
   const line = t => { const e = smooth(t); return [L2(a0, b0, e), L2(a1, b1, e)]; };
   for (let k = 0; k < steps; k++) {
     const t = k / steps, [p0, p1] = line(t), [q0, q1] = line((k + 1) / steps);
@@ -112,7 +116,8 @@ function corridor(A, sa, B, sb) {
   ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
-function render() {
+let panels = [], links = [], trails = [];
+function build() {
   if (innerWidth < 200 || innerHeight < 200 || !images.length) return;
   DPR = Math.min(2, devicePixelRatio || 1);
   cv.width = innerWidth * DPR; cv.height = innerHeight * DPR;
@@ -133,7 +138,7 @@ function render() {
   }
   if (units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
 
-  const panels = units.filter(u => u.type === 'P');
+  panels = units.filter(u => u.type === 'P');
   let scale = 0.92 + rnd() * 0.08;  // 길을 따라 조각 크기가 커졌다 작아졌다 이어진다 (대부분 크게, 가끔 작게)
   panels.forEach((u, j) => {
     const xs = u.cells.map(c => c.x), ys = u.cells.map(c => c.y);
@@ -158,31 +163,85 @@ function render() {
     u.grow = u.tilt ? 1.06 : 1;  // 기울어진 사진은 살짝 키워 이웃과 겹치게
   });
 
-  const links = [];
+  links = [];
   units.forEach((u, i) => {
     if (u.type !== 'C') return;
     const A = units[i - 1], B = units[i + 1];
     if (!A || !B) return;
     const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
-    links.push({ A, B, sa, sb });
+    A.strips[sa] ||= edgeStrip(A.pc, sa); B.strips[sb] ||= edgeStrip(B.pc, sb);
+    links.push({ A, B, sa, sb, period: 5 + (rnd() * 6 | 0) });
   });
-  for (const l of links) {
-    l.A.strips[l.sa] ||= edgeStrip(l.A.pc, l.sa); l.B.strips[l.sb] ||= edgeStrip(l.B.pc, l.sb);
-    corridor(l.A, l.sa, l.B, l.sb);
-  }
-  panels.forEach(u => {
-    ctx.save();
-    ctx.translate(u.x + u.w / 2, u.y + u.h / 2); ctx.rotate(u.tilt);
-    ctx.scale(u.grow, u.grow);
-    ctx.drawImage(u.pc, -u.w / 2, -u.h / 2, u.w, u.h);
-    ctx.restore();
-  });
+  trails = [];
+  draw();
 }
 
+// 조각 한 장을 중심 (cx, cy)에 기울기·확대 그대로 찍는다. 잔상일 땐 옅은 테두리
+function stamp(u, cx, cy, edge) {
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(u.tilt); ctx.scale(u.grow, u.grow);
+  ctx.drawImage(u.pc, -u.w / 2, -u.h / 2, u.w, u.h);
+  if (edge) { ctx.strokeStyle = 'rgba(0,0,0,0.14)'; ctx.lineWidth = 0.6; ctx.strokeRect(-u.w / 2, -u.h / 2, u.w, u.h); }
+  ctx.restore();
+}
+function draw() {
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  for (const l of links) corridor(l.A, l.sa, l.B, l.sb, l.period);
+  for (const t of trails) for (const [x, y] of t.pts) stamp(t.u, x, y, true);
+  for (const u of panels) stamp(u, u.x + u.w / 2, u.y + u.h / 2, false);
+}
+
+/* ───── 끌기: 지나간 자리에 사진이 계속 찍힌다 ───── */
+// keep: 원래 통로와 옛 자리 그림은 그대로 두고 잔상만 덧그린다 / follow: 원래 통로가 새 위치로 다시 이어진다
+let mode = 'keep', drag = null, queued = false;
+function hit(x, y) {
+  for (let i = panels.length - 1; i >= 0; i--) {
+    const u = panels[i], cx = u.x + u.w / 2, cy = u.y + u.h / 2, c = Math.cos(-u.tilt), s = Math.sin(-u.tilt);
+    const lx = ((x - cx) * c - (y - cy) * s) / u.grow, ly = ((x - cx) * s + (y - cy) * c) / u.grow;
+    if (Math.abs(lx) <= u.w / 2 && Math.abs(ly) <= u.h / 2) return u;
+  }
+}
+cv.addEventListener('pointerdown', e => {
+  const u = hit(e.clientX, e.clientY);
+  if (!u) { seed = 1 + (Math.random() * 2e9 | 0); build(); return; }
+  panels.splice(panels.indexOf(u), 1); panels.push(u);
+  const c = [u.x + u.w / 2, u.y + u.h / 2];
+  drag = { u, dx: e.clientX - c[0], dy: e.clientY - c[1], trail: { u, pts: [c] } };
+  trails.push(drag.trail);
+  try { cv.setPointerCapture(e.pointerId); } catch {}
+  cv.style.cursor = 'grabbing';
+});
+cv.addEventListener('pointermove', e => {
+  if (!drag) { cv.style.cursor = hit(e.clientX, e.clientY) ? 'grab' : 'default'; return; }
+  const { u, trail } = drag, last = trail.pts[trail.pts.length - 1], to = [e.clientX - drag.dx, e.clientY - drag.dy];
+  const n = Math.floor(dist(last, to) / 4);
+  for (let i = 1; i <= n; i++) {
+    const p = L2(last, to, i / n);
+    trail.pts.push(p);
+    if (mode === 'keep') stamp(u, p[0], p[1], true);
+  }
+  const end = trail.pts[trail.pts.length - 1];
+  u.x = end[0] - u.w / 2; u.y = end[1] - u.h / 2;
+  if (mode === 'follow' && !queued) { queued = true; requestAnimationFrame(() => { queued = false; draw(); }); }
+});
+cv.addEventListener('pointerup', () => {
+  if (!drag) return;
+  if (mode === 'keep') stamp(drag.u, drag.u.x + drag.u.w / 2, drag.u.y + drag.u.h / 2, false);
+  else draw();
+  drag = null;
+  cv.style.cursor = 'grab';
+});
+
+document.querySelectorAll('.modes button').forEach(b => b.addEventListener('click', () => {
+  mode = b.dataset.m;
+  document.querySelectorAll('.modes button').forEach(o => o.classList.toggle('on', o === b));
+  draw();
+}));
+
 Promise.all(PHOTOS.map(src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = src; })))
-  .then(ims => { images = ims; render(); });
-addEventListener('resize', render);
-addEventListener('pointerdown', () => { seed = 1 + (Math.random() * 2e9 | 0); render(); });
+  .then(ims => { images = ims; build(); });
+addEventListener('resize', build);
 </script>
 </body>
 </html>
