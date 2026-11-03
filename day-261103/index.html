@@ -93,7 +93,7 @@ function corridor(A, sa, B, sb, kind) {
     const e = smooth(t);
     let p0 = L2(a0, b0, e), p1 = L2(a1, b1, e);
     if (kind !== 'turn') {
-      const m = mid(p0, p1), f = 1 - squeeze * Math.sin(Math.PI * t);
+      const m = mid(p0, p1), f = kind === 'hour' ? 1 - squeeze * Math.sin(Math.PI * t) : 1;
       p0 = [m[0] + (p0[0] - m[0]) * f, m[1] + (p0[1] - m[1]) * f];
       p1 = [m[0] + (p1[0] - m[0]) * f, m[1] + (p1[1] - m[1]) * f];
     }
@@ -159,6 +159,7 @@ function render() {
     u.strips = {};
   });
 
+  let hourLeft = 1 + (rnd() < 0.5 ? 1 : 0);  // 둥글게 오므라드는 모래시계 통로는 1~2개만
   units.forEach((u, i) => {
     if (u.type !== 'C') return;
     const A = units[i - 1], B = units[i + 1];
@@ -166,7 +167,7 @@ function render() {
     const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
     A.strips[sa] ||= edgeStrip(A.pc, sa); B.strips[sb] ||= edgeStrip(B.pc, sb);
     const turn = (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R');
-    corridor(A, sa, B, sb, turn ? 'turn' : 'hour');
+    corridor(A, sa, B, sb, turn ? 'turn' : hourLeft > 0 && rnd() < 0.3 ? (hourLeft--, 'hour') : 'plain');
   });
   panels.forEach(u => ctx.drawImage(u.pc, u.x, u.y, u.w, u.h));
 }
