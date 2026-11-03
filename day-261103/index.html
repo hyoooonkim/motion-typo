@@ -31,24 +31,25 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
-// 격자 위를 한 붓으로 도는 긴 미로 길 (막힐 곳이 적은 칸을 먼저 고르는 방식 + 약간의 무작위)
-function maze(C, R) {
-  let best = [];
-  const inside = (a, b) => a >= 0 && b >= 0 && a < C && b < R;
-  for (let tr = 0; tr < 400 && best.length < C * R * 0.9; tr++) {
-    const seen = new Set(['0,0']), path = [[0, 0]];
-    let x = 0, y = 0;
-    for (;;) {
-      const free = (a, b) => DIRS.filter(([dx, dy]) => inside(a + dx, b + dy) && !seen.has(`${a + dx},${b + dy}`)).length;
-      const opts = DIRS.map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => inside(a, b) && !seen.has(`${a},${b}`));
+// 격자 위를 짧게 자주 꺾이며 기어가는 길. 막다른 칸은 피하고, 곧게 가기보다 꺾기를 좋아한다
+function snakes(C, R) {
+  const seen = new Set(), key = (x, y) => `${x},${y}`, inside = (a, b) => a >= 0 && b >= 0 && a < C && b < R;
+  const isFree = (a, b) => inside(a, b) && !seen.has(key(a, b));
+  const freeN = (a, b) => DIRS.filter(([dx, dy]) => isFree(a + dx, b + dy)).length;
+  const walk = (x, y, maxLen) => {
+    const path = [[x, y]]; seen.add(key(x, y));
+    let pd = null;
+    while (path.length < maxLen) {
+      const opts = DIRS.filter(([dx, dy]) => isFree(x + dx, y + dy));
       if (!opts.length) break;
-      opts.sort((p, q) => free(...p) - free(...q) + (rnd() - 0.5) * 1.6);
-      [x, y] = opts[0];
-      seen.add(`${x},${y}`); path.push([x, y]);
+      const score = d => (pd && d[0] === pd[0] && d[1] === pd[1] ? -0.3 : 0.35) + Math.min(freeN(x + d[0], y + d[1]), 2) * 0.5 + rnd() * 0.9;
+      const d = opts.sort((a, b) => score(b) - score(a))[0];
+      x += d[0]; y += d[1]; pd = d;
+      seen.add(key(x, y)); path.push([x, y]);
     }
-    if (path.length > best.length) best = path;
-  }
-  return best;
+    return path;
+  };
+  return { walk, seen, isFree, freeN };
 }
 
 function sideToward(cells, nb) {
@@ -93,7 +94,7 @@ function corridor(A, sa, B, sb, kind) {
     const e = smooth(t);
     let p0 = L2(a0, b0, e), p1 = L2(a1, b1, e);
     if (kind !== 'turn') {
-      const m = mid(p0, p1), f = kind === 'hour' ? 1 - squeeze * Math.sin(Math.PI * t) : 1 + 0.3 * Math.sin(Math.PI * t);
+      const m = mid(p0, p1), f = kind === 'hour' ? 1 - squeeze * Math.sin(Math.PI * t) : 1;
       p0 = [m[0] + (p0[0] - m[0]) * f, m[1] + (p0[1] - m[1]) * f];
       p1 = [m[0] + (p1[0] - m[0]) * f, m[1] + (p1[1] - m[1]) * f];
     }
@@ -126,49 +127,91 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, innerWidth, innerHeight);
 
-  const W = innerWidth, H = innerHeight, m = 26, cell = Math.round(Math.min((W - 2 * m) / 9, (H - 2 * m) / 6));
+  const W = innerWidth, H = innerHeight, m = 22, cell = Math.round(Math.min((W - 2 * m) / 12, (H - 2 * m) / 8));
   const C = Math.floor((W - 2 * m) / cell), R = Math.floor((H - 2 * m) / cell);
   const ox = (W - C * cell) / 2, oy = (H - R * cell) / 2;
-  const cells = maze(C, R).map(([cx, cy]) => ({ cx, cy, x: ox + cx * cell, y: oy + cy * cell }));
-  const straight = i => cells[i + 2] && cells[i + 1].cx - cells[i].cx === cells[i + 2].cx - cells[i + 1].cx && cells[i + 1].cy - cells[i].cy === cells[i + 2].cy - cells[i + 1].cy;
+  const toCell = ([cx, cy]) => ({ cx, cy, x: ox + cx * cell, y: oy + cy * cell });
+  const g = snakes(C, R);
 
-  // 길을 조각(P)과 통로(C)로 번갈아 나눈다
-  const units = [];
-  for (let i = 0, want = 'P'; i < cells.length; want = want === 'P' ? 'C' : 'P') {
-    const n = cells[i + 1] && rnd() < (want === 'P' ? 0.22 : 0.3) && straight(i) ? 2 : 1;
-    units.push({ type: want, cells: cells.slice(i, i + n) }); i += n;
+  // 길 하나 = 조각(P)과 통로(C)가 번갈아. 갈래길은 부모 조각에서 통로로 시작한다
+  const runs = [];
+  const buildRun = (path, parent) => {
+    const cells = path.map(toCell), units = [];
+    const straight = i => cells[i + 2] && cells[i + 1].cx - cells[i].cx === cells[i + 2].cx - cells[i + 1].cx && cells[i + 1].cy - cells[i].cy === cells[i + 2].cy - cells[i + 1].cy;
+    for (let i = 0, want = parent ? 'C' : 'P'; i < cells.length; want = want === 'P' ? 'C' : 'P') {
+      const n = cells[i + 1] && rnd() < (want === 'P' ? 0.25 : 0.3) && straight(i) ? 2 : 1;
+      units.push({ type: want, cells: cells.slice(i, i + n) }); i += n;
+    }
+    if (units.length > 1 && units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
+    if (units.filter(u => u.type === 'P').length) runs.push({ units, parent });
+  };
+  buildRun(g.walk(0, 0, 10 + (rnd() * 8 | 0)), null);
+  for (let tries = 0; tries < 90 && g.seen.size < C * R * 0.8; tries++) {
+    const len = 6 + (rnd() * 9 | 0);
+    if (rnd() < 0.6) {
+      const Ps = runs.flatMap(r => r.units.filter(u => u.type === 'P')).sort(() => rnd() - 0.5);
+      let done = false;
+      for (const P of Ps) {
+        for (const c of P.cells) {
+          const d = DIRS.find(([dx, dy]) => g.isFree(c.cx + dx, c.cy + dy) && g.freeN(c.cx + dx, c.cy + dy) >= 1);
+          if (!d) continue;
+          const path = g.walk(c.cx + d[0], c.cy + d[1], len);
+          if (path.length >= 3) buildRun(path, P);
+          done = true; break;
+        }
+        if (done) break;
+      }
+    } else {
+      const free = [];
+      for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) if (g.isFree(x, y) && g.freeN(x, y) >= 2) free.push([x, y]);
+      if (!free.length) break;
+      const s = free[rnd() * free.length | 0], path = g.walk(s[0], s[1], len);
+      if (path.length >= 3) buildRun(path, null);
+    }
   }
-  if (units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
 
-  const panels = units.filter(u => u.type === 'P');
+  // 조각: 세로형·가로형·정사각형, 칸 안에서 위치도 들쭉날쭉 → 연결부가 비스듬해진다
+  const panels = runs.flatMap(r => r.units.filter(u => u.type === 'P'));
   panels.forEach((u, j) => {
     const xs = u.cells.map(c => c.x), ys = u.cells.map(c => c.y);
     const bx = Math.min(...xs), by = Math.min(...ys), bw = Math.max(...xs) + cell - bx, bh = Math.max(...ys) + cell - by;
-    const ix = bw * (0.04 + rnd() * 0.14), iy = bh * (0.04 + rnd() * 0.14);
-    Object.assign(u, { x: bx + ix, y: by + iy, w: bw - ix * (1.2 + rnd()), h: bh - iy * (1.2 + rnd()) });
+    let fw, fh;
+    if (u.cells.length === 1) {
+      const sh = rnd();
+      if (sh < 0.35) { fw = 0.5 + rnd() * 0.22; fh = 0.82 + rnd() * 0.16; }
+      else if (sh < 0.7) { fw = 0.82 + rnd() * 0.16; fh = 0.5 + rnd() * 0.22; }
+      else fw = fh = 0.66 + rnd() * 0.28;
+    } else if (bw > bh) { fw = 0.86 + rnd() * 0.12; fh = 0.55 + rnd() * 0.4; }
+    else { fh = 0.86 + rnd() * 0.12; fw = 0.55 + rnd() * 0.4; }
+    const w = bw * fw, h = bh * fh;
+    Object.assign(u, { x: bx + (bw - w) * rnd(), y: by + (bh - h) * rnd(), w, h, strips: {} });
     const pi = Math.min(PHOTOS.length - 1, Math.floor(j * PHOTOS.length / panels.length)), img = images[pi];
-    const same = panels.filter((_, q) => Math.floor(q * PHOTOS.length / panels.length) === pi), k = same.indexOf(u);
     const a = u.w / u.h, nw = img.naturalWidth, nh = img.naturalHeight;
-    let ch = nh * (0.38 + rnd() * 0.45), cw = ch * a;
+    let ch = nh * (0.3 + rnd() * 0.5), cw = ch * a;
     if (cw > nw) { cw = nw; ch = cw / a; }
-    const cx = (nw - cw) * Math.min(1, Math.max(0, (k + 0.5) / same.length + (rnd() - 0.5) * 0.15)), cy = (nh - ch) * rnd();
+    const cx = (nw - cw) * rnd(), cy = (nh - ch) * rnd();
     u.pc = document.createElement('canvas'); u.pc.width = Math.ceil(u.w * DPR); u.pc.height = Math.ceil(u.h * DPR);
     const pctx = u.pc.getContext('2d');
     pctx.filter = 'saturate(1.25) contrast(1.06)';
     pctx.drawImage(img, cx, cy, cw, ch, 0, 0, u.pc.width, u.pc.height);
-    u.strips = {};
   });
 
-  let flareLeft = 1 + (rnd() < 0.5 ? 1 : 0);  // 원통처럼 부푸는 통로는 1~2개만
-  units.forEach((u, i) => {
-    if (u.type !== 'C') return;
-    const A = units[i - 1], B = units[i + 1];
-    if (!A || !B) return;
-    const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
+  // 통로: 꺾이면 부채꼴, 곧으면 소실점 모래시계 또는 비스듬한 평행사변형
+  const link = (A, B, viaA, viaB) => {
+    const sa = sideToward(A.cells, viaA), sb = sideToward(B.cells, viaB);
+    if (!sa || !sb) return;
     A.strips[sa] ||= edgeStrip(A.pc, sa); B.strips[sb] ||= edgeStrip(B.pc, sb);
     const turn = (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R');
-    corridor(A, sa, B, sb, turn ? 'turn' : flareLeft > 0 && rnd() < 0.25 ? (flareLeft--, 'flare') : 'hour');
-  });
+    corridor(A, sa, B, sb, turn ? 'turn' : rnd() < 0.45 ? 'hour' : 'plain');
+  };
+  for (const { units, parent } of runs) {
+    units.forEach((u, i) => {
+      const prev = i ? units[i - 1] : parent, next = units[i + 1];
+      if (u.type === 'C' && prev && next && prev.type === 'P' && next.type === 'P')
+        link(prev, next, u.cells[0], u.cells[u.cells.length - 1]);
+      if (u.type === 'P' && next && next.type === 'P') link(u, next, next.cells[0], u.cells[u.cells.length - 1]);
+    });
+  }
   panels.forEach(u => ctx.drawImage(u.pc, u.x, u.y, u.w, u.h));
 }
 
