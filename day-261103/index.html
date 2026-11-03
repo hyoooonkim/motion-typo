@@ -156,7 +156,8 @@ function render() {
     pctx.filter = 'saturate(1.25) contrast(1.06)';
     pctx.drawImage(img, cx, cy, cw, ch, 0, 0, u.pc.width, u.pc.height);
     u.strips = {};
-    u.tilt = rnd() < 0.25 ? (rnd() < 0.5 ? -1 : 1) * (3 + rnd() * 5) * Math.PI / 180 : 0;
+    u.tilt = rnd() < 0.4 ? (rnd() < 0.5 ? -1 : 1) * (6 + rnd() * 8) * Math.PI / 180 : 0;
+    u.grow = u.tilt ? 1.06 : 1;  // 기울어진 사진은 살짝 키워 이웃과 겹치게
   });
 
   const links = [];
@@ -174,6 +175,7 @@ function render() {
   panels.forEach(u => {
     ctx.save();
     ctx.translate(u.x + u.w / 2, u.y + u.h / 2); ctx.rotate(u.tilt);
+    ctx.scale(u.grow, u.grow);
     ctx.drawImage(u.pc, -u.w / 2, -u.h / 2, u.w, u.h);
     ctx.restore();
   });
