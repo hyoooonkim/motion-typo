@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Day 261103 — 버스만 타고 서울까지</title>
+<link rel="stylesheet" crossorigin href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #f7f6f2; font-family: 'Pretendard Variable', sans-serif; }
+  canvas#road { position: fixed; inset: 0; width: 100%; height: 100%; filter: url(#paint) saturate(1.15); }
+  .grain { position: fixed; inset: 0; pointer-events: none; opacity: 0.18; mix-blend-mode: multiply;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+  .back { position: fixed; left: 16px; top: 12px; font-size: 12px; color: #888; text-decoration: none; }
+  .hint { position: fixed; left: 50%; bottom: 10px; transform: translateX(-50%); font-size: 12px; color: #999; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute">
+  <filter id="paint"><feTurbulence type="fractalNoise" baseFrequency="0.035" numOctaves="2" seed="7" result="t"/>
+    <feDisplacementMap in="SourceGraphic" in2="t" scale="3"/></filter>
+</svg>
+<canvas id="road"></canvas>
+<div class="grain"></div>
+<a class="back" href="../index.html">← motion-typo</a>
+<div class="hint">클릭하면 길이 다시 깔려요</div>
+
+<script>
+const CITIES = ['부산', '양산', '밀양', '청도', '경산', '대구', '칠곡', '구미', '김천', '영동', '옥천', '대전', '세종', '천안', '평택', '수원', '서울'];
+const BUSES = [
+  { body: '#1f6fd1', band: '#ffffff' }, { body: '#2fa84f', band: '#e9f7e5' }, { body: '#d9342b', band: '#ffd9c9' },
+  { body: '#f3b51b', band: '#fff3c4' }, { body: '#26a7d9', band: '#e3f6ff' }, { body: '#7a4fd1', band: '#efe6ff' },
+];
+const SKIES = [['#bfe3f5', '#f2f7f2'], ['#f6d3a8', '#fbefd9'], ['#cdd8e8', '#eef1f4'], ['#a9d6e8', '#f4ead2']];
+const BUILD = ['#c8603a', '#e0a24c', '#7c8c9e', '#b9b2a3', '#d77b5f', '#5d7a8c', '#e9d6b0', '#9a6b4f', '#4f6d5f'];
+
+let seed = 1;
+const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+const pick = a => a[rnd() * a.length | 0];
+const lerp = (a, b, t) => a + (b - a) * t;
+
+/* ───── 버스 그리기 ───── */
+function busSide(c, x, y, w, h, bus, num, dir = 1) {
+  c.save(); c.translate(x, y); if (dir < 0) { c.translate(w, 0); c.scale(-1, 1); }
+  c.fillStyle = bus.body; roundRect(c, 0, 0, w, h, h * 0.12); c.fill();
+  c.fillStyle = bus.band; c.fillRect(0, h * 0.62, w, h * 0.07);
+  c.fillStyle = '#20323f';
+  const nw = Math.max(3, Math.round(w / (h * 0.55)));
+  for (let i = 0; i < nw; i++) c.fillRect(w * 0.06 + i * (w * 0.84 / nw), h * 0.14, w * 0.84 / nw - 3, h * 0.36);
+  c.fillStyle = '#ffcf3f'; c.fillRect(w * 0.9, h * 0.06, w * 0.08, h * 0.08);
+  c.fillStyle = '#111';
+  for (const fx of [0.2, 0.8]) { c.beginPath(); c.arc(w * fx, h, h * 0.16, 0, Math.PI * 2); c.fill(); }
+  c.restore();
+  label(c, num, x + w * 0.5, y + h * 0.84, h * 0.16, '#fff');
+}
+function busRear(c, cx, by, w, h, bus, num) {
+  const x = cx - w / 2, y = by - h;
+  c.fillStyle = bus.body; roundRect(c, x, y, w, h, w * 0.08); c.fill();
+  c.fillStyle = '#20323f'; c.fillRect(x + w * 0.12, y + h * 0.1, w * 0.76, h * 0.34);
+  c.fillStyle = '#ff3b2f'; c.fillRect(x + w * 0.06, y + h * 0.62, w * 0.12, h * 0.1); c.fillRect(x + w * 0.82, y + h * 0.62, w * 0.12, h * 0.1);
+  c.fillStyle = bus.band; c.fillRect(x, y + h * 0.5, w, h * 0.06);
+  label(c, num, cx, y + h * 0.84, h * 0.13, '#fff');
+}
+function busFront(c, cx, by, w, h, bus, num, dest) {
+  const x = cx - w / 2, y = by - h;
+  c.fillStyle = bus.body; roundRect(c, x, y, w, h, w * 0.1); c.fill();
+  c.fillStyle = '#1a1a1a'; c.fillRect(x + w * 0.08, y + h * 0.05, w * 0.84, h * 0.12);
+  c.fillStyle = '#ff9d1c'; c.font = `700 ${h * 0.08}px Pretendard Variable`; c.textAlign = 'center'; c.textBaseline = 'middle';
+  c.fillText(`${num} → ${dest}`, cx, y + h * 0.11);
+  c.fillStyle = '#2b4352'; c.fillRect(x + w * 0.08, y + h * 0.2, w * 0.84, h * 0.42);
+  c.fillStyle = 'rgba(255,255,255,0.25)'; c.beginPath(); c.moveTo(x + w * 0.1, y + h * 0.6); c.lineTo(x + w * 0.4, y + h * 0.22); c.lineTo(x + w * 0.5, y + h * 0.22); c.lineTo(x + w * 0.2, y + h * 0.6); c.fill();
+  c.fillStyle = '#fff7d1'; for (const fx of [0.16, 0.84]) { c.beginPath(); c.arc(x + w * fx, y + h * 0.78, w * 0.06, 0, Math.PI * 2); c.fill(); }
+  c.fillStyle = bus.band; c.fillRect(x + w * 0.3, y + h * 0.82, w * 0.4, h * 0.08);
+}
+function busTop(c, x, y, w, h, bus) {
+  c.fillStyle = 'rgba(0,0,0,0.18)'; roundRect(c, x + 4, y + 4, w, h, 6); c.fill();
+  c.fillStyle = bus.body; roundRect(c, x, y, w, h, 6); c.fill();
+  c.fillStyle = bus.band; c.fillRect(x + w * 0.2, y + h * 0.25, w * 0.18, h * 0.5); c.fillRect(x + w * 0.55, y + h * 0.25, w * 0.18, h * 0.5);
+  c.fillStyle = '#20323f'; c.fillRect(x + w * 0.88, y + h * 0.1, w * 0.08, h * 0.8);
+}
+function roundRect(c, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2));
+  c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+function label(c, text, x, y, size, color) {
+  c.fillStyle = color; c.font = `800 ${Math.max(8, size)}px Pretendard Variable`; c.textAlign = 'center'; c.textBaseline = 'middle'; c.fillText(text, x, y);
+}
+function stopSign(c, x, y, s, city, num) {
+  c.fillStyle = '#555'; c.fillRect(x - s * 0.04, y, s * 0.08, s * 1.4);
+  c.fillStyle = '#0d5bd7'; roundRect(c, x - s * 0.5, y - s * 0.55, s, s * 0.62, s * 0.08); c.fill();
+  label(c, city, x, y - s * 0.34, s * 0.26, '#fff');
+  label(c, num + '번', x, y - s * 0.1, s * 0.16, '#cfe2ff');
+}
+
+/* ───── 장면들: 도시마다 시점이 다르다 ───── */
+function skyFill(c, w, h, top) { const g = c.createLinearGradient(0, 0, 0, top); const s = pick(SKIES); g.addColorStop(0, s[0]); g.addColorStop(1, s[1]); c.fillStyle = g; c.fillRect(0, 0, w, top); }
+function buildings(c, w, base, maxH) {
+  let x = -10; while (x < w) { const bw = 20 + rnd() * w * 0.25, bh = maxH * (0.4 + rnd() * 0.6);
+    c.fillStyle = pick(BUILD); c.fillRect(x, base - bh, bw, bh);
+    c.fillStyle = 'rgba(255,255,255,0.35)';
+    for (let wy = base - bh + 8; wy < base - 10; wy += 14) for (let wx = x + 6; wx < x + bw - 8; wx += 12) c.fillRect(wx, wy, 6, 7);
+    x += bw + 2; }
+}
+const SCENES = {
+  side(c, w, h, p) {
+    skyFill(c, w, h, h * 0.62); buildings(c, w, h * 0.62, h * 0.5);
+    c.fillStyle = '#d9cbb0'; c.fillRect(0, h * 0.62, w, h * 0.1);
+    c.fillStyle = '#5b5e63'; c.fillRect(0, h * 0.72, w, h * 0.28);
+    c.fillStyle = '#f2f2f2'; for (let x = 0; x < w; x += 40) c.fillRect(x, h * 0.88, 22, 3);
+    const bw = Math.min(w * 0.7, h * 0.9);
+    busSide(c, w * 0.15, h * 0.5, bw, h * 0.24, p.bus, p.num, p.dir);
+    stopSign(c, w * 0.9, h * 0.44, Math.min(w, h) * 0.22, p.city, p.num);
+  },
+  persp(c, w, h, p) {
+    const vx = w * (0.4 + rnd() * 0.2), vy = h * 0.36;
+    skyFill(c, w, h, vy);
+    const walls = [pick(BUILD), pick(BUILD)];
+    c.fillStyle = walls[0]; c.beginPath(); c.moveTo(0, 0); c.lineTo(vx - 8, vy - 20); c.lineTo(vx - 8, vy + 6); c.lineTo(0, h * 0.8); c.fill();
+    c.fillStyle = walls[1]; c.beginPath(); c.moveTo(w, 0); c.lineTo(vx + 8, vy - 20); c.lineTo(vx + 8, vy + 6); c.lineTo(w, h * 0.8); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,0.3)'; c.lineWidth = 2;
+    for (let i = 1; i < 8; i++) { const t = i / 8; c.beginPath(); c.moveTo(0, h * 0.8 * t); c.lineTo(vx - 8, lerp(vy - 20, vy + 6, t)); c.stroke(); c.beginPath(); c.moveTo(w, h * 0.8 * t); c.lineTo(vx + 8, lerp(vy - 20, vy + 6, t)); c.stroke(); }
+    c.fillStyle = '#56595e'; c.beginPath(); c.moveTo(vx - 8, vy + 6); c.lineTo(vx + 8, vy + 6); c.lineTo(w, h * 0.8); c.lineTo(w, h); c.lineTo(0, h); c.lineTo(0, h * 0.8); c.fill();
+    c.fillStyle = '#f5d33a'; for (let i = 0; i < 9; i++) { const t0 = i / 9, t1 = t0 + 0.05; c.beginPath(); c.moveTo(lerp(vx, w / 2, t0) - 1 - t0 * 4, lerp(vy + 6, h, t0)); c.lineTo(lerp(vx, w / 2, t0) + 1 + t0 * 4, lerp(vy + 6, h, t0)); c.lineTo(lerp(vx, w / 2, t1) + 1 + t1 * 4, lerp(vy + 6, h, t1)); c.lineTo(lerp(vx, w / 2, t1) - 1 - t1 * 4, lerp(vy + 6, h, t1)); c.fill(); }
+    const s = 0.5; busRear(c, lerp(vx, w / 2, s), lerp(vy, h, s) + 10, w * 0.34, h * 0.3, p.bus, p.num);
+    label(c, p.city, w * 0.14, h * 0.1, Math.min(w, h) * 0.08, '#fff');
+  },
+  top(c, w, h, p) {
+    c.fillStyle = '#8fb27a'; c.fillRect(0, 0, w, h);
+    const horiz = w > h;
+    c.fillStyle = '#5a5d61';
+    if (horiz) c.fillRect(0, h * 0.28, w, h * 0.44); else c.fillRect(w * 0.28, 0, w * 0.44, h);
+    c.fillStyle = '#eee';
+    for (let i = 0; i < 14; i++) horiz ? c.fillRect(i * w / 14, h * 0.495, w / 28, 3) : c.fillRect(w * 0.495, i * h / 14, 3, h / 28);
+    for (let i = 0; i < 7; i++) horiz ? c.fillRect(w * 0.7 + i * 9, h * 0.3, 5, h * 0.4) : c.fillRect(w * 0.3, h * 0.7 + i * 9, w * 0.4, 5);
+    c.fillStyle = '#3f7d3a'; for (let i = 0; i < 10; i++) { c.beginPath(); c.arc(rnd() * w, horiz ? (rnd() < 0.5 ? h * 0.12 : h * 0.88) : rnd() * h, 8 + rnd() * 8, 0, Math.PI * 2); c.fill(); }
+    if (horiz) busTop(c, w * 0.2, h * 0.31, w * 0.42, h * 0.17, p.bus); else { c.save(); c.translate(w * 0.5, h * 0.2); c.rotate(Math.PI / 2); busTop(c, 0, -w * 0.18, h * 0.42, w * 0.17, p.bus); c.restore(); }
+    for (let i = 0; i < 3; i++) { c.fillStyle = pick(['#e8e8e8', '#d33', '#333', '#29f']); horiz ? c.fillRect(w * (0.05 + i * 0.3), h * 0.55, w * 0.09, h * 0.1) : c.fillRect(w * 0.52, h * (0.5 + i * 0.15), w * 0.1, h * 0.08); }
+    label(c, p.city + ' · ' + p.num + '번', w / 2, horiz ? h * 0.12 : h * 0.06, Math.min(w, h) * 0.08, '#fff');
+  },
+  front(c, w, h, p) {
+    skyFill(c, w, h, h * 0.6); buildings(c, w, h * 0.6, h * 0.45);
+    c.fillStyle = '#5b5e63'; c.fillRect(0, h * 0.6, w, h * 0.4);
+    busFront(c, w / 2, h * 0.95, Math.min(w * 0.7, h * 0.6), Math.min(h * 0.62, w * 0.9), p.bus, p.num, p.next);
+  },
+  field(c, w, h, p) {
+    skyFill(c, w, h, h * 0.55);
+    for (let k = 0; k < 3; k++) { c.fillStyle = ['#7d9a8a', '#5f8270', '#476b59'][k]; c.beginPath(); c.moveTo(0, h * 0.55);
+      for (let x = 0; x <= w; x += w / 8) c.lineTo(x, h * (0.3 + k * 0.07) + rnd() * h * 0.12); c.lineTo(w, h * 0.55); c.fill(); }
+    for (let i = 0; i < 6; i++) { c.fillStyle = pick(['#c9b25a', '#9fbf5a', '#d8c27a', '#7fa64d']); c.fillRect(0, h * (0.55 + i * 0.05), w, h * 0.05); }
+    c.fillStyle = '#5b5e63'; c.fillRect(0, h * 0.84, w, h * 0.16);
+    busSide(c, w * 0.3, h * 0.72, Math.min(w * 0.4, h * 0.5), h * 0.13, p.bus, p.num, p.dir);
+    label(c, p.city, w * 0.16, h * 0.1, Math.min(w, h) * 0.09, '#fff');
+  },
+};
+
+/* ───── 배치: 흰 바탕 위 S자로 이어지는 조각들 ───── */
+const cv = document.getElementById('road'), ctx = cv.getContext('2d');
+let DPR = 1, panels = [];
+
+function busNumber() {
+  const r = rnd();
+  if (r < 0.3) return String(1000 + (rnd() * 9000 | 0));
+  if (r < 0.75) return String(1 + (rnd() * 300 | 0));
+  return `${1 + (rnd() * 9 | 0)}-${1 + (rnd() * 9 | 0)}`;
+}
+
+function layout() {
+  const W = innerWidth, H = innerHeight, m = Math.max(20, W * 0.03);
+  const rows = W < 760 ? 6 : 4, rowH = (H - 2 * m - 20) / rows;
+  const counts = [];
+  for (let r = 0, left = CITIES.length; r < rows; r++) { const n = Math.round(left / (rows - r)); counts.push(n); left -= n; }
+  const out = [];
+  for (let r = 0; r < rows; r++) {
+    const n = counts[r], ws = Array.from({ length: n }, () => 0.7 + rnd() * 0.8), gs = Array.from({ length: n - 1 }, () => 0.22 + rnd() * 0.5);
+    const scale = (W - 2 * m) / (ws.reduce((a, b) => a + b) + gs.reduce((a, b) => a + b, 0));
+    const row = [];
+    for (let i = 0, x = m; i < n; i++) {
+      const w = ws[i] * scale, h = rowH * (0.55 + rnd() * 0.3), y = m + r * rowH + rnd() * (rowH * 0.9 - h);
+      row.push({ x, y, w, h, row: r });
+      x += w + (gs[i] || 0) * scale;
+    }
+    if (r % 2) row.reverse();
+    out.push(...row);
+  }
+  return out;
+}
+
+function paintPanel(p, i, prevType) {
+  p.cv = document.createElement('canvas');
+  p.cv.width = Math.ceil(p.w * DPR); p.cv.height = Math.ceil(p.h * DPR);
+  const c = p.cv.getContext('2d');
+  c.scale(DPR, DPR);
+  const tall = p.h > p.w * 1.05;
+  let type;
+  do type = pick(tall ? ['persp', 'front', 'top', 'persp'] : ['side', 'field', 'top', 'side', 'persp']);
+  while (type === prevType);
+  p.type = type;
+  p.city = CITIES[i]; p.next = CITIES[Math.min(i + 1, CITIES.length - 1)];
+  p.num = busNumber();
+  p.bus = BUSES[(i * 5 + (rnd() * 3 | 0)) % BUSES.length];
+  p.dir = p.row % 2 ? -1 : 1;
+  SCENES[type](c, p.w, p.h, p);
+}
+
+const smooth = t => t * t * (3 - 2 * t);
+// 연결 통로: 앞 조각의 맨 끝 픽셀 줄을 늘여 다음 조각의 첫 줄로 섞는다
+function bridgeH(L, R) {
+  const x0 = L.x + L.w, x1 = R.x, n = Math.max(1, x1 - x0);
+  for (let x = x0; x < x1; x += 1.5) {
+    const t = (x - x0) / n, e = smooth(t);
+    const y0 = lerp(L.y, R.y, e), y1 = lerp(L.y + L.h, R.y + R.h, e);
+    ctx.globalAlpha = 1; ctx.drawImage(L.cv, L.cv.width - 1, 0, 1, L.cv.height, x, y0, 2, y1 - y0);
+    ctx.globalAlpha = t; ctx.drawImage(R.cv, 0, 0, 1, R.cv.height, x, y0, 2, y1 - y0);
+  }
+  ctx.globalAlpha = 1;
+}
+function bridgeV(U, D) {
+  const y0 = U.y + U.h, y1 = D.y, n = Math.max(1, y1 - y0);
+  for (let y = y0; y < y1; y += 1.5) {
+    const t = (y - y0) / n, e = smooth(t);
+    const x0 = lerp(U.x, D.x, e), x1 = lerp(U.x + U.w, D.x + D.w, e);
+    ctx.globalAlpha = 1; ctx.drawImage(U.cv, 0, U.cv.height - 1, U.cv.width, 1, x0, y, x1 - x0, 2);
+    ctx.globalAlpha = t; ctx.drawImage(D.cv, 0, 0, D.cv.width, 1, x0, y, x1 - x0, 2);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function render() {
+  if (innerWidth < 200 || innerHeight < 200) return;
+  DPR = Math.min(2, devicePixelRatio || 1);
+  cv.width = innerWidth * DPR; cv.height = innerHeight * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#f7f6f2'; ctx.fillRect(0, 0, innerWidth, innerHeight);
+  panels = layout();
+  panels.forEach((p, i) => paintPanel(p, i, i ? panels[i - 1].type : null));
+  for (let i = 0; i < panels.length - 1; i++) {
+    const a = panels[i], b = panels[i + 1];
+    if (a.row === b.row) a.x < b.x ? bridgeH(a, b) : bridgeH(b, a);
+    else bridgeV(a, b);
+  }
+  for (const p of panels) ctx.drawImage(p.cv, p.x, p.y, p.w, p.h);
+}
+
+seed = 261103;
+document.fonts.ready.then(render);
+addEventListener('resize', render);
+addEventListener('pointerdown', () => { seed = 1 + (Math.random() * 2e9 | 0); render(); });
+</script>
+</body>
+</html>
