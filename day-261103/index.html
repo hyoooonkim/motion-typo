@@ -88,17 +88,21 @@ function corridor(A, sa, B, sb, kind) {
   let [a0, a1] = edgePts(A, sa), [b0, b1] = edgePts(B, sb), flip = false;
   if (dist(a0, b0) + dist(a1, b1) > dist(a0, b1) + dist(a1, b0)) { [b0, b1] = [b1, b0]; flip = true; }
   const sA = A.strips[sa], sB = B.strips[sb], mA = mid(a0, a1), mB = mid(b0, b1);
-  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), squeeze = 0.45 + rnd() * 0.35, period = 5 + (rnd() * 6 | 0);
+  // 곧은 외곽선이 비껴 놓인 소실점(t0, 옆으로 shift)으로 모였다가 다시 벌어진다
+  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), squeeze = kind === 'hour' ? 0.55 + rnd() * 0.35 : 0;
+  const t0 = 0.35 + rnd() * 0.3, shift = (rnd() - 0.5) * 0.7, edgeLen = (dist(a0, a1) + dist(b0, b1)) / 2;
+  const nrm = (() => { const d = [a1[0] - a0[0], a1[1] - a0[1]], l = Math.hypot(...d) || 1; return [d[0] / l, d[1] / l]; })();
+  const prof = t => 1 - (1 - (t < t0 ? t / t0 : (1 - t) / (1 - t0)));
   const line = t => {
-    const e = smooth(t);
-    let p0 = L2(a0, b0, e), p1 = L2(a1, b1, e);
-    if (kind !== 'turn') {
-      const m = mid(p0, p1), f = kind === 'hour' ? 1 - squeeze * Math.sin(Math.PI * t) : 1 + 0.3 * Math.sin(Math.PI * t);
-      p0 = [m[0] + (p0[0] - m[0]) * f, m[1] + (p0[1] - m[1]) * f];
-      p1 = [m[0] + (p1[0] - m[0]) * f, m[1] + (p1[1] - m[1]) * f];
+    let p0 = L2(a0, b0, t), p1 = L2(a1, b1, t);
+    if (squeeze) {
+      const v = prof(t), f = 1 - squeeze * (1 - v), m = mid(p0, p1), sh = shift * edgeLen * (1 - v);
+      p0 = [m[0] + (p0[0] - m[0]) * f + nrm[0] * sh, m[1] + (p0[1] - m[1]) * f + nrm[1] * sh];
+      p1 = [m[0] + (p1[0] - m[0]) * f + nrm[0] * sh, m[1] + (p1[1] - m[1]) * f + nrm[1] * sh];
     }
     return [p0, p1];
   };
+  let acc = 0;
   for (let k = 0; k < steps; k++) {
     const t = k / steps, [p0, p1] = line(t), [q0, q1] = line((k + 1) / steps);
     const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy) || 1;
@@ -106,14 +110,16 @@ function corridor(A, sa, B, sb, kind) {
     const go = [mid(q0, q1)[0] - mid(p0, p1)[0], mid(q0, q1)[1] - mid(p0, p1)[1]];
     if (fwd[0] * go[0] + fwd[1] * go[1] < 0) fwd = [-fwd[0], -fwd[1]];
     const th = Math.hypot(...go) + 0.9, e = smooth(t);
+    void e;
     paintStrip(sA, 0, 1, p0, p1, fwd, th, 1);
     paintStrip(sB, 0, 1, flip ? p1 : p0, flip ? p0 : p1, fwd, th, e);
-    if (k % period === 0 && t > 0.06 && t < 0.94) {
-      const scale = len / ((dist(a0, a1) + dist(b0, b1)) / 2), useB = t > 0.5, s = useB ? sB : sA;
-      const band = Math.max(3, 14 * scale);
-      paintStrip(s, 0, s.width * 0.6, useB && flip ? p1 : p0, useB && flip ? p0 : p1, fwd, band, 1);
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8;
-      ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke();
+    // 반복: 단면이 작을수록(멀수록) 촘촘하고 얇게
+    const scale = len / edgeLen;
+    acc += th / Math.max(0.15, scale);
+    if (acc > 46 && t > 0.04 && t < 0.96) {
+      acc = 0;
+      const useB = t > t0, s = useB ? sB : sA;
+      paintStrip(s, 0, s.width * 0.5, useB && flip ? p1 : p0, useB && flip ? p0 : p1, fwd, Math.max(2, 12 * scale), 0.85);
     }
   }
   ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -132,13 +138,18 @@ function render() {
   const cells = maze(C, R).map(([cx, cy]) => ({ cx, cy, x: ox + cx * cell, y: oy + cy * cell }));
   const straight = i => cells[i + 2] && cells[i + 1].cx - cells[i].cx === cells[i + 2].cx - cells[i + 1].cx && cells[i + 1].cy - cells[i].cy === cells[i + 2].cy - cells[i + 1].cy;
 
-  // 길을 조각(P)과 통로(C)로 번갈아 나눈다
-  const units = [];
-  for (let i = 0, want = 'P'; i < cells.length; want = want === 'P' ? 'C' : 'P') {
-    const n = cells[i + 1] && rnd() < (want === 'P' ? 0.22 : 0.3) && straight(i) ? 2 : 1;
-    units.push({ type: want, cells: cells.slice(i, i + n) }); i += n;
+  // 길은 대부분 조각(P)으로 채우고, 깊은 원근 통로(C)는 곧은 구간 1~2곳에만
+  const deep = new Set(), cand = cells.map((_, i) => i).filter(i => i > 2 && i < cells.length - 3 && straight(i - 1));
+  for (let n = 1 + (rnd() < 0.5 ? 1 : 0); n > 0 && cand.length; n--) {
+    const d = cand.splice(rnd() * cand.length | 0, 1)[0];
+    if ([...deep].every(e => Math.abs(e - d) > 3)) deep.add(d);
   }
-  if (units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
+  const units = [];
+  for (let i = 0; i < cells.length;) {
+    if (deep.has(i)) { units.push({ type: 'C', cells: [cells[i]] }); i++; continue; }
+    const n = cells[i + 1] && !deep.has(i + 1) && rnd() < 0.25 && straight(i) ? 2 : 1;
+    units.push({ type: 'P', cells: cells.slice(i, i + n) }); i += n;
+  }
 
   const panels = units.filter(u => u.type === 'P');
   panels.forEach((u, j) => {
@@ -159,14 +170,19 @@ function render() {
     u.strips = {};
   });
 
-  units.forEach((u, i) => {
-    if (u.type !== 'C') return;
-    const A = units[i - 1], B = units[i + 1];
-    if (!A || !B) return;
-    const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
+  // 깊은 통로는 모래시계 원근, 나머지 조각끼리는 틈만 짧은 쐐기로 잇는다
+  const link = (A, B, viaFirst, viaLast, kind) => {
+    if (A.type !== 'P' || B.type !== 'P') return;
+    const sa = sideToward(A.cells, viaFirst), sb = sideToward(B.cells, viaLast);
     A.strips[sa] ||= edgeStrip(A.pc, sa); B.strips[sb] ||= edgeStrip(B.pc, sb);
     const turn = (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R');
-    corridor(A, sa, B, sb, turn ? 'turn' : rnd() < 0.65 ? 'hour' : 'flare');
+    corridor(A, sa, B, sb, turn ? 'turn' : kind);
+  };
+  units.forEach((u, i) => {
+    const B = units[i + 1];
+    if (!B) return;
+    if (u.type === 'C') { const A = units[i - 1]; if (A) link(A, units[i + 1], u.cells[0], u.cells[0], 'hour'); return; }
+    if (B.type === 'P') link(u, B, B.cells[0], u.cells[u.cells.length - 1], 'straight');
   });
   panels.forEach(u => ctx.drawImage(u.pc, u.x, u.y, u.w, u.h));
 }
