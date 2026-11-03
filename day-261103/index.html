@@ -30,7 +30,6 @@ const STOPS = [
   ['daejeon', '대전', '12:30'], ['okcheon', '옥천', '13:50'], ['gimcheon', '김천', '15:20'],
   ['daegu', '대구', '16:45'], ['miryang', '밀양', '18:10'], ['busan', '부산', '19:48'],
 ].map(([f, city, time], i) => ({ src: `photos/${String(i + 1).padStart(2, '0')}-${f}.jpg`, city, time }));
-const ROWS = [4, 3, 3];
 
 const cv = document.getElementById('road'), ctx = cv.getContext('2d');
 let DPR = 1, seed = 261103;
@@ -40,85 +39,112 @@ const smooth = t => t * t * (3 - 2 * t);
 const clamp01 = v => Math.max(0, Math.min(1, v));
 const hash = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
 
+// 서울(왼쪽 위) → 부산(오른쪽 아래)으로 크게 휘는 길. 사진은 그 길을 따라 크기·기울기를 바꿔 놓인다
+function routeCurve() {
+  const W = innerWidth, H = innerHeight, n = 6, pts = [[W * 0.13, H * 0.16]];
+  for (let i = 1; i < n - 1; i++) {
+    const t = i / (n - 1);
+    pts.push([(i % 2 ? 0.8 : 0.2) * W + (rnd() - 0.5) * W * 0.16, H * (0.14 + 0.72 * t) + (rnd() - 0.5) * H * 0.08]);
+  }
+  pts.push([W * 0.84, H * 0.84]);
+  const P = [pts[0], ...pts, pts[pts.length - 1]], line = [];
+  const cr = (a, b, c, d, t) => [0, 1].map(k => 0.5 * (2 * b[k] + (c[k] - a[k]) * t + (2 * a[k] - 5 * b[k] + 4 * c[k] - d[k]) * t * t + (3 * b[k] - a[k] - 3 * c[k] + d[k]) * t * t * t));
+  for (let i = 1; i < P.length - 2; i++) for (let k = 0; k < 60; k++) line.push(cr(P[i - 1], P[i], P[i + 1], P[i + 2], k / 60));
+  line.push(pts[pts.length - 1]);
+  const acc = [0];
+  for (let i = 1; i < line.length; i++) acc.push(acc[i - 1] + Math.hypot(line[i][0] - line[i - 1][0], line[i][1] - line[i - 1][1]));
+  return { line, acc, L: acc[acc.length - 1] };
+}
+function at(c, s) {
+  s = Math.max(0, Math.min(c.L - 0.01, s));
+  let i = 1; while (c.acc[i] < s) i++;
+  const t = (s - c.acc[i - 1]) / (c.acc[i] - c.acc[i - 1] || 1), a = c.line[i - 1], b = c.line[i];
+  return { x: lerp(a[0], b[0], t), y: lerp(a[1], b[1], t), ang: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+}
+
+const SCALES = [1.25, 0.7, 0.95, 1.55, 0.6, 1.1, 0.75, 1.45, 0.65, 1.35];
 function layout() {
-  const W = innerWidth, H = innerHeight, m = Math.max(24, W * 0.035), top = 40, bottom = 34;
-  const gapY = (H - top - bottom) * 0.1, rowH = (H - top - bottom - gapY * 2) / 3;
-  const out = [];
-  let k = 0;
-  ROWS.forEach((n, r) => {
-    let ph = rowH * 0.78, pw = ph * 1.5;
-    const minGap = W * 0.06;
-    if (n * pw + (n - 1) * minGap > W - 2 * m) { pw = (W - 2 * m - (n - 1) * minGap) / n; ph = pw / 1.5; }
-    const gap = (W - 2 * m - n * pw) / (n - 1);
-    const row = [];
-    for (let i = 0; i < n; i++) {
-      const h = ph * (0.85 + rnd() * 0.25), w = h * 1.5 * (pw / (ph * 1.5));
-      row.push({ x: m + i * (pw + gap) + (pw - w) / 2, y: top + r * (rowH + gapY) + (rowH - h) * (0.2 + rnd() * 0.6), w, h, row: r });
+  const c = routeCurve(), base = Math.min(innerWidth, innerHeight) * 0.24;
+  const out = STOPS.map((stop, i) => {
+    const s = c.L * (0.03 + 0.94 * i / (STOPS.length - 1)) + (rnd() - 0.5) * c.L * 0.025;
+    const q = at(c, s), w = base * SCALES[i] * (0.88 + rnd() * 0.24);
+    const extras = [];
+    for (let k = rnd() < 0.7 ? 1 + (rnd() * 2 | 0) : 0; k > 0; k--) {
+      const side = rnd() < 0.5 ? -1 : 1, crop = 0.35 + rnd() * 0.3;
+      extras.push({ crop, cx: rnd() * (1 - crop), cy: rnd() * (1 - crop), size: w * (0.45 + rnd() * 0.45),
+        dt: side * w * (0.45 + rnd() * 0.3), dn: (rnd() - 0.5) * w * 0.5, ang: (rnd() - 0.5) * 0.4, below: rnd() < 0.5 });
     }
-    if (r % 2) row.reverse();
-    row.forEach(p => Object.assign(p, STOPS[k++]));
-    out.push(...row);
+    return { ...stop, s, x: q.x, y: q.y, w, h: w / 1.5, ang: q.ang * 0.22 + (rnd() - 0.5) * 0.32, tang: q.ang, extras };
   });
-  return out;
+  return { curve: c, out };
 }
 
-// 세로 띠 하나: 사진의 가로 위치 u(0~1)에서 얇게 잘라 (x, y, sw, h)에 붙이고 왼쪽에 칼선 그림자
-function strip(img, u, x, y, sw, h, pw, shade) {
-  const sliceW = Math.max(1, img.naturalWidth * sw / pw);
-  const sx = Math.min(img.naturalWidth - sliceW, Math.max(0, u * img.naturalWidth - sliceW / 2));
-  ctx.drawImage(img, sx, 0, sliceW, img.naturalHeight, x, y, sw + 0.6, h);
-  ctx.fillStyle = `rgba(0,0,0,${shade})`;
-  ctx.fillRect(x, y, 0.8, h);
+// 이미지 한 장에서 세로 띠(가로 위치 u)를 잘라, 현재 좌표계 원점 중심에 붙인다
+function vslice(img, u, sw, h, pw, shade) {
+  const sl = Math.max(1, img.naturalWidth * sw / pw);
+  const sx = Math.min(img.naturalWidth - sl, Math.max(0, u * img.naturalWidth - sl / 2));
+  ctx.drawImage(img, sx, 0, sl, img.naturalHeight, -sw / 2, -h / 2, sw + 0.6, h);
+  ctx.fillStyle = `rgba(0,0,0,${shade})`; ctx.fillRect(-sw / 2, -h / 2, 0.8, h);
 }
-function stripH(img, v, x, y, w, sh, ph, shade) {
-  const sliceH = Math.max(1, img.naturalHeight * sh / ph);
-  const sy = Math.min(img.naturalHeight - sliceH, Math.max(0, v * img.naturalHeight - sliceH / 2));
-  ctx.drawImage(img, 0, sy, img.naturalWidth, sliceH, x, y, w, sh + 0.6);
-  ctx.fillStyle = `rgba(0,0,0,${shade})`;
-  ctx.fillRect(x, y, w, 0.8);
+function hslice(img, v, w, sh, ph, shade) {
+  const sl = Math.max(1, img.naturalHeight * sh / ph);
+  const sy = Math.min(img.naturalHeight - sl, Math.max(0, v * img.naturalHeight - sl / 2));
+  ctx.drawImage(img, 0, sy, img.naturalWidth, sl, -w / 2, -sh / 2, w, sh + 0.6);
+  ctx.fillStyle = `rgba(0,0,0,${shade})`; ctx.fillRect(-w / 2, -sh / 2, w, 0.8);
 }
 
-function drawPanel(p, sw) {
-  for (let x = p.x, k = 0; x < p.x + p.w; x += sw, k++) {
-    const j = (hash(k + p.x) - 0.5) * 3;
-    strip(p.img, (x - p.x + sw / 2) / p.w, x, p.y + j, sw, p.h, p.w, 0.08);
+function shadowRect(w, h) {
+  ctx.save(); ctx.shadowColor = 'rgba(0,0,0,0.22)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 3;
+  ctx.fillStyle = '#ddd'; ctx.fillRect(-w / 2, -h / 2, w, h); ctx.restore();
+}
+function drawExtra(p, e) {
+  const t = p.tang, img = p.img, nw = img.naturalWidth, nh = img.naturalHeight, w = e.size, h = w / 1.5;
+  ctx.save();
+  ctx.translate(p.x + Math.cos(t) * e.dt - Math.sin(t) * e.dn, p.y + Math.sin(t) * e.dt + Math.cos(t) * e.dn);
+  ctx.rotate(p.ang + e.ang);
+  shadowRect(w, h);
+  ctx.drawImage(img, e.cx * nw, e.cy * nh, e.crop * nw, e.crop * nh, -w / 2, -h / 2, w, h);
+  ctx.restore();
+}
+function drawPhoto(p, sw) {
+  p.extras.filter(e => e.below).forEach(e => drawExtra(p, e));
+  ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.ang);
+  shadowRect(p.w, p.h);
+  for (let x = -p.w / 2, k = 0; x < p.w / 2; x += sw, k++) {
+    ctx.save(); ctx.translate(x + sw / 2, (hash(k + p.s) - 0.5) * 3);
+    vslice(p.img, (x + p.w / 2 + sw / 2) / p.w, sw, p.h, p.w, 0.08);
+    ctx.restore();
   }
-}
-
-// 가로 이음: 앞 사진의 끝 띠들과 다음 사진의 첫 띠들이 아코디언처럼 반복되며 계단식으로 섞인다
-function bridgeH(L, R, sw, flip) {
-  const x0 = L.x + L.w, x1 = R.x, n = x1 - x0, echoes = 3 + (rnd() * 3 | 0), amp = (L.h + R.h) * (0.12 + rnd() * 0.12);
-  for (let x = x0, k = 0; x < x1; x += sw, k++) {
-    const t = (x - x0 + sw / 2) / n, e = smooth(t), bell = Math.sin(Math.PI * t);
-    const useR = hash(k * 3.1 + x0) < smooth(clamp01((t - 0.2) / 0.6));
-    const saw = (t * echoes) % 1;
-    const u = useR ? 0.02 + 0.22 * saw : 0.76 + 0.22 * saw;
-    const step = (hash(k * 7.7 + x0) - 0.5) * 14 * bell;
-    const h = lerp(L.h, R.h, e) * (1 - 0.28 * bell) + step;
-    const yc = lerp(L.y + L.h / 2, R.y + R.h / 2, e) + Math.sin(t * Math.PI * 2) * amp * bell * (flip ? -1 : 1);
-    strip(useR ? R.img : L.img, u, x, yc - h / 2 + step * 0.5, sw, h, useR ? R.w : L.w, 0.18);
-  }
-}
-// 세로 이음(줄 바꿈): 가로 띠로 같은 방식
-function bridgeV(U, D, sh) {
-  const y0 = U.y + U.h, y1 = D.y, n = y1 - y0, echoes = 3 + (rnd() * 2 | 0), amp = (U.w + D.w) * 0.12;
-  for (let y = y0, k = 0; y < y1; y += sh, k++) {
-    const t = (y - y0 + sh / 2) / n, e = smooth(t), bell = Math.sin(Math.PI * t);
-    const useD = hash(k * 3.1 + y0) < smooth(clamp01((t - 0.2) / 0.6));
-    const saw = (t * echoes) % 1;
-    const v = useD ? 0.02 + 0.22 * saw : 0.76 + 0.22 * saw;
-    const step = (hash(k * 7.7 + y0) - 0.5) * 14 * bell;
-    const w = lerp(U.w, D.w, e) * (1 - 0.25 * bell) + step;
-    const xc = lerp(U.x + U.w / 2, D.x + D.w / 2, e) + Math.sin(t * Math.PI * 2) * amp * bell;
-    stripH(useD ? D.img : U.img, v, xc - w / 2 + step * 0.5, y, w, sh, useD ? D.h : U.h, 0.18);
-  }
-}
-
-function caption(p) {
   ctx.fillStyle = '#333'; ctx.font = '700 11px Pretendard Variable'; ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-  ctx.fillText(p.city, p.x, p.y + p.h + 6);
+  ctx.fillText(p.city, -p.w / 2, p.h / 2 + 6);
   ctx.fillStyle = '#888'; ctx.font = '400 10px Pretendard Variable';
-  ctx.fillText(p.time, p.x + ctx.measureText(p.city).width + 18, p.y + p.h + 7);
+  ctx.fillText(p.time, -p.w / 2 + 34, p.h / 2 + 7);
+  ctx.restore();
+  p.extras.filter(e => !e.below).forEach(e => drawExtra(p, e));
+}
+
+// 길을 따라 앞 사진 끝 띠와 다음 사진 첫 띠가 아코디언처럼 반복되며 계단식으로 섞인다
+function bridge(c, A, B, sw) {
+  const s0 = A.s + A.w * 0.4, s1 = B.s - B.w * 0.4, n = s1 - s0;
+  if (n < sw * 3) return;
+  const echoes = 3 + (rnd() * 3 | 0), amp = (A.h + B.h) * (0.1 + rnd() * 0.12);
+  for (let s = s0, k = 0; s < s1; s += sw, k++) {
+    const t = (s - s0) / n, e = smooth(t), bell = Math.sin(Math.PI * t), q = at(c, s);
+    const useB = hash(k * 3.1 + s0) < smooth(clamp01((t - 0.2) / 0.6));
+    const saw = (t * echoes) % 1, uv = useB ? 0.02 + 0.22 * saw : 0.76 + 0.22 * saw;
+    const step = (hash(k * 7.7 + s0) - 0.5) * 14 * bell, off = Math.sin(t * Math.PI * 2) * amp * bell;
+    const img = useB ? B.img : A.img, src = useB ? B : A;
+    ctx.save();
+    ctx.translate(q.x - Math.sin(q.ang) * off, q.y + Math.cos(q.ang) * off);
+    if (Math.abs(Math.cos(q.ang)) >= 0.5) {
+      ctx.rotate(Math.cos(q.ang) < 0 ? q.ang + Math.PI : q.ang);
+      vslice(img, uv, sw, lerp(A.h, B.h, e) * (1 - 0.28 * bell) + step, src.w, 0.18);
+    } else {
+      ctx.rotate(q.ang - Math.sign(Math.sin(q.ang)) * Math.PI / 2);
+      hslice(img, uv, lerp(A.w, B.w, e) * 0.8 * (1 - 0.25 * bell) + step, sw, src.h, 0.18);
+    }
+    ctx.restore();
+  }
 }
 
 let panels = [], images = [];
@@ -128,15 +154,12 @@ function render() {
   cv.width = innerWidth * DPR; cv.height = innerHeight * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, innerWidth, innerHeight);
-  panels = layout();
+  const { curve, out } = layout();
+  panels = out;
   panels.forEach((p, i) => p.img = images[i]);
   const sw = Math.max(4, innerWidth / 260);
-  for (let i = 0; i < panels.length - 1; i++) {
-    const a = panels[i], b = panels[i + 1];
-    if (a.row !== b.row) bridgeV(a, b, sw);
-    else a.x < b.x ? bridgeH(a, b, sw, i % 2) : bridgeH(b, a, sw, i % 2);
-  }
-  panels.forEach(p => { drawPanel(p, sw); caption(p); });
+  for (let i = 0; i < panels.length - 1; i++) bridge(curve, panels[i], panels[i + 1], sw);
+  panels.forEach(p => drawPhoto(p, sw));
 }
 
 Promise.all(STOPS.map(s => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = s.src; })))
