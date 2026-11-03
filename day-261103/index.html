@@ -31,50 +31,92 @@ const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
 const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
-// 격자 위를 짧게 자주 꺾이며 기어가는 길. 막다른 칸은 피하고, 곧게 가기보다 꺾기를 좋아한다
-function snakes(C, R) {
-  const seen = new Set(), key = (x, y) => `${x},${y}`, inside = (a, b) => a >= 0 && b >= 0 && a < C && b < R;
-  const isFree = (a, b) => inside(a, b) && !seen.has(key(a, b));
-  const freeN = (a, b) => DIRS.filter(([dx, dy]) => isFree(a + dx, b + dy)).length;
-  const walk = (x, y, maxLen) => {
-    const path = [[x, y]]; seen.add(key(x, y));
-    let pd = null;
-    while (path.length < maxLen) {
-      const opts = DIRS.filter(([dx, dy]) => isFree(x + dx, y + dy));
+// 격자 위를 한 붓으로 도는 긴 미로 길 (막힐 곳이 적은 칸을 먼저 고르는 방식 + 약간의 무작위)
+function maze(C, R) {
+  let best = [];
+  const inside = (a, b) => a >= 0 && b >= 0 && a < C && b < R;
+  for (let tr = 0; tr < 400 && best.length < C * R * 0.9; tr++) {
+    const seen = new Set(['0,0']), path = [[0, 0]];
+    let x = 0, y = 0;
+    for (;;) {
+      const free = (a, b) => DIRS.filter(([dx, dy]) => inside(a + dx, b + dy) && !seen.has(`${a + dx},${b + dy}`)).length;
+      const opts = DIRS.map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => inside(a, b) && !seen.has(`${a},${b}`));
       if (!opts.length) break;
-      const score = d => (pd && d[0] === pd[0] && d[1] === pd[1] ? -0.3 : 0.35) + Math.min(freeN(x + d[0], y + d[1]), 2) * 0.5 + rnd() * 0.9;
-      const d = opts.sort((a, b) => score(b) - score(a))[0];
-      x += d[0]; y += d[1]; pd = d;
-      seen.add(key(x, y)); path.push([x, y]);
+      opts.sort((p, q) => free(...p) - free(...q) + (rnd() - 0.5) * 2.4);
+      [x, y] = opts[0];
+      seen.add(`${x},${y}`); path.push([x, y]);
     }
-    return path;
-  };
-  return { walk, seen, isFree, freeN };
+    if (path.length > best.length) best = path;
+  }
+  return best;
 }
 
-const center = r => [r.x + r.w / 2, r.y + r.h / 2];
-// 꺾은선 a → c → b 위의 위치 (t는 길이 비율). 곡선 대신 각진 미로처럼 직각으로 꺾인다
-const bend = (a, c, b, t) => {
-  const l1 = dist(a, c), l2 = dist(c, b), s = t * (l1 + l2);
-  return s < l1 ? L2(a, c, s / (l1 || 1)) : L2(c, b, (s - l1) / (l2 || 1));
-};
-
-// 드래그 잔상: 앞 조각이 몇 px 간격으로 계속 찍히며 끌려가다(멀어지면 작게, 촘촘히) 다음 조각으로 바뀐다
-function dragTrail(A, B, ctrl, kind) {
-  const a = center(A), b = center(B);
-  const squeeze = kind === 'hour' ? 0.45 + rnd() * 0.3 : 0, t0 = kind === 'hour' ? 0.35 + rnd() * 0.3 : 0.5;
-  const ratio = Math.sqrt((B.w * B.h) / (A.w * A.h));
-  const depth = t => 1 - squeeze * (t < t0 ? t / t0 : (1 - t) / (1 - t0));
-  const len = dist(a, ctrl) + dist(ctrl, b);
-  ctx.lineWidth = 0.6;
-  for (let t = 0; t < 1;) {
-    const d = depth(t), p = bend(a, ctrl, b, t), useB = t >= t0, src = useB ? B : A;
-    const S = lerp(1, ratio, t) * d * (useB ? 1 / ratio : 1), w = src.w * S, h = src.h * S;
-    ctx.drawImage(src.pc, p[0] - w / 2, p[1] - h / 2, w, h);
-    ctx.strokeStyle = 'rgba(0,0,0,0.14)';
-    ctx.strokeRect(p[0] - w / 2, p[1] - h / 2, w, h);
-    t += Math.max(0.003, (2.5 + 3.5 * d) / Math.max(len, 1));
+function sideToward(cells, nb) {
+  for (const c of cells) {
+    const dx = nb.cx - c.cx, dy = nb.cy - c.cy;
+    if (Math.abs(dx) + Math.abs(dy) === 1) return dx === 1 ? 'R' : dx === -1 ? 'L' : dy === 1 ? 'D' : 'U';
   }
+}
+function edgePts(r, s) {
+  return s === 'R' ? [[r.x + r.w, r.y], [r.x + r.w, r.y + r.h]] : s === 'L' ? [[r.x, r.y], [r.x, r.y + r.h]]
+       : s === 'D' ? [[r.x, r.y + r.h], [r.x + r.w, r.y + r.h]] : [[r.x, r.y], [r.x + r.w, r.y]];
+}
+
+// 조각의 한 변을 "가장자리부터 안쪽으로" 펼친 띠 캔버스 (x = 깊이, y = 변을 따라 p0→p1)
+function edgeStrip(pc, side) {
+  const pw = pc.width, ph = pc.height, vert = side === 'L' || side === 'R';
+  const D = Math.max(2, Math.min(48, (vert ? pw : ph) >> 1)), L = vert ? ph : pw;
+  const s = document.createElement('canvas'); s.width = D; s.height = L;
+  const c = s.getContext('2d');
+  if (side === 'L') c.drawImage(pc, 0, 0, D, ph, 0, 0, D, L);
+  if (side === 'R') { c.translate(D, 0); c.scale(-1, 1); c.drawImage(pc, pw - D, 0, D, ph, 0, 0, D, L); }
+  if (side === 'U') { c.setTransform(0, 1, 1, 0, 0, 0); c.drawImage(pc, 0, 0, pw, D, 0, 0, pw, D); }
+  if (side === 'D') { c.setTransform(0, 1, -1, 0, D, 0); c.drawImage(pc, 0, ph - D, pw, D, 0, 0, pw, D); }
+  return s;
+}
+
+// 띠의 열 [c0, c1)을 선분 p0→p1 위에, 앞쪽(fwd)으로 두께 th만큼 붙인다
+function paintStrip(strip, c0, c1, p0, p1, fwd, th, alpha) {
+  const ey = [(p1[0] - p0[0]) / strip.height, (p1[1] - p0[1]) / strip.height], k = th / (c1 - c0);
+  ctx.globalAlpha = alpha;
+  ctx.setTransform(DPR * fwd[0] * k, DPR * fwd[1] * k, DPR * ey[0], DPR * ey[1], DPR * p0[0], DPR * p0[1]);
+  ctx.drawImage(strip, c0, 0, c1 - c0, strip.height, 0, 0, c1 - c0, strip.height);
+}
+
+// 원근 통로: 앞 조각의 나가는 변 → 다음 조각의 들어오는 변. 가장자리 픽셀이 늘어나고, 일정 간격으로 작아지며 반복된다
+function corridor(A, sa, B, sb, kind) {
+  let [a0, a1] = edgePts(A, sa), [b0, b1] = edgePts(B, sb), flip = false;
+  if (dist(a0, b0) + dist(a1, b1) > dist(a0, b1) + dist(a1, b0)) { [b0, b1] = [b1, b0]; flip = true; }
+  const sA = A.strips[sa], sB = B.strips[sb], mA = mid(a0, a1), mB = mid(b0, b1);
+  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), squeeze = 0.45 + rnd() * 0.35, period = 5 + (rnd() * 6 | 0);
+  const line = t => {
+    const e = smooth(t);
+    let p0 = L2(a0, b0, e), p1 = L2(a1, b1, e);
+    if (kind !== 'turn') {
+      const m = mid(p0, p1), f = 1 - squeeze * Math.sin(Math.PI * t);
+      p0 = [m[0] + (p0[0] - m[0]) * f, m[1] + (p0[1] - m[1]) * f];
+      p1 = [m[0] + (p1[0] - m[0]) * f, m[1] + (p1[1] - m[1]) * f];
+    }
+    return [p0, p1];
+  };
+  for (let k = 0; k < steps; k++) {
+    const t = k / steps, [p0, p1] = line(t), [q0, q1] = line((k + 1) / steps);
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy) || 1;
+    let fwd = [-dy / len, dx / len];
+    const go = [mid(q0, q1)[0] - mid(p0, p1)[0], mid(q0, q1)[1] - mid(p0, p1)[1]];
+    if (fwd[0] * go[0] + fwd[1] * go[1] < 0) fwd = [-fwd[0], -fwd[1]];
+    const th = Math.hypot(...go) + 0.9, e = smooth(t);
+    paintStrip(sA, 0, 1, p0, p1, fwd, th, 1);
+    paintStrip(sB, 0, 1, flip ? p1 : p0, flip ? p0 : p1, fwd, th, e);
+    if (k % period === 0 && t > 0.06 && t < 0.94) {
+      const scale = len / ((dist(a0, a1) + dist(b0, b1)) / 2), useB = t > 0.5, s = useB ? sB : sA;
+      const band = Math.max(3, 14 * scale);
+      paintStrip(s, 0, s.width * 0.6, useB && flip ? p1 : p0, useB && flip ? p0 : p1, fwd, band, 1);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke();
+    }
+  }
+  ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
 function render() {
@@ -84,92 +126,48 @@ function render() {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, innerWidth, innerHeight);
 
-  const W = innerWidth, H = innerHeight, m = 22, cell = Math.round(Math.min((W - 2 * m) / 12, (H - 2 * m) / 8));
+  const W = innerWidth, H = innerHeight, m = 26, cell = Math.round(Math.min((W - 2 * m) / 9, (H - 2 * m) / 6));
   const C = Math.floor((W - 2 * m) / cell), R = Math.floor((H - 2 * m) / cell);
   const ox = (W - C * cell) / 2, oy = (H - R * cell) / 2;
-  const toCell = ([cx, cy]) => ({ cx, cy, x: ox + cx * cell, y: oy + cy * cell });
-  const g = snakes(C, R);
+  const cells = maze(C, R).map(([cx, cy]) => ({ cx, cy, x: ox + cx * cell, y: oy + cy * cell }));
+  const straight = i => cells[i + 2] && cells[i + 1].cx - cells[i].cx === cells[i + 2].cx - cells[i + 1].cx && cells[i + 1].cy - cells[i].cy === cells[i + 2].cy - cells[i + 1].cy;
 
-  // 길 하나 = 조각(P)과 통로(C)가 번갈아. 갈래길은 부모 조각에서 통로로 시작한다
-  const runs = [];
-  const buildRun = (path, parent) => {
-    const cells = path.map(toCell), units = [];
-    const straight = i => cells[i + 2] && cells[i + 1].cx - cells[i].cx === cells[i + 2].cx - cells[i + 1].cx && cells[i + 1].cy - cells[i].cy === cells[i + 2].cy - cells[i + 1].cy;
-    for (let i = 0, want = parent ? 'C' : 'P'; i < cells.length; want = want === 'P' ? 'C' : 'P') {
-      const n = cells[i + 1] && rnd() < (want === 'P' ? 0.25 : 0.3) && straight(i) ? 2 : 1;
-      units.push({ type: want, cells: cells.slice(i, i + n) }); i += n;
-    }
-    if (units.length > 1 && units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
-    if (units.filter(u => u.type === 'P').length) runs.push({ units, parent });
-  };
-  buildRun(g.walk(0, 0, 10 + (rnd() * 8 | 0)), null);
-  for (let tries = 0; tries < 90 && g.seen.size < C * R * 0.8; tries++) {
-    const len = 6 + (rnd() * 9 | 0);
-    if (rnd() < 0.6) {
-      const Ps = runs.flatMap(r => r.units.filter(u => u.type === 'P')).sort(() => rnd() - 0.5);
-      let done = false;
-      for (const P of Ps) {
-        for (const c of P.cells) {
-          const d = DIRS.find(([dx, dy]) => g.isFree(c.cx + dx, c.cy + dy) && g.freeN(c.cx + dx, c.cy + dy) >= 1);
-          if (!d) continue;
-          const path = g.walk(c.cx + d[0], c.cy + d[1], len);
-          if (path.length >= 3) buildRun(path, P);
-          done = true; break;
-        }
-        if (done) break;
-      }
-    } else {
-      const free = [];
-      for (let y = 0; y < R; y++) for (let x = 0; x < C; x++) if (g.isFree(x, y) && g.freeN(x, y) >= 2) free.push([x, y]);
-      if (!free.length) break;
-      const s = free[rnd() * free.length | 0], path = g.walk(s[0], s[1], len);
-      if (path.length >= 3) buildRun(path, null);
-    }
+  // 길을 조각(P)과 통로(C)로 번갈아 나눈다
+  const units = [];
+  for (let i = 0, want = 'P'; i < cells.length; want = want === 'P' ? 'C' : 'P') {
+    const n = cells[i + 1] && rnd() < (want === 'P' ? 0.22 : 0.3) && straight(i) ? 2 : 1;
+    units.push({ type: want, cells: cells.slice(i, i + n) }); i += n;
   }
+  if (units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
 
-  // 조각: 세로형·가로형·정사각형, 칸 안에서 위치도 들쭉날쭉 → 연결부가 비스듬해진다
-  for (const r of runs) {
-    let d = r.parent ? r.parent.depth : 0.6 + rnd() * 0.4;
-    for (const u of r.units) if (u.type === 'P') { d = Math.max(0.55, Math.min(1, d * (0.75 + rnd() * 0.5))); u.depth = d; }
-  }
-  const panels = runs.flatMap(r => r.units.filter(u => u.type === 'P'));
+  const panels = units.filter(u => u.type === 'P');
   panels.forEach((u, j) => {
     const xs = u.cells.map(c => c.x), ys = u.cells.map(c => c.y);
     const bx = Math.min(...xs), by = Math.min(...ys), bw = Math.max(...xs) + cell - bx, bh = Math.max(...ys) + cell - by;
-    let fw, fh;
-    if (u.cells.length === 1) {
-      const sh = rnd();
-      if (sh < 0.35) { fw = 0.5 + rnd() * 0.22; fh = 0.82 + rnd() * 0.16; }
-      else if (sh < 0.7) { fw = 0.82 + rnd() * 0.16; fh = 0.5 + rnd() * 0.22; }
-      else fw = fh = 0.66 + rnd() * 0.28;
-    } else if (bw > bh) { fw = 0.86 + rnd() * 0.12; fh = 0.55 + rnd() * 0.4; }
-    else { fh = 0.86 + rnd() * 0.12; fw = 0.55 + rnd() * 0.4; }
-    const w = bw * fw * u.depth, h = bh * fh * u.depth;
-    Object.assign(u, { x: bx + (bw - w) * rnd(), y: by + (bh - h) * rnd(), w, h });
+    const ix = bw * (0.04 + rnd() * 0.14), iy = bh * (0.04 + rnd() * 0.14);
+    Object.assign(u, { x: bx + ix, y: by + iy, w: bw - ix * (1.2 + rnd()), h: bh - iy * (1.2 + rnd()) });
     const pi = Math.min(PHOTOS.length - 1, Math.floor(j * PHOTOS.length / panels.length)), img = images[pi];
+    const same = panels.filter((_, q) => Math.floor(q * PHOTOS.length / panels.length) === pi), k = same.indexOf(u);
     const a = u.w / u.h, nw = img.naturalWidth, nh = img.naturalHeight;
-    let ch = nh * (0.3 + rnd() * 0.5), cw = ch * a;
+    let ch = nh * (0.38 + rnd() * 0.45), cw = ch * a;
     if (cw > nw) { cw = nw; ch = cw / a; }
-    const cx = (nw - cw) * rnd(), cy = (nh - ch) * rnd();
+    const cx = (nw - cw) * Math.min(1, Math.max(0, (k + 0.5) / same.length + (rnd() - 0.5) * 0.15)), cy = (nh - ch) * rnd();
     u.pc = document.createElement('canvas'); u.pc.width = Math.ceil(u.w * DPR); u.pc.height = Math.ceil(u.h * DPR);
     const pctx = u.pc.getContext('2d');
     pctx.filter = 'saturate(1.25) contrast(1.06)';
     pctx.drawImage(img, cx, cy, cw, ch, 0, 0, u.pc.width, u.pc.height);
+    u.strips = {};
   });
 
-  // 잇기: 통로 칸의 가운데를 거쳐 휘어 끌려간다. 곧은 통로 일부는 소실점으로 작아졌다 커진다
-  const cellMid = cs => [cs.reduce((a, c) => a + c.x, 0) / cs.length + cell / 2, cs.reduce((a, c) => a + c.y, 0) / cs.length + cell / 2];
-  for (const { units, parent } of runs) {
-    units.forEach((u, i) => {
-      const prev = i ? units[i - 1] : parent, next = units[i + 1];
-      if (u.type === 'C' && prev && next && prev.type === 'P' && next.type === 'P') {
-        const a = center(prev), b = center(next), turn = Math.abs(a[0] - b[0]) > cell * 0.5 && Math.abs(a[1] - b[1]) > cell * 0.5;
-        const cm = cellMid(u.cells), c1 = [b[0], a[1]], c2 = [a[0], b[1]];
-        dragTrail(prev, next, turn ? (dist(c1, cm) < dist(c2, cm) ? c1 : c2) : cm, turn ? 'plain' : rnd() < 0.5 ? 'hour' : 'plain');
-      }
-      if (u.type === 'P' && next && next.type === 'P') dragTrail(u, next, mid(center(u), center(next)), 'plain');
-    });
-  }
+  units.forEach((u, i) => {
+    if (u.type !== 'C') return;
+    const A = units[i - 1], B = units[i + 1];
+    if (!A || !B) return;
+    const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
+    A.strips[sa] ||= edgeStrip(A.pc, sa); B.strips[sb] ||= edgeStrip(B.pc, sb);
+    const turn = (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R');
+    corridor(A, sa, B, sb, turn ? 'turn' : 'hour');
+  });
   panels.forEach(u => ctx.drawImage(u.pc, u.x, u.y, u.w, u.h));
 }
 
