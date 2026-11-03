@@ -169,7 +169,14 @@ function render() {
     const turn = (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R');
     corridor(A, sa, B, sb, turn ? 'turn' : hourLeft > 0 && rnd() < 0.3 ? (hourLeft--, 'hour') : 'plain');
   });
-  panels.forEach(u => ctx.drawImage(u.pc, u.x, u.y, u.w, u.h));
+  // 몇 장만 살짝 기울여 붙인다
+  panels.forEach(u => {
+    const tilt = rnd() < 0.25 ? (rnd() < 0.5 ? -1 : 1) * (3 + rnd() * 5) * Math.PI / 180 : 0;
+    ctx.save();
+    ctx.translate(u.x + u.w / 2, u.y + u.h / 2); ctx.rotate(tilt);
+    ctx.drawImage(u.pc, -u.w / 2, -u.h / 2, u.w, u.h);
+    ctx.restore();
+  });
 }
 
 Promise.all(PHOTOS.map(src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = src; })))
