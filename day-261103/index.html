@@ -8,9 +8,6 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; background: #fff; }
   canvas#road { position: fixed; inset: 0; width: 100%; height: 100%; }
-  .modes { position: fixed; right: 14px; bottom: 8px; display: flex; gap: 12px; }
-  .modes button { border: 0; background: none; font: 11px sans-serif; color: #bbb; cursor: pointer; }
-  .modes button.on { color: #333; }
   .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: #bbb; text-decoration: none; }
 </style>
 </head>
@@ -18,7 +15,6 @@
 <canvas id="road"></canvas>
 
 <a class="back" href="../index.html">←</a>
-<div class="modes"><button data-m="keep" class="on">잔상 남기기</button><button data-m="follow">따라오기</button></div>
 
 <script>
 const PHOTOS = ['01-seoul', '02-suwon', '03-pyeongtaek', '04-cheonan', '05-daejeon', '06-okcheon', '07-gimcheon', '08-daegu', '09-miryang', '10-busan']
@@ -193,8 +189,8 @@ function draw() {
 }
 
 /* ───── 끌기: 지나간 자리에 사진이 계속 찍힌다 ───── */
-// keep: 원래 통로와 옛 자리 그림은 그대로 두고 잔상만 덧그린다 / follow: 원래 통로가 새 위치로 다시 이어진다
-let mode = 'keep', drag = null, queued = false;
+// 끄는 동안 원래 통로가 새 위치로 따라와 다시 이어지고, 지나간 경로에는 잔상이 남는다
+let drag = null, queued = false;
 function hit(x, y) {
   for (let i = panels.length - 1; i >= 0; i--) {
     const u = panels[i], cx = u.x + u.w / 2, cy = u.y + u.h / 2, c = Math.cos(-u.tilt), s = Math.sin(-u.tilt);
@@ -219,25 +215,17 @@ cv.addEventListener('pointermove', e => {
   for (let i = 1; i <= n; i++) {
     const p = L2(last, to, i / n);
     trail.pts.push(p);
-    if (mode === 'keep') stamp(u, p[0], p[1], true);
   }
   const end = trail.pts[trail.pts.length - 1];
   u.x = end[0] - u.w / 2; u.y = end[1] - u.h / 2;
-  if (mode === 'follow' && !queued) { queued = true; requestAnimationFrame(() => { queued = false; draw(); }); }
+  if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; draw(); }); }
 });
 cv.addEventListener('pointerup', () => {
   if (!drag) return;
-  if (mode === 'keep') stamp(drag.u, drag.u.x + drag.u.w / 2, drag.u.y + drag.u.h / 2, false);
-  else draw();
+  draw();
   drag = null;
   cv.style.cursor = 'grab';
 });
-
-document.querySelectorAll('.modes button').forEach(b => b.addEventListener('click', () => {
-  mode = b.dataset.m;
-  document.querySelectorAll('.modes button').forEach(o => o.classList.toggle('on', o === b));
-  draw();
-}));
 
 Promise.all(PHOTOS.map(src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = src; })))
   .then(ims => { images = ims; build(); });
