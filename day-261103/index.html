@@ -6,115 +6,175 @@
 <title>Day 261103 — 버스만 타고 부산까지</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; overflow: hidden; background: #f4f3ef; }
-  #stage { position: fixed; inset: 0; perspective: 1400px; perspective-origin: 50% 50%; }
-  #world { position: absolute; left: 50%; top: 50%; transform-style: preserve-3d; }
-  .ph, .st { position: absolute; left: 0; top: 0; background-repeat: no-repeat; backface-visibility: visible; transform-origin: 50% 50%; }
-  .ph { box-shadow: 0 14px 34px rgba(0,0,0,0.22); }
-  .ph::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(90deg, rgba(0,0,0,0.07) 0 1px, transparent 1px 7px); }
-  .grain { position: fixed; inset: 0; pointer-events: none; opacity: 0.16; mix-blend-mode: multiply;
+  html, body { height: 100%; overflow: hidden; background: #fbfbf9; }
+  canvas#road { position: fixed; inset: 0; width: 100%; height: 100%; }
+  .grain { position: fixed; inset: 0; pointer-events: none; opacity: 0.14; mix-blend-mode: multiply;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
-  .back { position: fixed; left: 18px; bottom: 12px; font: 11px sans-serif; color: #aaa; text-decoration: none; }
+  .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: #bbb; text-decoration: none; }
 </style>
 </head>
 <body>
-<div id="stage"><div id="world"></div></div>
+<canvas id="road"></canvas>
 <div class="grain"></div>
 <a class="back" href="../index.html">←</a>
 
 <script>
 const PHOTOS = ['01-seoul', '02-suwon', '03-pyeongtaek', '04-cheonan', '05-daejeon', '06-okcheon', '07-gimcheon', '08-daegu', '09-miryang', '10-busan']
   .map(n => `photos/${n}.jpg`);
-const PERSP = 1400;
-const world = document.getElementById('world');
-let seed = 261103;
+const cv = document.getElementById('road'), ctx = cv.getContext('2d');
+let DPR = 1, seed = 261103, images = [];
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const lerp = (a, b, t) => a + (b - a) * t;
 const smooth = t => t * t * (3 - 2 * t);
-const clamp01 = v => Math.max(0, Math.min(1, v));
-const hash = n => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
+const L2 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t)];
+const dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
 
-// 서울은 저 멀리, 부산은 바로 앞. 화면 좌우를 크게 오가며 다가오는 3D 길
-function route() {
-  const W = innerWidth, H = innerHeight, n = 7, pts = [];
-  for (let i = 0; i < n; i++) {
-    const t = i / (n - 1), z = lerp(-2600, 260, Math.pow(t, 0.9));
-    const sx = (i % 2 ? 0.36 : -0.36) * W + (rnd() - 0.5) * W * 0.14;
-    const sy = lerp(-0.3, 0.28, t) * H + (rnd() - 0.5) * H * 0.16;
-    const k = (PERSP - z) / PERSP;  // 화면 좌표로 정한 위치를 깊이만큼 키워서 원근으로 그 자리에 보이게
-    pts.push([sx * k, sy * k, z]);
+// 격자 위를 한 붓으로 도는 긴 미로 길 (막힐 곳이 적은 칸을 먼저 고르는 방식 + 약간의 무작위)
+function maze(C, R) {
+  let best = [];
+  const inside = (a, b) => a >= 0 && b >= 0 && a < C && b < R;
+  for (let tr = 0; tr < 400 && best.length < C * R * 0.9; tr++) {
+    const seen = new Set(['0,0']), path = [[0, 0]];
+    let x = 0, y = 0;
+    for (;;) {
+      const free = (a, b) => DIRS.filter(([dx, dy]) => inside(a + dx, b + dy) && !seen.has(`${a + dx},${b + dy}`)).length;
+      const opts = DIRS.map(([dx, dy]) => [x + dx, y + dy]).filter(([a, b]) => inside(a, b) && !seen.has(`${a},${b}`));
+      if (!opts.length) break;
+      opts.sort((p, q) => free(...p) - free(...q) + (rnd() - 0.5) * 1.6);
+      [x, y] = opts[0];
+      seen.add(`${x},${y}`); path.push([x, y]);
+    }
+    if (path.length > best.length) best = path;
   }
-  const P = [pts[0], ...pts, pts[n - 1]], line = [];
-  const cr = (a, b, c, d, t) => [0, 1, 2].map(k => 0.5 * (2 * b[k] + (c[k] - a[k]) * t + (2 * a[k] - 5 * b[k] + 4 * c[k] - d[k]) * t * t + (3 * b[k] - a[k] - 3 * c[k] + d[k]) * t * t * t));
-  for (let i = 1; i < P.length - 2; i++) for (let k = 0; k < 80; k++) line.push(cr(P[i - 1], P[i], P[i + 1], P[i + 2], k / 80));
-  line.push(pts[n - 1]);
-  const acc = [0];
-  for (let i = 1; i < line.length; i++) acc.push(acc[i - 1] + Math.hypot(...[0, 1, 2].map(k => line[i][k] - line[i - 1][k])));
-  return { line, acc, L: acc[acc.length - 1] };
-}
-function at(c, s) {
-  s = Math.max(0, Math.min(c.L - 0.01, s));
-  let i = 1; while (c.acc[i] < s) i++;
-  const t = (s - c.acc[i - 1]) / (c.acc[i] - c.acc[i - 1] || 1), a = c.line[i - 1], b = c.line[i];
-  const d = [0, 1, 2].map(k => b[k] - a[k]);
-  return { p: [0, 1, 2].map(k => lerp(a[k], b[k], t)), yaw: Math.atan2(-d[2], d[0]), pitch: Math.atan2(d[1], Math.hypot(d[0], d[2])) };
+  return best;
 }
 
-function el(cls, url, w, h, bgW, bgX, tf, dark) {
-  const d = document.createElement('div');
-  d.className = cls;
-  d.style.width = w + 'px'; d.style.height = h + 'px';
-  d.style.backgroundImage = (dark ? `linear-gradient(rgba(0,0,0,${dark}),rgba(0,0,0,${dark})), ` : '') + `url(${url})`;
-  d.style.backgroundSize = (dark ? '100% 100%, ' : '') + `${bgW}px ${h}px`;
-  d.style.backgroundPosition = (dark ? '0 0, ' : '') + `${bgX}px 0`;
-  d.style.transform = tf;
-  world.appendChild(d);
+function sideToward(cells, nb) {
+  for (const c of cells) {
+    const dx = nb.cx - c.cx, dy = nb.cy - c.cy;
+    if (Math.abs(dx) + Math.abs(dy) === 1) return dx === 1 ? 'R' : dx === -1 ? 'L' : dy === 1 ? 'D' : 'U';
+  }
+}
+function edgePts(r, s) {
+  return s === 'R' ? [[r.x + r.w, r.y], [r.x + r.w, r.y + r.h]] : s === 'L' ? [[r.x, r.y], [r.x, r.y + r.h]]
+       : s === 'D' ? [[r.x, r.y + r.h], [r.x + r.w, r.y + r.h]] : [[r.x, r.y], [r.x + r.w, r.y]];
 }
 
-function build() {
-  world.innerHTML = '';
-  const c = route(), base = Math.min(innerWidth * 0.34, 520);
-  const ph = PHOTOS.map((url, i) => {
-    const s = c.L * (0.02 + 0.96 * i / (PHOTOS.length - 1)), q = at(c, s);
-    const w = base * (0.85 + rnd() * 0.4);
-    return { url, s, q, w, h: w / 1.5, yaw: Math.max(-0.55, Math.min(0.55, q.yaw * 0.35)) + (rnd() - 0.5) * 0.3, pitch: (rnd() - 0.5) * 0.2 };
-  });
+// 조각의 한 변을 "가장자리부터 안쪽으로" 펼친 띠 캔버스 (x = 깊이, y = 변을 따라 p0→p1)
+function edgeStrip(pc, side) {
+  const pw = pc.width, ph = pc.height, vert = side === 'L' || side === 'R';
+  const D = Math.max(2, Math.min(48, (vert ? pw : ph) >> 1)), L = vert ? ph : pw;
+  const s = document.createElement('canvas'); s.width = D; s.height = L;
+  const c = s.getContext('2d');
+  if (side === 'L') c.drawImage(pc, 0, 0, D, ph, 0, 0, D, L);
+  if (side === 'R') { c.translate(D, 0); c.scale(-1, 1); c.drawImage(pc, pw - D, 0, D, ph, 0, 0, D, L); }
+  if (side === 'U') { c.setTransform(0, 1, 1, 0, 0, 0); c.drawImage(pc, 0, 0, pw, D, 0, 0, pw, D); }
+  if (side === 'D') { c.setTransform(0, 1, -1, 0, D, 0); c.drawImage(pc, 0, ph - D, pw, D, 0, 0, pw, D); }
+  return s;
+}
 
-  // 사진 사이: 앞 사진 끝 띠와 다음 사진 첫 띠가 병풍처럼 접히며 반복되고 계단식으로 섞인다
-  const sw = 16;
-  for (let i = 0; i < ph.length - 1; i++) {
-    const A = ph[i], B = ph[i + 1], s0 = A.s + A.w * 0.35, s1 = B.s - B.w * 0.35, n = s1 - s0;
-    if (n < sw * 3) continue;
-    const echoes = 3 + (rnd() * 3 | 0), amp = (A.h + B.h) * (0.12 + rnd() * 0.12), fold = 30 + rnd() * 25;
-    for (let s = s0, k = 0; s < s1; s += sw * 0.82, k++) {
-      const t = (s - s0) / n, e = smooth(t), bell = Math.sin(Math.PI * t), q = at(c, s);
-      const useB = hash(k * 3.1 + i * 17) < smooth(clamp01((t - 0.2) / 0.6)), src = useB ? B : A;
-      const saw = (t * echoes) % 1, u = useB ? 0.02 + 0.22 * saw : 0.76 + 0.22 * saw;
-      const step = (hash(k * 7.7 + i) - 0.5) * 22 * bell, h = lerp(A.h, B.h, e) * (1 - 0.28 * bell) + step;
-      const off = Math.sin(t * Math.PI * 2) * amp * bell;
-      const f = (k % 2 ? 1 : -1) * fold;
-      el('st', src.url, sw, h, src.w, -(u * src.w - sw / 2),
-        `translate3d(${q.p[0] - sw / 2}px, ${q.p[1] + off - h / 2}px, ${q.p[2]}px) rotateY(${q.yaw}rad) rotateZ(${q.pitch}rad) rotateY(${f}deg)`,
-        k % 2 ? 0.2 : 0);
+// 띠의 열 [c0, c1)을 선분 p0→p1 위에, 앞쪽(fwd)으로 두께 th만큼 붙인다
+function paintStrip(strip, c0, c1, p0, p1, fwd, th, alpha) {
+  const ey = [(p1[0] - p0[0]) / strip.height, (p1[1] - p0[1]) / strip.height], k = th / (c1 - c0);
+  ctx.globalAlpha = alpha;
+  ctx.setTransform(DPR * fwd[0] * k, DPR * fwd[1] * k, DPR * ey[0], DPR * ey[1], DPR * p0[0], DPR * p0[1]);
+  ctx.drawImage(strip, c0, 0, c1 - c0, strip.height, 0, 0, c1 - c0, strip.height);
+}
+
+// 원근 통로: 앞 조각의 나가는 변 → 다음 조각의 들어오는 변. 가장자리 픽셀이 늘어나고, 일정 간격으로 작아지며 반복된다
+function corridor(A, sa, B, sb, kind) {
+  let [a0, a1] = edgePts(A, sa), [b0, b1] = edgePts(B, sb), flip = false;
+  if (dist(a0, b0) + dist(a1, b1) > dist(a0, b1) + dist(a1, b0)) { [b0, b1] = [b1, b0]; flip = true; }
+  const sA = A.strips[sa], sB = B.strips[sb], mA = mid(a0, a1), mB = mid(b0, b1);
+  const steps = Math.max(24, Math.ceil(dist(mA, mB) / 1.4)), squeeze = 0.45 + rnd() * 0.35, period = 5 + (rnd() * 6 | 0);
+  const line = t => {
+    const e = smooth(t);
+    let p0 = L2(a0, b0, e), p1 = L2(a1, b1, e);
+    if (kind !== 'turn') {
+      const m = mid(p0, p1), f = kind === 'hour' ? 1 - squeeze * Math.sin(Math.PI * t) : 1 + 0.3 * Math.sin(Math.PI * t);
+      p0 = [m[0] + (p0[0] - m[0]) * f, m[1] + (p0[1] - m[1]) * f];
+      p1 = [m[0] + (p1[0] - m[0]) * f, m[1] + (p1[1] - m[1]) * f];
+    }
+    return [p0, p1];
+  };
+  for (let k = 0; k < steps; k++) {
+    const t = k / steps, [p0, p1] = line(t), [q0, q1] = line((k + 1) / steps);
+    const dx = p1[0] - p0[0], dy = p1[1] - p0[1], len = Math.hypot(dx, dy) || 1;
+    let fwd = [-dy / len, dx / len];
+    const go = [mid(q0, q1)[0] - mid(p0, p1)[0], mid(q0, q1)[1] - mid(p0, p1)[1]];
+    if (fwd[0] * go[0] + fwd[1] * go[1] < 0) fwd = [-fwd[0], -fwd[1]];
+    const th = Math.hypot(...go) + 0.9, e = smooth(t);
+    paintStrip(sA, 0, 1, p0, p1, fwd, th, 1);
+    paintStrip(sB, 0, 1, flip ? p1 : p0, flip ? p0 : p1, fwd, th, e);
+    if (k % period === 0 && t > 0.06 && t < 0.94) {
+      const scale = len / ((dist(a0, a1) + dist(b0, b1)) / 2), useB = t > 0.5, s = useB ? sB : sA;
+      const band = Math.max(3, 14 * scale);
+      paintStrip(s, 0, s.width * 0.6, useB && flip ? p1 : p0, useB && flip ? p0 : p1, fwd, band, 1);
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 0.25; ctx.strokeStyle = '#000'; ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(...p0); ctx.lineTo(...p1); ctx.stroke();
     }
   }
-  for (const p of ph)
-    el('ph', p.url, p.w, p.h, p.w, 0,
-      `translate3d(${p.q.p[0] - p.w / 2}px, ${p.q.p[1] - p.h / 2}px, ${p.q.p[2]}px) rotateY(${p.yaw}rad) rotateX(${p.pitch}rad)`);
+  ctx.globalAlpha = 1; ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
 }
 
-// 마우스로 공간이 살짝 돌아 깊이가 보이게
-const cam = { x: 0, y: 0, tx: 0, ty: 0 };
-addEventListener('pointermove', e => { cam.tx = e.clientX / innerWidth - 0.5; cam.ty = e.clientY / innerHeight - 0.5; });
-(function loop() {
-  cam.x += (cam.tx - cam.x) * 0.05; cam.y += (cam.ty - cam.y) * 0.05;
-  world.style.transform = `translateZ(-600px) rotateX(${-cam.y * 10}deg) rotateY(${cam.x * 14}deg) translateZ(600px)`;
-  requestAnimationFrame(loop);
-})();
+function render() {
+  if (innerWidth < 200 || innerHeight < 200 || !images.length) return;
+  DPR = Math.min(2, devicePixelRatio || 1);
+  cv.width = innerWidth * DPR; cv.height = innerHeight * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
 
-build();
-addEventListener('resize', build);
-addEventListener('pointerdown', () => { seed = 1 + (Math.random() * 2e9 | 0); build(); });
+  const W = innerWidth, H = innerHeight, m = 26, cell = Math.round(Math.min((W - 2 * m) / 9, (H - 2 * m) / 6));
+  const C = Math.floor((W - 2 * m) / cell), R = Math.floor((H - 2 * m) / cell);
+  const ox = (W - C * cell) / 2, oy = (H - R * cell) / 2;
+  const cells = maze(C, R).map(([cx, cy]) => ({ cx, cy, x: ox + cx * cell, y: oy + cy * cell }));
+  const straight = i => cells[i + 2] && cells[i + 1].cx - cells[i].cx === cells[i + 2].cx - cells[i + 1].cx && cells[i + 1].cy - cells[i].cy === cells[i + 2].cy - cells[i + 1].cy;
+
+  // 길을 조각(P)과 통로(C)로 번갈아 나눈다
+  const units = [];
+  for (let i = 0, want = 'P'; i < cells.length; want = want === 'P' ? 'C' : 'P') {
+    const n = cells[i + 1] && rnd() < (want === 'P' ? 0.22 : 0.3) && straight(i) ? 2 : 1;
+    units.push({ type: want, cells: cells.slice(i, i + n) }); i += n;
+  }
+  if (units[units.length - 1].type === 'C') units[units.length - 1].type = 'P';
+
+  const panels = units.filter(u => u.type === 'P');
+  panels.forEach((u, j) => {
+    const xs = u.cells.map(c => c.x), ys = u.cells.map(c => c.y);
+    const bx = Math.min(...xs), by = Math.min(...ys), bw = Math.max(...xs) + cell - bx, bh = Math.max(...ys) + cell - by;
+    const ix = bw * (0.04 + rnd() * 0.14), iy = bh * (0.04 + rnd() * 0.14);
+    Object.assign(u, { x: bx + ix, y: by + iy, w: bw - ix * (1.2 + rnd()), h: bh - iy * (1.2 + rnd()) });
+    const pi = Math.min(PHOTOS.length - 1, Math.floor(j * PHOTOS.length / panels.length)), img = images[pi];
+    const same = panels.filter((_, q) => Math.floor(q * PHOTOS.length / panels.length) === pi), k = same.indexOf(u);
+    const a = u.w / u.h, nw = img.naturalWidth, nh = img.naturalHeight;
+    let ch = nh * (0.38 + rnd() * 0.45), cw = ch * a;
+    if (cw > nw) { cw = nw; ch = cw / a; }
+    const cx = (nw - cw) * Math.min(1, Math.max(0, (k + 0.5) / same.length + (rnd() - 0.5) * 0.15)), cy = (nh - ch) * rnd();
+    u.pc = document.createElement('canvas'); u.pc.width = Math.ceil(u.w * DPR); u.pc.height = Math.ceil(u.h * DPR);
+    const pctx = u.pc.getContext('2d');
+    pctx.filter = 'saturate(1.25) contrast(1.06)';
+    pctx.drawImage(img, cx, cy, cw, ch, 0, 0, u.pc.width, u.pc.height);
+    u.strips = {};
+  });
+
+  units.forEach((u, i) => {
+    if (u.type !== 'C') return;
+    const A = units[i - 1], B = units[i + 1];
+    if (!A || !B) return;
+    const sa = sideToward(A.cells, u.cells[0]), sb = sideToward(B.cells, u.cells[u.cells.length - 1]);
+    A.strips[sa] ||= edgeStrip(A.pc, sa); B.strips[sb] ||= edgeStrip(B.pc, sb);
+    const turn = (sa === 'L' || sa === 'R') !== (sb === 'L' || sb === 'R');
+    corridor(A, sa, B, sb, turn ? 'turn' : rnd() < 0.65 ? 'hour' : 'flare');
+  });
+  panels.forEach(u => ctx.drawImage(u.pc, u.x, u.y, u.w, u.h));
+}
+
+Promise.all(PHOTOS.map(src => new Promise(res => { const im = new Image(); im.onload = () => res(im); im.src = src; })))
+  .then(ims => { images = ims; render(); });
+addEventListener('resize', render);
+addEventListener('pointerdown', () => { seed = 1 + (Math.random() * 2e9 | 0); render(); });
 </script>
 </body>
 </html>
