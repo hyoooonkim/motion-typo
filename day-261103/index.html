@@ -53,7 +53,11 @@ function snakes(C, R) {
 }
 
 const center = r => [r.x + r.w / 2, r.y + r.h / 2];
-const bez = (a, c, b, t) => [0, 1].map(k => (1 - t) * (1 - t) * a[k] + 2 * (1 - t) * t * c[k] + t * t * b[k]);
+// 꺾은선 a → c → b 위의 위치 (t는 길이 비율). 곡선 대신 각진 미로처럼 직각으로 꺾인다
+const bend = (a, c, b, t) => {
+  const l1 = dist(a, c), l2 = dist(c, b), s = t * (l1 + l2);
+  return s < l1 ? L2(a, c, s / (l1 || 1)) : L2(c, b, (s - l1) / (l2 || 1));
+};
 
 // 드래그 잔상: 앞 조각이 몇 px 간격으로 계속 찍히며 끌려가다(멀어지면 작게, 촘촘히) 다음 조각으로 바뀐다
 function dragTrail(A, B, ctrl, kind) {
@@ -61,11 +65,10 @@ function dragTrail(A, B, ctrl, kind) {
   const squeeze = kind === 'hour' ? 0.45 + rnd() * 0.3 : 0, t0 = kind === 'hour' ? 0.35 + rnd() * 0.3 : 0.5;
   const ratio = Math.sqrt((B.w * B.h) / (A.w * A.h));
   const depth = t => 1 - squeeze * (t < t0 ? t / t0 : (1 - t) / (1 - t0));
-  let len = 0;
-  for (let i = 1, q = a; i <= 24; i++) { const p = bez(a, ctrl, b, i / 24); len += dist(q, p); q = p; }
+  const len = dist(a, ctrl) + dist(ctrl, b);
   ctx.lineWidth = 0.6;
   for (let t = 0; t < 1;) {
-    const d = depth(t), p = bez(a, ctrl, b, t), useB = t >= t0, src = useB ? B : A;
+    const d = depth(t), p = bend(a, ctrl, b, t), useB = t >= t0, src = useB ? B : A;
     const S = lerp(1, ratio, t) * d * (useB ? 1 / ratio : 1), w = src.w * S, h = src.h * S;
     ctx.drawImage(src.pc, p[0] - w / 2, p[1] - h / 2, w, h);
     ctx.strokeStyle = 'rgba(0,0,0,0.14)';
@@ -127,7 +130,7 @@ function render() {
   // 조각: 세로형·가로형·정사각형, 칸 안에서 위치도 들쭉날쭉 → 연결부가 비스듬해진다
   for (const r of runs) {
     let d = r.parent ? r.parent.depth : 0.6 + rnd() * 0.4;
-    for (const u of r.units) if (u.type === 'P') { d = Math.max(0.4, Math.min(1, d * (0.72 + rnd() * 0.6))); u.depth = d; }
+    for (const u of r.units) if (u.type === 'P') { d = Math.max(0.55, Math.min(1, d * (0.75 + rnd() * 0.5))); u.depth = d; }
   }
   const panels = runs.flatMap(r => r.units.filter(u => u.type === 'P'));
   panels.forEach((u, j) => {
@@ -161,7 +164,8 @@ function render() {
       const prev = i ? units[i - 1] : parent, next = units[i + 1];
       if (u.type === 'C' && prev && next && prev.type === 'P' && next.type === 'P') {
         const a = center(prev), b = center(next), turn = Math.abs(a[0] - b[0]) > cell * 0.5 && Math.abs(a[1] - b[1]) > cell * 0.5;
-        dragTrail(prev, next, cellMid(u.cells), turn ? 'plain' : rnd() < 0.5 ? 'hour' : 'plain');
+        const cm = cellMid(u.cells), c1 = [b[0], a[1]], c2 = [a[0], b[1]];
+        dragTrail(prev, next, turn ? (dist(c1, cm) < dist(c2, cm) ? c1 : c2) : cm, turn ? 'plain' : rnd() < 0.5 ? 'hour' : 'plain');
       }
       if (u.type === 'P' && next && next.type === 'P') dragTrail(u, next, mid(center(u), center(next)), 'plain');
     });
