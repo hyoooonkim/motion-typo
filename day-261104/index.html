@@ -352,7 +352,7 @@ class Dish {
     this.settled = mk(); this.sctx = this.settled.getContext('2d');
     this.glass = mk();
     const load = (src, ctx) => { const im = new Image(); im.onload = () => { ctx.drawImage(im, 0, 0, S, S); this.dirty = true; }; im.src = src; };
-    load(`plates/${m.src}.jpg`, this.sctx);
+    load(`plates/${m.src}.webp`, this.sctx);
     load(`plates/${m.src}-hl.png`, this.glass.getContext('2d'));
   }
   inside(x, y) { return Math.hypot(x - this.cx, y - this.cy) < this.Rin * .96; }
@@ -525,7 +525,7 @@ function pack(items, W) {
   for (const it of items) {
     // 작은 접시가 많고 큰 접시는 가끔. 작은 접시는 큰 접시 사이 틈을 메운다
     const f = mine.has(it.id) ? rr(.3, .4) : .025 + .38 * Math.pow(rnd(), 3.2);
-    const s = Math.max(26, Math.min(W * f, 560)), r = s * .45;
+    const s = Math.max(26, Math.min(W * f, 560)), r = s * .43;
     for (let y = Math.max(r, lastY - 900); ; y += 6) {
       let x = null;
       for (let t = 0; t < 40 && x === null; t++) {
