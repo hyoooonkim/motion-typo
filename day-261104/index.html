@@ -168,10 +168,11 @@ void main() {
   float r = length(p), px = 2.24 / uPx, th = atan(p.y, p.x);
   float lightA = .35 + .65 * pow(max(0., cos(th - 2.35)), 2.) + .35 * pow(max(0., cos(th + .8)), 4.);
 
-  vec2 sp = p - vec2(.03, -.05);
+  vec2 Ld = normalize(vec2(-.5, .55)), dir = p / max(r, 1e-4);
+  vec2 sp = p - vec2(.045, -.07);
   float sr = length(sp);
-  vec4 o = vec4(0., 0., 0., (1. - smoothstep(.9, 1.14, sr)) * .55);
-  float ca = exp(-pow((sr - 1.03) / .014, 2.)) * .2 * max(0., dot(sp / max(sr, 1e-4), vec2(.6, -.8)));
+  vec4 o = vec4(0., 0., 0., (1. - smoothstep(.82, 1.2, sr)) * .6);
+  float ca = exp(-pow((sr - .97) / .06, 2.)) * .13 * max(0., dot(sp / max(sr, 1e-4), -Ld)) * step(1., r);
   o = vec4(mix(uA, vec3(1.), .5) * ca, ca) + o * (1. - ca);
 
   float disk = 1. - smoothstep(1. - px, 1. + px, r);
@@ -179,6 +180,12 @@ void main() {
   float m = smoothstep(RIN - .08, RIN, r);
   ag = mix(ag, ag * .6, m * .65);
   ag += vec3(.16) * exp(-pow((r - (RIN - .005)) / .003, 2.)) * lightA;
+  float edge = max(0., RIN - r);
+  ag *= 1. - .38 * exp(-edge / .045) * max(0., dot(dir, Ld));
+  ag += agarCol(p) * .3 * exp(-edge / .03) * max(0., -dot(dir, Ld));
+  ag *= 1. - .06 * exp(-pow((r - .82) / .006, 2.));
+  ag += vec3(.035) * exp(-pow((r - .812) / .004, 2.)) * lightA;
+  ag *= .94 + .1 * dot(p, Ld);
   vec2 cell = floor(p * 90.), f = fract(p * 90.) - .5;
   float hh = hash(cell + uSeed);
   float part = step(.97, hh) * (1. - smoothstep(.05, .14, length(f - (vec2(hash(cell + 1.7), hash(cell + 3.1)) - .5) * .6)));
@@ -187,11 +194,17 @@ void main() {
   float wt = clamp((r - RIN) / (1. - RIN), 0., 1.);
   vec2 q = p / max(r, 1e-4) * (RIN - .03 - wt * .14);
   vec3 wall = agarCol(q) * .6 + vec3(.08, .13, .22) * .5;
-  wall = mix(wall, vec3(.66, .74, .82), .18 + .38 * wt * wt);
-  wall *= .72 + .48 * lightA;
-  wall -= vec3(.07) * exp(-pow((r - (RIN + .028)) / .01, 2.));
-  wall += vec3(.92, .96, 1.) * exp(-pow((r - .996) / .003, 2.)) * (.35 + .65 * lightA);
-  wall += vec3(.92, .96, 1.) * exp(-pow((r - (RIN + .004)) / .0025, 2.)) * (.2 + .5 * lightA);
+  float u = wt * 2. - 1.;
+  vec3 tn = normalize(vec3(dir * u, sqrt(max(0., 1. - u * u)) * .8 + .05));
+  vec3 L3 = normalize(vec3(Ld * .8, .6));
+  float wd = clamp(dot(tn, L3), 0., 1.);
+  float ws = pow(clamp(dot(reflect(-L3, tn), vec3(0., 0., 1.)), 0., 1.), 70.);
+  float wf = pow(1. - tn.z, 2.);
+  wall = mix(wall, vec3(.6, .68, .78), .15 + .3 * wf);
+  wall *= .5 + .6 * wd;
+  wall += vec3(.95, .97, 1.) * (ws * 1.1 + wf * .18);
+  wall += vec3(.92, .96, 1.) * exp(-pow((r - .997) / .0025, 2.)) * (.25 + .6 * lightA);
+  wall += vec3(.92, .96, 1.) * exp(-pow((r - (RIN + .003)) / .002, 2.)) * (.15 + .45 * lightA);
   float agar = 1. - smoothstep(RIN - px, RIN + px, r);
   o = vec4(mix(wall, ag, agar), 1.) * disk + o * (1. - disk);
   gl_FragColor = o;
@@ -216,16 +229,21 @@ vec4 drops(vec2 p, float k, float sc, vec2 seed, float rl) {
 }
 void main() {
   vec2 p = (vUv * 2. - 1.) * 1.12;
-  vec2 q = p - vec2(-.006, .008);
+  vec2 q = p - vec2(-.014, .018);
   float rl = length(q), th = atan(q.y, q.x), px = 2.24 / uPx;
+  vec2 Ld = normalize(vec2(-.5, .55)), dir = q / max(rl, 1e-4);
   float lightA = .3 + .7 * pow(max(0., cos(th - 2.35)), 2.) + .4 * pow(max(0., cos(th + .8)), 4.);
-  float inLid = 1. - smoothstep(1.003 - px, 1.003 + px, rl);
-  float a = smoothstep(.95, .975, rl) * inLid * (.04 + .1 * lightA);
+  float inLid = 1. - smoothstep(1.012 - px, 1.012 + px, rl);
+  float lu = clamp((rl - .972) / .04, 0., 1.) * 2. - 1.;
+  vec3 tn = normalize(vec3(dir * lu, sqrt(max(0., 1. - lu * lu)) * .8 + .05));
+  float ls = pow(clamp(dot(reflect(-normalize(vec3(Ld * .8, .6)), tn), vec3(0., 0., 1.)), 0., 1.), 90.);
+  float band = smoothstep(.968, .976, rl) * inLid;
+  float a = band * (.05 + .1 * lightA + ls * .8 + pow(1. - tn.z, 2.) * .2);
   float arc1 = pow(max(0., cos(th - 2.25)), 40.), arc2 = pow(max(0., cos(th + .85)), 60.);
   a += (arc1 * .85 + arc2 * .5) * exp(-pow((rl - .99) / .005, 2.));
   a += arc1 * .5 * exp(-pow((rl - .962) / .003, 2.));
-  a += .45 * lightA * exp(-pow((rl - 1.002) / .0018, 2.));
-  a += .2 * lightA * exp(-pow((rl - .957) / .002, 2.));
+  a += .45 * lightA * exp(-pow((rl - 1.01) / .0018, 2.));
+  a += .22 * lightA * exp(-pow((rl - .97) / .002, 2.));
   vec2 w = p * mat2(.8, -.6, .6, .8);
   a += smoothstep(0., .06, w.y - .52) * smoothstep(0., .05, .72 - w.y) * smoothstep(0., .15, .5 - abs(w.x)) * .06 * inLid;
   a += (1. - smoothstep(0., 1.2, length(p - vec2(-.45, .5)))) * .06 * inLid;
