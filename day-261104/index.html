@@ -562,13 +562,14 @@ function frame(now) {
 requestAnimationFrame(frame);
 // ───── 제출과 갤러리 ─────
 // Supabase 프로젝트 URL과 anon public 키를 여기에 직접 넣는다. 비워 두면 이 브라우저에만 쌓인다
-const SUPABASE = { url: '', key: '' };
+const SUPABASE = { url: 'https://mpqebnkylbsntimjuupp.supabase.co/rest/v1/', key: 'sb_publishable_3YqCbE-orCjrr8ULbXeqog_82UF3fLf' };
 const LOCAL_KEY = 'petri-gallery-261104';
+const SB_URL = SUPABASE.url.replace(/\/(rest\/v1)?\/?$/, '');
 const sbHeaders = () => ({ apikey: SUPABASE.key, Authorization: `Bearer ${SUPABASE.key}` });
 const store = {
   async list() {
     if (SUPABASE.url) {
-      const r = await fetch(`${SUPABASE.url}/rest/v1/dishes?select=id,img,created_at&order=created_at.desc&limit=150`, { headers: sbHeaders() });
+      const r = await fetch(`${SB_URL}/rest/v1/dishes?select=id,img,created_at&order=created_at.desc&limit=150`, { headers: sbHeaders() });
       if (!r.ok) throw new Error(r.status);
       return r.json();
     }
@@ -576,7 +577,7 @@ const store = {
   },
   async add(imgs) {
     if (SUPABASE.url) {
-      const r = await fetch(`${SUPABASE.url}/rest/v1/dishes?select=id`, {
+      const r = await fetch(`${SB_URL}/rest/v1/dishes?select=id`, {
         method: 'POST', headers: { ...sbHeaders(), 'Content-Type': 'application/json', Prefer: 'return=representation' },
         body: JSON.stringify(imgs.map(img => ({ img }))),
       });
