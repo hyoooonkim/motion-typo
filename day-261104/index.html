@@ -26,363 +26,378 @@
 <button class="nav" id="next" aria-label="다음 접시">›</button>
 <div id="dots"></div>
 <script>
+const COMMON = `
+precision highp float;
+varying vec2 vUv;
+const float TAU = 6.2831853;
+float hash(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float noise(vec2 p) {
+  vec2 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
+  return mix(mix(hash(i), hash(i + vec2(1., 0.)), u.x), mix(hash(i + vec2(0., 1.)), hash(i + vec2(1., 1.)), u.x), u.y);
+}
+float fbm(vec2 p) { float s = 0., a = .5; for (int i = 0; i < 5; i++) { s += a * noise(p); p = p * 2.02 + vec2(13.7, 7.3); a *= .5; } return s / .97; }
+// 각도 방향으로 이음매 없이 반복되는 노이즈 (방사형 균사 결)
+float pnoise(vec2 p, float per) {
+  vec2 i = floor(p), f = fract(p), u = f * f * (3. - 2. * f);
+  float i0 = mod(i.x, per), i1 = mod(i.x + 1., per);
+  return mix(mix(hash(vec2(i0, i.y)), hash(vec2(i1, i.y)), u.x), mix(hash(vec2(i0, i.y + 1.)), hash(vec2(i1, i.y + 1.)), u.x), u.y);
+}
+`;
+
+// 군락 하나: 높이맵 → 법선 → 조명. 파라미터로 곰팡이·세균·거품·색소를 모두 만든다
+const COLONY_FS = COMMON + `
+uniform vec2 uSeed;
+uniform float uPx, uR, uAge, uLobe, uLobeF, uHeight, uProf, uFuzz, uGloss, uRadial, uRings, uRingF, uWrinkle, uSpeck, uHalo, uHaloR, uTrans, uVelvet, uFront, uBody, uBubble;
+uniform vec3 uC0, uC1, uC2, uC3, uCs;
+uniform vec3 uB[16];
+uniform int uBN;
+
+float edgeR(vec2 p) {
+  float th = atan(p.y, p.x); vec2 dir = vec2(cos(th), sin(th));
+  return uR * (1. + uLobe * ((fbm(dir * uLobeF + uSeed) - .5) * 1.8 + (noise(dir * uLobeF * 5. + uSeed.yx) - .5) * .35));
+}
+vec2 shape(vec2 p) {
+  if (uBN > 0) {
+    float d = 9., h = 0.;
+    for (int i = 0; i < 16; i++) {
+      if (i >= uBN) break;
+      vec3 b = uB[i];
+      float di = length(p - b.xy) / b.z;
+      d = min(d, di);
+      h = max(h, uHeight * (b.z / uR) * pow(max(0., 1. - di * di), uProf));
+    }
+    return vec2(d, h);
+  }
+  float d = length(p) / edgeR(p), x = min(d, 1.);
+  return vec2(d, uHeight * pow(max(0., 1. - x * x), uProf));
+}
+float detailH(vec2 p, float d) {
+  float x = min(d, 1.), r = length(p), a = atan(p.y, p.x) / TAU + .5, h = 0.;
+  h += uRadial * .05 * (pnoise(vec2(a * 64., r * 4. + uSeed.x), 64.) - .5) * smoothstep(1., .15, x);
+  h += uRadial * .03 * (pnoise(vec2(a * 160., r * 9. + uSeed.y), 160.) - .5) * smoothstep(1., .3, x);
+  h += uRings * .03 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5) * smoothstep(1., .85, x);
+  float w = 1. - abs(fbm(p * 6. + uSeed + vec2(fbm(p * 2.5 + uSeed.yx)) * 1.6) * 2. - 1.);
+  h += uWrinkle * .09 * pow(w, 2.5) * smoothstep(1., .25, x);
+  h += uVelvet * .012 * fbm(p * uPx * .08 + uSeed);
+  return h * step(d, 1.2);
+}
+float Hf(vec2 p) { vec2 s = shape(p); return s.y + detailH(p, s.x); }
+
+void main() {
+  vec2 p = vUv * 2. - 1.;
+  vec2 s = shape(p);
+  float d = s.x, x = min(d, 1.), e = 2. / uPx;
+  float h0 = Hf(p), hx = Hf(p + vec2(e, 0.)), hy = Hf(p + vec2(0., e));
+  vec3 n = normalize(vec3(-(hx - h0) / e, -(hy - h0) / e, 1.));
+  float r = length(p), a = atan(p.y, p.x) / TAU + .5;
+
+  float per = floor(uPx * 1.1);
+  float fib = pnoise(vec2(a * per, r * uPx * .02 + uSeed.x), per);
+  float fib2 = pnoise(vec2(a * floor(per * .5), r * uPx * .008 + uSeed.y), floor(per * .5));
+  float aa = e * 1.5 / max(uR, .05);
+  float hard = 1. - smoothstep(1. - aa, 1. + aa, d);
+  float soft = 1. - smoothstep(1. - .3 * uFuzz, 1. + .08 * uFuzz, d + (fib - .5) * .4 * uFuzz + (fib2 - .5) * .2 * uFuzz);
+  float alpha = mix(hard, soft, step(.01, uFuzz));
+  float hairs = smoothstep(.72, .95, fib) * (1. - smoothstep(1., 1.22, d)) * step(1., d) * uFuzz;
+  alpha = max(alpha, hairs * .6) * uBody;
+
+  float front = uFront * (.3 + .7 * uAge);
+  float spor = 1. - smoothstep(front - .15, front + .1, x + (fbm(p * 7. + uSeed) - .5) * .18);
+  vec3 body = mix(uC0, uC1, smoothstep(0., max(front, .05), x));
+  vec3 col = mix(uC2, body, spor);
+  col *= 1. + uRings * .14 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5);
+  float sp = smoothstep(.62, .8, noise(p * uPx * .09 + uSeed)) * smoothstep(.4, .9, noise(p * uPx * .02 + uSeed.yx));
+  col = mix(col, uCs, clamp(sp * uSpeck * 1.6, 0., 1.) * spor);
+  col *= .86 + .28 * mix(.5, fbm(p * uPx * .05 + uSeed * 3.), uVelvet);
+
+  vec3 L = normalize(vec3(-.5, .55, .75));
+  float nl = dot(n, L), lam = mix(clamp(nl, 0., 1.), .5 + .5 * nl, uFuzz * .8);
+  vec3 Hv = normalize(L + vec3(0., 0., 1.));
+  float spec = pow(clamp(dot(n, Hv), 0., 1.), mix(16., 140., uGloss)) * uGloss * 1.3;
+  float fres = pow(1. - clamp(n.z, 0., 1.), 2.) * uGloss * .5;
+  vec3 lit = col * (.45 + .7 * lam) + spec + fres * vec3(.9, .95, 1.);
+  lit = mix(lit, uC2 * 1.05, uFuzz * .5 * smoothstep(.85, 1.05, d));
+  lit = min(lit, vec3(1.));
+
+  float th = clamp(s.y / max(uHeight, .001), 0., 1.);
+  alpha *= mix(1., .45 + .55 * smoothstep(0., .5, th), uTrans);
+  alpha *= mix(1., .1 + .9 * smoothstep(.55, 1., x) + spec, uBubble);
+  alpha = clamp(alpha, 0., 1.);
+
+  float ds = shape(p - vec2(.03, -.045) * uHeight * 6.).x;
+  float shA = (1. - smoothstep(.8, 1.2, ds)) * .32 * clamp(uHeight * 7., 0., 1.) * uBody;
+  float haloA = uHalo * (1. - smoothstep(.95, uHaloR + .25 * (fbm(p * 3. + uSeed) - .5), d)) * (.45 + .6 * fbm(p * 4. + uSeed.yx));
+  haloA = clamp(haloA, 0., 1.) * .7;
+
+  vec4 o = vec4(0., 0., 0., shA);
+  o = vec4(uC3 * haloA, haloA) + o * (1. - haloA);
+  o = vec4(lit * alpha, alpha) + o * (1. - alpha);
+  gl_FragColor = o;
+}
+`;
+
+// 접시 바닥: 그림자, 유리 바닥, 배지(색 얼룩·결·메니스커스·부유물), 유리벽 굴절선
+const DISH_FS = COMMON + `
+uniform vec3 uA, uBc, uT1, uT2;
+uniform vec2 uSeed;
+uniform float uPx;
+void main() {
+  vec2 p = (vUv * 2. - 1.) * 1.12;
+  float r = length(p), px = 2.24 / uPx, rin = .955;
+  float shd = (1. - smoothstep(.92, 1.13, length(p - vec2(.025, -.045)))) * .6;
+  vec4 o = vec4(0., 0., 0., shd);
+  float disk = 1. - smoothstep(1. - px, 1. + px, r);
+  vec3 glass = vec3(.11, .18, .31) + .04 * fbm(p * 3. + uSeed);
+  vec3 ag = mix(uA, uBc, smoothstep(0., 1.2, length(p - vec2(-.25, .3))));
+  ag = mix(ag, uT1, smoothstep(.5, .78, fbm(p * 1.7 + uSeed)) * .6);
+  ag = mix(ag, uT2, smoothstep(.55, .82, fbm(p * 2.4 + uSeed * 1.9)) * .5);
+  ag *= .95 + .1 * fbm(p * 30. + uSeed);
+  ag *= .97 + .06 * noise(p * uPx * .25);
+  float m = smoothstep(rin - .07, rin, r);
+  ag = mix(ag, ag * .62, m * .7);
+  ag += vec3(.12) * exp(-pow((r - (rin - .006)) / .003, 2.));
+  vec2 cell = floor(p * 90.), f = fract(p * 90.) - .5;
+  float hh = hash(cell + uSeed);
+  float part = step(.965, hh) * (1. - smoothstep(.05, .14, length(f - (vec2(hash(cell + 1.7), hash(cell + 3.1)) - .5) * .6)));
+  ag = mix(ag, ag * (hh > .985 ? 1.35 : .7), part * .7);
+  float agar = 1. - smoothstep(rin - px, rin + px, r);
+  vec3 col = mix(glass, ag, agar);
+  col += vec3(.35, .42, .5) * exp(-pow((r - .994) / .0025, 2.));
+  col += vec3(.18, .22, .3) * exp(-pow((r - (rin + .007)) / .004, 2.));
+  col -= vec3(.04) * exp(-pow((r - .978) / .009, 2.));
+  o = vec4(col, 1.) * disk + o * (1. - disk);
+  gl_FragColor = o;
+}
+`;
+
+// 뚜껑: 살짝 어긋난 두 번째 테두리, 창문 반사, 김 서린 물방울. 군락 위에 덮는다
+const LID_FS = COMMON + `
+uniform vec2 uSeed;
+uniform float uPx, uFog;
+vec4 drops(vec2 p, float k, float sc, vec2 seed, float rl) {
+  float zone = smoothstep(.76, .93, rl) * (1. - smoothstep(.975, .985, rl));
+  float mask = (smoothstep(.45, .65, fbm(p * 3. + seed)) + .25) * uFog;
+  vec2 g = p * sc, c = floor(g), f = fract(g);
+  float hh = hash(c + seed);
+  vec2 ctr = vec2(hash(c + 5.1), hash(c + 9.7)) * .6 + .2;
+  float rad = .12 + .3 * hash(c + 2.3), dd = length(f - ctr) / rad;
+  float on = step(1. - mask * zone * k, hh) * step(dd, 1.);
+  float da = on * smoothstep(.55, 1., dd) * .35;
+  float ha = on * (1. - smoothstep(0., .35, length(f - ctr - vec2(-.3, .3) * rad))) * .8;
+  return vec4(da, ha, 0., 0.);
+}
+void main() {
+  vec2 p = (vUv * 2. - 1.) * 1.12;
+  vec2 q = p - vec2(-.008, .01);
+  float rl = length(q), th = atan(q.y, q.x);
+  float lightA = .25 + .75 * pow(max(0., cos(th - 2.35)), 3.) + .45 * pow(max(0., cos(th + .75)), 5.);
+  float a = .55 * lightA * exp(-pow((rl - 1.004) / .0022, 2.));
+  a += .3 * lightA * exp(-pow((rl - .988) / .003, 2.));
+  a += .08 * exp(-pow((rl - .996) / .012, 2.));
+  vec2 w = p * mat2(.8, -.6, .6, .8);
+  a += smoothstep(0., .06, w.y - .52) * smoothstep(0., .05, .72 - w.y) * smoothstep(0., .15, .5 - abs(w.x)) * .07 * step(rl, 1.);
+  a += (1. - smoothstep(0., 1.2, length(p - vec2(-.45, .5)))) * .07 * step(rl, 1.);
+  vec4 o = vec4(vec3(a), a);
+  vec4 d1 = drops(p, .9, 70., uSeed, rl), d2 = drops(p, .5, 32., uSeed + 7., rl);
+  float da = max(d1.x, d2.x), ha = max(d1.y, d2.y);
+  o = vec4(vec3(.05, .08, .12) * da, da) + o * (1. - da);
+  o = vec4(vec3(ha), ha) + o * (1. - ha);
+  gl_FragColor = o;
+}
+`;
+
 const DPR = Math.min(2, devicePixelRatio || 1), TAU = Math.PI * 2;
 const rnd = Math.random, rr = (a, b) => a + rnd() * (b - a), pick = a => a[rnd() * a.length | 0];
-const H = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
 const ease = t => 1 - Math.pow(1 - t, 3);
+const hsl = (h, s, l) => {
+  s /= 100; l /= 100;
+  const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l);
+  return [0, 8, 4].map(n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)));
+};
+const fitD = () => Math.max(320, Math.min(innerWidth * 0.86, innerHeight * 0.84));
+const S = Math.round(fitD() * DPR);
 
-// 가장자리 모양: 저주파 사인 몇 개를 더해 울퉁불퉁한 원
-function harmonics(n, amp) {
-  const hs = [];
-  for (let k = 2; k < 2 + n; k++) hs.push([k, amp * rr(0.3, 1) / (k * 0.5), rr(0, TAU)]);
-  return t => 1 + hs.reduce((s, [k, a, p]) => s + a * Math.sin(k * t + p), 0);
+// 셰이더는 화면 밖 WebGL 캔버스 하나에서 돌리고, 결과를 2D 캔버스로 옮겨 쌓는다
+const glc = document.createElement('canvas');
+glc.width = glc.height = S;
+const gl = glc.getContext('webgl', { premultipliedAlpha: true, preserveDrawingBuffer: true });
+gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+function program(fs) {
+  const sh = (type, src) => {
+    const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+    if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s));
+    return s;
+  };
+  const p = gl.createProgram();
+  gl.attachShader(p, sh(gl.VERTEX_SHADER, 'attribute vec2 a; varying vec2 vUv; void main(){ vUv = a * .5 + .5; gl_Position = vec4(a, 0., 1.); }'));
+  gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
+  gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const locs = {};
+  return { p, a: gl.getAttribLocation(p, 'a'), loc: n => (n in locs ? locs[n] : (locs[n] = gl.getUniformLocation(p, n))) };
 }
-function blob(g, R, sh, n = 120) {
-  g.beginPath();
-  for (let i = 0; i <= n; i++) { const t = i / n * TAU, r = R * sh(t); g.lineTo(Math.cos(t) * r, Math.sin(t) * r); }
-  g.closePath();
-}
-// 균사: 짧은 선을 수천 개, 투명도 3단으로 묶어 한 번에 그린다
-function fibers(g, n, R, sh, col, a0, a1, L0, L1, w) {
-  g.lineWidth = w;
-  for (let b = 0; b < 3; b++) {
-    g.strokeStyle = col.replace('A', (a0 + (a1 - a0) * b / 2).toFixed(3));
-    g.beginPath();
-    for (let i = 0; i < n / 3; i++) {
-      const t = rr(0, TAU), r = R * Math.sqrt(rnd()) * sh(t), x = Math.cos(t) * r, y = Math.sin(t) * r, a = rr(0, TAU), L = rr(L0, L1);
-      g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L);
-    }
-    g.stroke();
+const PR = { colony: program(COLONY_FS), dish: program(DISH_FS), lid: program(LID_FS) };
+function shade(pr, w, U, target) {
+  gl.useProgram(pr.p);
+  gl.enableVertexAttribArray(pr.a);
+  gl.vertexAttribPointer(pr.a, 2, gl.FLOAT, false, 0, 0);
+  gl.viewport(0, 0, w, w);
+  for (const [k, v] of Object.entries(U)) {
+    const l = pr.loc(k);
+    if (l === null) continue;
+    if (k === 'uBN') gl.uniform1i(l, v);
+    else if (k === 'uB') gl.uniform3fv(l, v);
+    else if (typeof v === 'number') gl.uniform1f(l, v);
+    else if (v.length === 2) gl.uniform2fv(l, v);
+    else gl.uniform3fv(l, v);
   }
-}
-function edgeFuzz(g, n, R, sh, col, a0, a1, L0, L1, w) {
-  g.lineWidth = w;
-  for (let b = 0; b < 3; b++) {
-    g.strokeStyle = col.replace('A', (a0 + (a1 - a0) * b / 2).toFixed(3));
-    g.beginPath();
-    for (let i = 0; i < n / 3; i++) {
-      const t = rr(0, TAU), r = R * sh(t) * rr(0.88, 1.0), a = t + rr(-0.6, 0.6), L = rr(L0, L1);
-      const x = Math.cos(t) * r, y = Math.sin(t) * r;
-      g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L);
-    }
-    g.stroke();
-  }
-}
-function speckDots(g, n, R, sh, col, r0, r1, inner = 0) {
-  g.fillStyle = col; g.beginPath();
-  for (let i = 0; i < n; i++) {
-    const t = rr(0, TAU), d = R * sh(t) * Math.sqrt(rr(inner, 1)), r = rr(r0, r1), x = Math.cos(t) * d, y = Math.sin(t) * d;
-    g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU);
-  }
-  g.fill();
-}
-function sphere(g, x, y, r, h, s, l, alpha = 1) {
-  g.save(); g.globalAlpha = alpha;
-  g.fillStyle = 'rgba(0,0,0,0.22)'; g.beginPath(); g.arc(x + r * 0.1, y + r * 0.16, r * 1.03, 0, TAU); g.fill();
-  const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.04, x, y, r);
-  gr.addColorStop(0, H(h, s, Math.min(97, l + 28))); gr.addColorStop(0.5, H(h, s, l)); gr.addColorStop(1, H(h, Math.min(100, s + 6), l - 18));
-  g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-  g.fillStyle = 'rgba(255,255,255,0.75)'; g.beginPath(); g.ellipse(x - r * 0.38, y - r * 0.42, r * 0.17, r * 0.1, -0.6, 0, TAU); g.fill();
-  g.restore();
-}
-function gloss(g, R, sh, a = 0.4) {
-  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 0, -R * 0.3, -R * 0.35, R * 0.75);
-  gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; blob(g, R, sh); g.fill();
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  target.clearRect(0, 0, w, w);
+  target.drawImage(glc, 0, S - w, w, w, 0, 0, w, w);
 }
 
-// 곰팡이·세균 군락 종류. 모두 원점 중심, 반지름 R 기준으로 그리고 가장자리 모양 함수를 돌려준다
-const GEN = {
-  // 푸른곰팡이: 방사형 주름 + 흰 솜털 테두리, 가끔 노란 후광
-  fuzzy(g, R) {
-    const sh = harmonics(5, 0.05), [h, s, l] = pick([[140, 18, 60], [160, 24, 54], [100, 22, 50], [188, 22, 56], [330, 30, 74], [45, 36, 68], [210, 10, 76], [75, 30, 52]]);
-    if (rnd() < 0.55) { g.save(); g.filter = `blur(${R * 0.05}px)`; blob(g, R * 1.08, sh); g.fillStyle = H(pick([48, 36, 58]), 90, 62, 0.9); g.fill(); g.restore(); }
-    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
-    gr.addColorStop(0, H(h, s + 6, l - 12)); gr.addColorStop(0.62, H(h, s, l)); gr.addColorStop(0.88, H(h, s - 8, l + 16)); gr.addColorStop(1, H(48, 40, 93));
-    blob(g, R, sh); g.fillStyle = gr; g.fill();
-    g.save(); blob(g, R, sh); g.clip();
-    g.lineWidth = Math.max(1, R * 0.007);
-    for (const c of ['rgba(0,0,0,0.1)', 'rgba(255,255,255,0.13)']) {
-      g.strokeStyle = c; g.beginPath();
-      for (let i = 0; i < R * 0.7; i++) {
-        const t = rr(0, TAU), r0 = R * rr(0.04, 0.3), r1 = R * sh(t) * rr(0.7, 1);
-        g.moveTo(Math.cos(t) * r0, Math.sin(t) * r0); g.lineTo(Math.cos(t) * r1, Math.sin(t) * r1);
-      }
-      g.stroke();
-    }
-    if (rnd() < 0.6) { g.strokeStyle = 'rgba(255,255,255,0.2)'; g.lineWidth = R * 0.035; blob(g, R * rr(0.35, 0.7), sh); g.stroke(); }
-    fibers(g, R * R * 0.06, R, sh, 'rgba(255,255,255,A)', 0.05, 0.16, R * 0.01, R * 0.04, Math.max(1, R * 0.004));
-    fibers(g, R * R * 0.02, R * 0.8, sh, `hsla(${h},${s}%,${l - 25}%,A)`, 0.05, 0.12, R * 0.01, R * 0.03, Math.max(1, R * 0.004));
-    g.restore();
-    edgeFuzz(g, R * 8, R, sh, 'rgba(255,253,240,A)', 0.15, 0.5, R * 0.02, R * 0.09, Math.max(1, R * 0.005));
-    return sh;
+// 군락 종류 = 파라미터 묶음
+const BASE = { R: .55, lobe: .05, lobeF: 2, height: .08, prof: .6, fuzz: 0, gloss: 0, radial: 0, rings: 0, ringF: 4, wrinkle: 0, speck: 0,
+  halo: 0, haloR: 1.5, trans: 0, velvet: .5, front: 3, body: 1, bubble: 0, c0: [1, 1, 1], c1: [1, 1, 1], c2: [1, 1, 1], c3: [1, 1, 1], cs: [0, 0, 0], beads: null };
+function beadList(n, rmin, rmax, gap) {
+  const out = [];
+  for (let tries = 0; tries < 400 && out.length < n; tries++) {
+    const r = rr(rmin, rmax) * (out.length ? 1 : 1.3), t = rr(0, TAU), d = out.length ? rr(0, 0.62 - r) : rr(0, 0.1);
+    const x = Math.cos(t) * d, y = Math.sin(t) * d;
+    if (gap !== null && out.some(b => Math.hypot(b[0] - x, b[1] - y) < (b[2] + r) * gap)) continue;
+    out.push([x, y, r]);
+  }
+  return out;
+}
+const glossyColor = () => pick([[18, 80, 55], [35, 85, 58], [48, 80, 62], [355, 75, 45], [340, 60, 70], [195, 45, 60], [40, 40, 85], [0, 0, 90], [300, 30, 75]]);
+const TYPES = {
+  penicillium() {
+    const h = rr(150, 195);
+    return { R: .52, lobe: rr(.03, .08), lobeF: rr(1.5, 3), height: rr(.05, .09), prof: .7, fuzz: rr(.55, .8), radial: rr(.6, 1), rings: rnd() < .4 ? rr(.3, .8) : 0, ringF: rr(3, 6),
+      velvet: 1, front: rr(.6, .8), halo: rnd() < .5 ? rr(.4, .8) : 0, haloR: 1.35, speck: rr(0, .3),
+      c0: hsl(h, rr(18, 30), rr(28, 38)), c1: hsl(h, rr(15, 25), rr(45, 55)), c2: hsl(45, 30, 92), c3: hsl(rr(42, 52), 85, 52), cs: hsl(h, 20, 22) };
   },
-  // 검은곰팡이: 울퉁불퉁한 갈색·검정 알갱이, 노란 띠와 흰 솜털 테두리
-  sooty(g, R) {
-    const sh = harmonics(7, 0.1), body = t => sh(t) * 0.88;
-    g.save(); g.filter = `blur(${R * 0.04}px)`; blob(g, R * 1.06, sh); g.fillStyle = H(rr(40, 52), 92, 58, 0.95); g.fill(); g.restore();
-    blob(g, R * 0.97, sh); g.fillStyle = H(45, 45, 86); g.fill();
-    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
-    gr.addColorStop(0, '#1b110a'); gr.addColorStop(0.75, '#36210f'); gr.addColorStop(1, '#5c3c1e');
-    blob(g, R, body); g.fillStyle = gr; g.fill();
-    g.save(); blob(g, R, body); g.clip();
-    speckDots(g, R * R * 0.02, R, body, '#0a0604', R * 0.004, R * 0.014);
-    speckDots(g, R * R * 0.012, R, body, 'rgba(120,80,45,0.8)', R * 0.003, R * 0.01);
-    speckDots(g, R * R * 0.004, R, body, 'rgba(200,170,120,0.5)', R * 0.002, R * 0.007);
-    g.restore();
-    edgeFuzz(g, R * 6, R * 0.97, sh, 'rgba(255,240,190,A)', 0.15, 0.45, R * 0.02, R * 0.07, Math.max(1, R * 0.005));
-    return sh;
+  trichoderma() {
+    const h = rr(90, 125);
+    return { R: .52, lobe: rr(.04, .1), lobeF: rr(1.5, 3), height: .07, prof: .7, fuzz: rr(.6, .85), radial: rr(.3, .7), rings: rr(.6, 1), ringF: rr(2.5, 4),
+      velvet: 1.1, front: rr(.65, .85), c0: hsl(h, rr(40, 55), rr(26, 34)), c1: hsl(h, 40, 46), c2: hsl(60, 25, 92), cs: hsl(h, 40, 18), speck: .2 };
   },
-  // 반짝이는 구슬 세균: 동그란 알갱이 여러 개가 뭉친 무리
-  beads(g, R, o) {
-    const h0 = o.h ?? pick([14, 22, 340, 48, 0, 190, 30, 320]), s = h0 === 0 ? 8 : rr(60, 85), l = h0 === 0 ? 86 : rr(55, 66);
-    const n = o.n ?? (3 + rnd() * 12 | 0), list = [];
-    for (let i = 0; i < n; i++) {
-      const r = R * (i ? rr(0.12, 0.32) : rr(0.3, 0.45)), t = rr(0, TAU), d = i ? rr(0, R - r) : 0;
-      list.push({ x: Math.cos(t) * d, y: Math.sin(t) * d, r, h: h0 + rr(-8, 8), l: l + rr(-8, 8) });
-    }
-    list.sort((a, b) => a.y - b.y).forEach(b => sphere(g, b.x, b.y, b.r, b.h, s, b.l));
-    return () => 1.1;
+  niger() {
+    return { R: .5, lobe: rr(.06, .12), lobeF: rr(2, 4), height: .08, prof: .6, fuzz: rr(.35, .55), radial: .3, velvet: 1.2, front: rr(.75, .9), speck: 1,
+      halo: rr(.5, .9), haloR: 1.3, c0: hsl(25, 30, 8), c1: hsl(28, 35, 14), c2: hsl(48, 55, 80), c3: hsl(rr(45, 55), 90, 55), cs: hsl(20, 20, 3) };
   },
-  // 동심원 군락: 반투명한 링이 겹친 렌즈 모양
-  ring(g, R) {
-    const sh = harmonics(3, 0.03), [h, s, l] = pick([[340, 70, 72], [350, 62, 62], [50, 60, 84], [200, 62, 58], [170, 50, 68], [20, 72, 64], [280, 40, 72]]);
-    const n = 3 + rnd() * 5 | 0;
-    for (let k = 0; k < n; k++) { blob(g, R * (1 - k / n * rr(0.8, 0.95)), sh); g.fillStyle = H(h + rr(-6, 6), s, l + (k % 2 ? 10 : -6), 0.5 + 0.4 * k / n); g.fill(); }
-    g.lineWidth = R * rr(0.03, 0.08); g.strokeStyle = H(h, s, l - 22, 0.8); blob(g, R * 0.96, sh); g.stroke();
-    if (rnd() < 0.45) { g.save(); blob(g, R * 0.9, sh); g.clip(); speckDots(g, R * 0.8, R * 0.9, sh, H(h, s, l - 28, 0.7), R * 0.012, R * 0.035, 0.15); g.restore(); }
-    gloss(g, R, sh, 0.45);
-    if (rnd() < 0.5) sphere(g, 0, 0, R * rr(0.1, 0.2), h, s, l + 8, 0.9);
-    return sh;
+  rhizopus() {
+    return { R: .5, lobe: rr(.08, .15), lobeF: rr(2, 4), height: rr(.12, .18), prof: .35, fuzz: 1, velvet: 1.5, front: rr(.5, 1.5), speck: rr(.2, .6),
+      c0: hsl(40, 6, 70), c1: hsl(40, 8, 86), c2: hsl(45, 15, 96), cs: hsl(30, 10, 18) };
   },
-  // 점박이 군락: 크림빛 원판에 붉은 점
-  dotted(g, R) {
-    const sh = harmonics(4, 0.03), [h, s, l] = pick([[40, 30, 93], [0, 0, 95], [340, 60, 88], [50, 70, 85], [190, 40, 88]]), [dh, ds, dl] = pick([[355, 72, 40], [10, 60, 34], [330, 52, 44], [25, 72, 44], [150, 40, 30]]);
-    const gr = g.createRadialGradient(-R * 0.2, -R * 0.25, 0, 0, 0, R);
-    gr.addColorStop(0, H(h, s, Math.min(99, l + 5))); gr.addColorStop(0.8, H(h, s, l)); gr.addColorStop(1, H(h, s, l - 15));
-    blob(g, R, sh); g.fillStyle = gr; g.fill();
-    g.lineWidth = Math.max(1, R * 0.015); g.strokeStyle = H(h, s, l - 25, 0.5); g.stroke();
-    g.save(); blob(g, R * 0.88, sh); g.clip();
-    speckDots(g, 12 + rnd() * 50 | 0, R * 0.88, sh, H(dh, ds, dl, 0.9), R * 0.02, R * 0.06);
-    g.restore();
-    gloss(g, R, sh, 0.5);
-    return sh;
+  fusarium() {
+    const h = pick([320, 335, 290, 15]);
+    return { R: .5, lobe: rr(.05, .12), lobeF: rr(2, 4), height: .09, prof: .5, fuzz: rr(.75, 1), radial: .4, velvet: 1.3, front: rr(.5, .8),
+      halo: rr(.5, .9), haloR: 1.45, c0: hsl(h, 40, 60), c1: hsl(h, 35, 77), c2: hsl(h, 20, 94), c3: hsl(h - 20, 60, 30) };
   },
-  // 쭈글쭈글한 뇌 모양 곰팡이: 물결 등고선을 겹쳐 주름을 만든다
-  wrinkled(g, R) {
-    const sh = harmonics(6, 0.09), [h, s, l] = pick([[85, 25, 54], [95, 30, 46], [345, 40, 82], [30, 30, 80], [110, 16, 58], [0, 0, 88]]);
-    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
-    gr.addColorStop(0, H(h, s, l - 6)); gr.addColorStop(1, H(h, s, l + 8));
-    blob(g, R, sh); g.fillStyle = gr; g.fill();
-    g.save(); blob(g, R, sh); g.clip();
-    for (let k = 1; k < 16; k++) {
-      const f = 1 - k / 16, p1 = rr(0, TAU), p2 = rr(0, TAU), fq = rr(6, 14) | 0;
-      const s2 = t => sh(t) * (1 + 0.07 * Math.sin(t * fq + p1) + 0.03 * Math.sin(t * (fq * 2 + 3) + p2));
-      g.lineWidth = R * 0.032; g.strokeStyle = 'rgba(0,0,0,0.17)'; blob(g, R * f, s2); g.stroke();
-      g.save(); g.translate(-R * 0.012, -R * 0.014); g.lineWidth = R * 0.016; g.strokeStyle = 'rgba(255,255,255,0.2)'; blob(g, R * f, s2); g.stroke(); g.restore();
-    }
-    fibers(g, R * R * 0.03, R, sh, 'rgba(255,255,255,A)', 0.04, 0.12, R * 0.01, R * 0.03, Math.max(1, R * 0.004));
-    g.restore();
-    edgeFuzz(g, R * 5, R, sh, 'rgba(255,255,245,A)', 0.1, 0.35, R * 0.02, R * 0.06, Math.max(1, R * 0.005));
-    return sh;
+  glossy() {
+    const [h, s, l] = glossyColor();
+    return { R: .55, lobe: .02, height: rr(.16, .24), prof: .55, gloss: rr(.75, 1), trans: rr(.3, .6), velvet: .15, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4) };
   },
-  // 투명한 거품 덩어리
-  bubbles(g, R) {
-    const h = pick([210, 220, 195, 30, 280, 160]), list = [];
-    for (let tries = 0; tries < 500 && list.length < 45; tries++) {
-      const r = R * rr(0.08, 0.22), t = rr(0, TAU), d = R * Math.sqrt(rnd());
-      if (d + r > R) continue;
-      const x = Math.cos(t) * d, y = Math.sin(t) * d;
-      if (list.every(b => Math.hypot(b.x - x, b.y - y) > b.r + r - R * 0.03)) list.push({ x, y, r });
-    }
-    for (const b of list) {
-      const gr = g.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
-      gr.addColorStop(0, H(h, 70, 50, 0.12)); gr.addColorStop(0.8, H(h, 70, 40, 0.35)); gr.addColorStop(1, H(h, 70, 28, 0.6));
-      g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, b.r, 0, TAU); g.fill();
-      g.lineWidth = Math.max(1, R * 0.008); g.strokeStyle = H(h, 50, 15, 0.5); g.stroke();
-      g.lineCap = 'round'; g.lineWidth = b.r * 0.08; g.strokeStyle = 'rgba(255,255,255,0.65)';
-      g.beginPath(); g.arc(b.x, b.y, b.r * 0.76, -2.7, -1.7); g.stroke();
-      g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(b.x + b.r * 0.35, b.y + b.r * 0.4, b.r * 0.05, 0, TAU); g.fill();
-    }
-    return () => 1.05;
+  ringed() {
+    const [h, s, l] = pick([[340, 65, 70], [45, 60, 78], [200, 55, 58], [25, 70, 62], [280, 35, 72]]);
+    return { R: .55, lobe: .03, height: .06, prof: 1.2, gloss: .6, rings: 1, ringF: rr(3, 7), trans: .6, velvet: .2,
+      c0: hsl(h, s, l - 10), c1: hsl(h, s, l + 5), c2: hsl(h, s, l + 5), halo: rnd() < .3 ? .3 : 0, c3: hsl(h, s, l - 20) };
   },
-  // 배지에 번지는 색소 얼룩
-  stain(g, R) {
-    const sh = harmonics(6, 0.15), h = pick([350, 0, 280, 230, 45, 320, 15, 190]);
-    g.save(); g.filter = `blur(${R * 0.12}px)`;
-    for (let i = 0; i < 7; i++) {
-      const t = rr(0, TAU), d = R * rr(0, 0.45);
-      g.beginPath(); g.arc(Math.cos(t) * d, Math.sin(t) * d, R * rr(0.3, 0.55), 0, TAU);
-      g.fillStyle = H(h + rr(-15, 15), rr(60, 90), rr(28, 55), 0.35); g.fill();
-    }
-    g.restore();
-    return sh;
+  wrinkled() {
+    const [h, s, l] = pick([[50, 25, 76], [80, 25, 52], [35, 30, 70], [95, 20, 60], [0, 0, 86], [345, 30, 80]]);
+    return { R: .55, lobe: rr(.1, .18), lobeF: rr(3, 5), height: .09, prof: .4, gloss: .3, wrinkle: 1, velvet: .5, c0: hsl(h, s, l - 6), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4) };
   },
-  // 솜뭉치 같은 흰 곰팡이
-  cotton(g, R) {
-    const sh = harmonics(6, 0.1), [h, s, l] = pick([[0, 0, 97], [345, 50, 92], [50, 50, 92], [90, 20, 88], [200, 30, 92]]);
-    for (let i = 0; i < 40; i++) {
-      const t = rr(0, TAU), d = R * Math.sqrt(rnd()) * 0.78 * sh(t), r = R * rr(0.15, 0.35), x = Math.cos(t) * d, y = Math.sin(t) * d;
-      const gr = g.createRadialGradient(x, y, 0, x, y, r);
-      gr.addColorStop(0, H(h, s, l, 0.5)); gr.addColorStop(1, H(h, s, l, 0));
-      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
-    }
-    fibers(g, R * R * 0.08, R * 0.95, sh, 'rgba(255,255,255,A)', 0.06, 0.22, R * 0.02, R * 0.06, Math.max(1, R * 0.004));
-    edgeFuzz(g, R * 10, R, sh, 'rgba(255,255,255,A)', 0.1, 0.35, R * 0.03, R * 0.12, Math.max(1, R * 0.004));
-    return sh;
+  beads(o) {
+    const [h, s, l] = o.color || glossyColor();
+    return { R: .3, height: .22, prof: .5, gloss: rr(.8, 1), trans: rr(.2, .5), velvet: .1, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4),
+      beads: beadList(o.n || (4 + rnd() * 12 | 0), .07, .2, rnd() < .5 ? 0.85 : null) };
   },
-  // 가는 실이 사방으로 뻗는 방사형 균사
-  star(g, R) {
-    const h = pick([270, 200, 0, 60, 330]), n = 24 + rnd() * 40 | 0;
-    g.lineCap = 'round';
-    for (let i = 0; i < n; i++) {
-      const t = i / n * TAU + rr(-0.06, 0.06), L = R * rr(0.5, 1), bend = rr(-0.3, 0.3);
-      g.strokeStyle = H(h, 30, rr(80, 95), rr(0.3, 0.7)); g.lineWidth = Math.max(1, R * rr(0.005, 0.014));
-      const mx = Math.cos(t + bend) * L * 0.5, my = Math.sin(t + bend) * L * 0.5, ex = Math.cos(t) * L, ey = Math.sin(t) * L;
-      g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
-      if (rnd() < 0.5) { const b = t + rr(-0.5, 0.5), bl = L * rr(0.2, 0.4); g.beginPath(); g.moveTo(mx, my); g.lineTo(mx + Math.cos(b) * bl, my + Math.sin(b) * bl); g.stroke(); }
-      if (rnd() < 0.3) sphere(g, ex, ey, R * rr(0.015, 0.035), h, 30, 85);
-    }
-    sphere(g, 0, 0, R * 0.12, h, 30, 82);
-    return () => 1.05;
+  yeast() {
+    const [h, s, l] = pick([[40, 40, 86], [30, 50, 80], [0, 0, 92], [50, 50, 80], [15, 50, 75]]);
+    return { R: .3, height: .14, prof: .7, gloss: .3, velvet: .6, c0: hsl(h, s, l - 4), c1: hsl(h, s, l + 3), c2: hsl(h, s, l + 3), beads: beadList(5 + rnd() * 10 | 0, .08, .2, .9) };
   },
-  // 꽃 모양 무리: 연보라 알갱이가 초록 심을 둘러싼다
-  flower(g, R) {
-    const h = pick([280, 300, 330, 200, 20]), csh = harmonics(3, 0.04);
-    for (const [rad, r, m, a] of [[0.68, 0.28, 11 + rnd() * 4 | 0, 0.7], [0.46, 0.2, 8 + rnd() * 3 | 0, 0.8]]) {
-      const off = rr(0, TAU);
-      for (let i = 0; i < m; i++) {
-        const t = off + i / m * TAU, rad2 = R * rad * rr(0.92, 1.05);
-        sphere(g, Math.cos(t) * rad2, Math.sin(t) * rad2, R * r * rr(0.85, 1.1), h + rr(-10, 10), 40, rr(78, 88), a);
-      }
-    }
-    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R * 0.36);
-    gr.addColorStop(0, H(80, 50, 36)); gr.addColorStop(1, H(95, 40, 24));
-    blob(g, R * 0.36, csh); g.fillStyle = gr; g.fill();
-    for (let i = 0; i < 18; i++) { const t = rr(0, TAU), d = R * 0.3 * Math.sqrt(rnd()); sphere(g, Math.cos(t) * d, Math.sin(t) * d, R * rr(0.025, 0.04), 55, 90, 58); }
-    return () => 1.08;
+  bubbles() {
+    const h = pick([205, 215, 190, 30]);
+    return { R: .3, height: .2, prof: .5, gloss: 1, trans: 1, bubble: 1, velvet: 0, c0: hsl(h, 40, 80), c1: hsl(h, 30, 92), c2: hsl(h, 30, 92), beads: beadList(14 + rnd() * 16 | 0, .05, .14, 1) };
   },
-  // 작은 점들이 흩뿌려진 군락
-  speckle(g, R, o) {
-    const h = o.h ?? pick([0, 45, 190, 20, 330]), n = 30 + rnd() * 80 | 0;
-    for (let i = 0; i < n; i++) {
-      const t = rr(0, TAU), d = R * Math.sqrt(rnd());
-      sphere(g, Math.cos(t) * d, Math.sin(t) * d, R * rr(0.015, 0.06), h, h === 0 ? 0 : 60, h === 0 ? 90 : 74);
-    }
-    return () => 1.05;
+  stain() {
+    return { R: .4, body: 0, halo: 1, haloR: 1.65, c3: hsl(pick([350, 0, 285, 230, 45, 320, 15, 190]), rr(60, 90), rr(28, 50)) };
   },
 };
-
-const BIG = [['fuzzy', 3], ['sooty', 2], ['ring', 2], ['wrinkled', 2], ['flower', 1.5], ['dotted', 1.5], ['beads', 2], ['bubbles', 1.5], ['cotton', 2], ['star', 1.2], ['stain', 1.5]];
-const STREAK = ['beads', 'beads', 'speckle', 'dotted', 'ring', 'fuzzy', 'cotton', 'bubbles', 'wrinkled', 'sooty'];
+const BIG = [['penicillium', 3], ['trichoderma', 1.5], ['niger', 2], ['rhizopus', 2], ['fusarium', 2], ['glossy', 1.5], ['ringed', 1.5], ['wrinkled', 1.5], ['beads', 2], ['yeast', 1], ['bubbles', 1], ['stain', 1.2]];
+const STREAK = ['glossy', 'beads', 'beads', 'yeast', 'ringed', 'penicillium', 'rhizopus', 'bubbles', 'glossy'];
 const weighted = list => { let x = rnd() * list.reduce((s, [, w]) => s + w, 0); for (const [k, w] of list) if ((x -= w) < 0) return k; return list[0][0]; };
 
-function makeColony(type, R, o = {}) {
-  const half = Math.ceil(R * 1.3), cv = document.createElement('canvas');
-  cv.width = cv.height = half * 2;
-  const g = cv.getContext('2d');
-  g.translate(half, half);
-  const sh = GEN[type](g, R, o) || (() => 1);
-  return { cv, half, sh, jp: rr(0, TAU), jf: 18 + rnd() * 30 | 0 };
+class Colony {
+  constructor(type, x, y, Rpx, dur, o = {}) {
+    this.P = { ...BASE, ...TYPES[type](o) };
+    this.half = Math.min(S / 2, Math.ceil(Rpx / (this.P.beads ? .62 : this.P.R)));
+    this.w = this.half * 2;
+    this.cv = document.createElement('canvas');
+    this.cv.width = this.cv.height = this.w;
+    this.ctx = this.cv.getContext('2d');
+    Object.assign(this, { x, y, dur, t0: performance.now(), seed: [rr(0, 100), rr(0, 100)], phase: rnd() * 3 | 0, drawn: false });
+  }
+  render(e) {
+    const P = this.P, g = .12 + .88 * e;
+    const U = { uSeed: this.seed, uPx: this.w, uR: P.R * g, uAge: e, uLobe: P.lobe, uLobeF: P.lobeF, uHeight: P.height, uProf: P.prof, uFuzz: P.fuzz, uGloss: P.gloss,
+      uRadial: P.radial, uRings: P.rings, uRingF: P.ringF, uWrinkle: P.wrinkle, uSpeck: P.speck, uHalo: P.halo * e, uHaloR: P.haloR, uTrans: P.trans, uVelvet: P.velvet,
+      uFront: P.front, uBody: P.body, uBubble: P.bubble, uC0: P.c0, uC1: P.c1, uC2: P.c2, uC3: P.c3, uCs: P.cs, uBN: 0 };
+    if (P.beads) {
+      const arr = new Float32Array(48), spread = .55 + .45 * e;
+      P.beads.forEach((b, i) => { arr[i * 3] = b[0] * spread; arr[i * 3 + 1] = b[1] * spread; arr[i * 3 + 2] = b[2] * g; });
+      U.uB = arr; U.uBN = P.beads.length;
+    }
+    shade(PR.colony, this.w, U, this.ctx);
+  }
 }
 
-// 접시마다 다른 배지 색
+// 접시마다 다른 배지 색과 뚜껑 김 서림 정도
 const MEDIA = [
-  { a: '#38a9bd', b: '#135c7c', tints: ['#46c6cc', '#1b7a9a', '#79d4c6', '#0f4f73'] },
-  { a: '#e5552f', b: '#9e1d22', tints: ['#f2903a', '#c42a4a', '#2aa3a0', '#7a1430'] },
-  { a: '#ea6a82', b: '#ad1f4b', tints: ['#f3e6b0', '#8a3aa0', '#ff8a7a', '#c02040'] },
-  { a: '#6c50ad', b: '#252d86', tints: ['#c0407a', '#2a7ac0', '#e0a040', '#3a1a70'] },
-  { a: '#ecbb48', b: '#bf6a1d', tints: ['#f2e3a6', '#d05030', '#7ab070', '#e08a30'] },
-  { a: '#d3e3e8', b: '#8fafbd', tints: ['#ebc2d2', '#b0d0e8', '#f2f1e0', '#9ac0b8'] },
+  { a: hsl(192, 55, 45), b: hsl(200, 70, 24), t1: hsl(180, 50, 50), t2: hsl(205, 70, 30), fog: .8 },
+  { a: hsl(12, 78, 52), b: hsl(355, 70, 34), t1: hsl(28, 85, 55), t2: hsl(178, 50, 38), fog: .5 },
+  { a: hsl(350, 72, 62), b: hsl(340, 70, 38), t1: hsl(48, 70, 82), t2: hsl(290, 45, 40), fog: .6 },
+  { a: hsl(260, 40, 46), b: hsl(235, 55, 30), t1: hsl(330, 55, 48), t2: hsl(205, 60, 42), fog: .7 },
+  { a: hsl(42, 82, 60), b: hsl(26, 75, 44), t1: hsl(50, 70, 80), t2: hsl(12, 65, 48), fog: .4 },
+  { a: hsl(195, 25, 82), b: hsl(200, 25, 62), t1: hsl(335, 40, 85), t2: hsl(60, 40, 88), fog: 1 },
 ];
 
 class Dish {
-  constructor(m, S) {
-    Object.assign(this, { m, S, c: S / 2, R: S / 2 / 1.12, growing: [], dirty: true, stroke: null });
-    this.Rin = this.R * 0.955;
+  constructor(m) {
+    Object.assign(this, { m, c: S / 2, R: S / 2 / 1.12, growing: [], dirty: true, stroke: null });
+    this.Rin = this.R * .955;
     const mk = () => { const c = document.createElement('canvas'); c.width = c.height = S; return c; };
     this.cv = mk(); this.ctx = this.cv.getContext('2d');
     this.settled = mk(); this.sctx = this.settled.getContext('2d');
     this.glass = mk();
-    this.paintMedium(); this.paintGlass();
+    shade(PR.dish, S, { uA: m.a, uBc: m.b, uT1: m.t1, uT2: m.t2, uSeed: [rr(0, 50), rr(0, 50)], uPx: S }, this.sctx);
+    shade(PR.lid, S, { uSeed: [rr(0, 50), rr(0, 50)], uPx: S, uFog: m.fog }, this.glass.getContext('2d'));
   }
-  paintMedium() {
-    const { sctx: g, c, R, Rin, m, S } = this;
-    g.save(); g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = R * 0.08; g.shadowOffsetY = R * 0.035;
-    g.fillStyle = '#0d2142'; g.beginPath(); g.arc(c, c, R, 0, TAU); g.fill(); g.restore();
-    g.fillStyle = 'rgba(170,200,235,0.1)'; g.beginPath(); g.arc(c, c, R, 0, TAU); g.fill();
-    g.save(); g.beginPath(); g.arc(c, c, Rin, 0, TAU); g.clip();
-    const gr = g.createRadialGradient(c - Rin * 0.2, c - Rin * 0.2, 0, c, c, Rin);
-    gr.addColorStop(0, m.a); gr.addColorStop(1, m.b);
-    g.fillStyle = gr; g.fillRect(0, 0, S, S);
-    g.filter = `blur(${Rin * 0.14}px)`; g.globalAlpha = 0.45;
-    for (let i = 0; i < 5; i++) {
-      const t = rr(0, TAU), d = Rin * rr(0, 0.8);
-      g.fillStyle = pick(m.tints); g.beginPath(); g.arc(c + Math.cos(t) * d, c + Math.sin(t) * d, Rin * rr(0.2, 0.5), 0, TAU); g.fill();
-    }
-    g.filter = 'none'; g.globalAlpha = 1;
-    for (const col of ['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.07)']) {
-      g.fillStyle = col; g.beginPath();
-      for (let i = 0; i < 2500; i++) { const x = rr(0, S), y = rr(0, S), r = rr(0.4, 1.4) * DPR; g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU); }
-      g.fill();
-    }
-    const mg = g.createRadialGradient(c, c, Rin * 0.78, c, c, Rin);
-    mg.addColorStop(0, 'rgba(0,0,0,0)'); mg.addColorStop(1, 'rgba(0,0,0,0.3)');
-    g.fillStyle = mg; g.fillRect(0, 0, S, S);
-    g.restore();
-  }
-  paintGlass() {
-    const g = this.glass.getContext('2d'), { c, R, Rin } = this;
-    g.lineWidth = R * 0.02; g.strokeStyle = 'rgba(200,225,255,0.16)'; g.beginPath(); g.arc(c, c, R * 0.978, 0, TAU); g.stroke();
-    g.lineWidth = Math.max(1, R * 0.004);
-    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.arc(c, c, R, 0, TAU); g.stroke();
-    g.strokeStyle = 'rgba(255,255,255,0.3)'; g.beginPath(); g.arc(c, c, Rin, 0, TAU); g.stroke();
-    g.save(); g.filter = `blur(${R * 0.006}px)`; g.lineCap = 'round';
-    g.lineWidth = R * 0.014; g.strokeStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.arc(c, c, R * 0.976, Math.PI * 1.06, Math.PI * 1.36); g.stroke();
-    g.lineWidth = R * 0.008; g.strokeStyle = 'rgba(255,255,255,0.4)'; g.beginPath(); g.arc(c, c, R * 0.976, Math.PI * 0.08, Math.PI * 0.26); g.stroke();
-    g.restore();
-    g.lineWidth = Math.max(1, R * 0.002); g.strokeStyle = 'rgba(255,255,255,0.3)';
-    for (let i = 0; i < 70; i++) {
-      const t = rr(0, TAU), d = R * rr(0.958, 0.99);
-      g.beginPath(); g.arc(c + Math.cos(t) * d, c + Math.sin(t) * d, R * rr(0.002, 0.008), 0, TAU); g.stroke();
-    }
-    const sg = g.createRadialGradient(c - R * 0.4, c - R * 0.45, 0, c - R * 0.4, c - R * 0.45, R * 1.1);
-    sg.addColorStop(0, 'rgba(255,255,255,0.08)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = sg; g.beginPath(); g.arc(c, c, R, 0, TAU); g.fill();
-  }
-  inside(x, y) { return Math.hypot(x - this.c, y - this.c) < this.Rin * 0.96; }
-  spawn(type, x, y, R, dur, o) {
+  inside(x, y) { return Math.hypot(x - this.c, y - this.c) < this.Rin * .96; }
+  spawn(type, x, y, Rpx, dur, o) {
     if (this.growing.length > 60) return;
-    this.growing.push({ col: makeColony(type, R, o), x, y, t0: performance.now(), dur });
+    this.growing.push(new Colony(type, x, y, Rpx, dur, o));
   }
-  bake(k) {
-    const g = this.sctx;
-    g.save(); g.beginPath(); g.arc(this.c, this.c, this.Rin, 0, TAU); g.clip();
-    g.drawImage(k.col.cv, k.x - k.col.half, k.y - k.col.half);
-    g.restore();
-  }
-  render(now) {
+  clip(g) { g.beginPath(); g.arc(this.c, this.c, this.Rin, 0, TAU); g.clip(); }
+  render(now, frameNo) {
     if (!this.dirty && !this.growing.length) return;
     this.dirty = false;
-    const g = this.ctx, { c, Rin } = this;
-    g.clearRect(0, 0, this.S, this.S);
+    const g = this.ctx, every = this.growing.length > 16 ? 3 : 1;
+    g.clearRect(0, 0, S, S);
     g.drawImage(this.settled, 0, 0);
-    g.save(); g.beginPath(); g.arc(c, c, Rin, 0, TAU); g.clip();
+    g.save(); this.clip(g);
     this.growing = this.growing.filter(k => {
-      const p = Math.min(1, (now - k.t0) / k.dur), s = k.col;
-      if (p >= 1) { g.drawImage(s.cv, k.x - s.half, k.y - s.half); this.bake(k); return false; }
-      const e = ease(p), M = s.half * 1.15 * e;
-      g.save(); g.translate(k.x, k.y);
-      g.beginPath();
-      for (let i = 0; i <= 90; i++) {
-        const t = i / 90 * TAU, r = M * s.sh(t) * (1 + 0.06 * Math.sin(t * s.jf + s.jp + p * 4));
-        g.lineTo(Math.cos(t) * r, Math.sin(t) * r);
+      const p = Math.min(1, (now - k.t0) / k.dur);
+      if (p >= 1) {
+        k.render(1);
+        g.drawImage(k.cv, k.x - k.half, k.y - k.half);
+        this.sctx.save(); this.clip(this.sctx); this.sctx.drawImage(k.cv, k.x - k.half, k.y - k.half); this.sctx.restore();
+        return false;
       }
-      g.clip();
-      const sc = 0.82 + 0.18 * e;
-      g.scale(sc, sc);
-      g.drawImage(s.cv, -s.half, -s.half);
-      g.restore();
+      if (!k.drawn || frameNo % every === k.phase % every) { k.render(ease(p)); k.drawn = true; }
+      g.drawImage(k.cv, k.x - k.half, k.y - k.half);
       return true;
     });
     g.restore();
@@ -392,9 +407,7 @@ class Dish {
 
 // 접시 여러 장을 가로로 넘겨 본다
 const track = document.getElementById('track'), dotsEl = document.getElementById('dots');
-const fitD = () => Math.max(320, Math.min(innerWidth * 0.86, innerHeight * 0.84));
-const S = Math.round(fitD() * DPR);
-const dishes = MEDIA.map(m => new Dish(m, S));
+const dishes = MEDIA.map(m => new Dish(m));
 
 dishes.forEach(d => {
   const slide = document.createElement('div');
@@ -405,7 +418,7 @@ dishes.forEach(d => {
     const [x, y] = pos(e);
     if (!d.inside(x, y)) return;
     try { d.cv.setPointerCapture(e.pointerId); } catch {}
-    d.stroke = { x, y, sx: x, sy: y, moved: 0, acc: 0, type: pick(STREAK), o: { h: pick([14, 22, 340, 48, 0, 190, 30, 320]) }, gap: d.R * rr(0.05, 0.09) };
+    d.stroke = { x, y, sx: x, sy: y, moved: 0, acc: 0, type: pick(STREAK), o: { color: glossyColor() }, gap: d.R * rr(.05, .08) };
   });
   d.cv.addEventListener('pointermove', e => {
     const st = d.stroke;
@@ -414,19 +427,18 @@ dishes.forEach(d => {
     st.moved += step; st.acc += step; st.x = x; st.y = y;
     if (st.acc < st.gap || !d.inside(x, y)) return;
     st.acc = 0;
-    const j = d.R * 0.03, size = d.R * rr(0.03, 0.09);
-    d.spawn(st.type, x + rr(-j, j), y + rr(-j, j), size, rr(900, 2200), st.o);
-    if (rnd() < 0.25) d.spawn('speckle', x + rr(-j, j) * 2, y + rr(-j, j) * 2, size * 1.5, rr(1200, 2500), {});
+    const j = d.R * .03;
+    d.spawn(st.type, x + rr(-j, j), y + rr(-j, j), d.R * rr(.02, .055), rr(1200, 2600), st.o);
   });
   const end = () => {
     const st = d.stroke;
     d.stroke = null;
     if (!st || st.moved > 8 * DPR) return;
-    const type = weighted(BIG), big = type === 'stain' ? rr(0.25, 0.45) : rr(0.12, 0.32);
-    d.spawn(type, st.sx, st.sy, d.R * big, type === 'stain' ? rr(5000, 8000) : rr(2500, 5000), {});
+    const type = weighted(BIG), big = type === 'stain' ? rr(.18, .32) : rr(.08, .22);
+    d.spawn(type, st.sx, st.sy, d.R * big, type === 'stain' ? rr(5000, 8000) : rr(3000, 6000), {});
     for (let i = rnd() * 4 | 0; i > 0; i--) {
-      const t = rr(0, TAU), dd = d.R * big * rr(1.1, 1.8), x = st.sx + Math.cos(t) * dd, y = st.sy + Math.sin(t) * dd;
-      if (d.inside(x, y)) d.spawn(pick(['beads', 'speckle', 'dotted', 'ring']), x, y, d.R * rr(0.025, 0.06), rr(2000, 4500), {});
+      const t = rr(0, TAU), dd = d.R * big * rr(1.2, 1.9), x = st.sx + Math.cos(t) * dd, y = st.sy + Math.sin(t) * dd;
+      if (d.inside(x, y)) d.spawn(pick(['glossy', 'beads', 'yeast']), x, y, d.R * rr(.02, .05), rr(2500, 5000), {});
     }
   };
   d.cv.addEventListener('pointerup', end);
@@ -434,8 +446,8 @@ dishes.forEach(d => {
 });
 
 function layout() {
-  const D = fitD() * 1.12;
-  dishes.forEach(d => { d.cv.style.width = d.cv.style.height = Math.min(D, innerWidth * 0.96, innerHeight * 0.96) + 'px'; });
+  const D = Math.min(fitD() * 1.12, innerWidth * .96, innerHeight * .96);
+  dishes.forEach(d => { d.cv.style.width = d.cv.style.height = D + 'px'; });
 }
 layout();
 addEventListener('resize', layout);
@@ -447,7 +459,7 @@ const go = i => {
   track.style.scrollSnapType = 'none';
   const step = now => {
     const p = Math.min(1, (now - t0) / 550);
-    track.scrollLeft = from + (to - from) * (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+    track.scrollLeft = from + (to - from) * (p < .5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
     if (p < 1) requestAnimationFrame(step); else track.style.scrollSnapType = '';
   };
   requestAnimationFrame(step);
@@ -456,10 +468,12 @@ document.getElementById('prev').onclick = () => go(current() - 1);
 document.getElementById('next').onclick = () => go(current() + 1);
 addEventListener('keydown', e => { if (e.key === 'ArrowRight') go(current() + 1); if (e.key === 'ArrowLeft') go(current() - 1); });
 
+let frameNo = 0;
 function frame(now) {
+  frameNo++;
   const i = current();
   [...dotsEl.children].forEach((el, k) => el.classList.toggle('on', k === i));
-  for (let k = Math.max(0, i - 1); k <= Math.min(dishes.length - 1, i + 1); k++) dishes[k].render(now);
+  for (let k = Math.max(0, i - 1); k <= Math.min(dishes.length - 1, i + 1); k++) dishes[k].render(now, frameNo);
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
