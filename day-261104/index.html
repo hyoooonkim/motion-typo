@@ -523,9 +523,9 @@ function pack(items, W) {
   const placed = [];
   let lastY = 0;
   for (const it of items) {
-    // 작은 접시가 많고 큰 접시는 가끔. 작은 접시는 큰 접시 사이 틈을 메운다
-    const f = mine.has(it.id) ? rr(.3, .4) : .025 + .38 * Math.pow(rnd(), 3.2);
-    const s = Math.max(26, Math.min(W * f, 560)), r = s * .43;
+    // 작은 접시가 조금 더 많고 큰 접시는 가끔. 내 접시는 큰 편
+    const f = mine.has(it.id) ? rr(.22, .28) : .08 + .22 * Math.pow(rnd(), 1.6);
+    const s = Math.max(70, Math.min(W * f, 480)), r = s * .43;
     for (let y = Math.max(r, lastY - 900); ; y += 6) {
       let x = null;
       for (let t = 0; t < 40 && x === null; t++) {
@@ -554,7 +554,7 @@ async function openGallery() {
     im.src = p.thumb || p.img || ''; im.loading = 'lazy'; im.decoding = 'async'; im.alt = '배양 접시'; im.title = new Date(p.created_at).toLocaleDateString('ko-KR');
     Object.assign(im.style, { left: p.x - p.s / 2 + 'px', top: p.y - p.s / 2 + 'px', width: p.s + 'px', height: p.s + 'px' });
     if (mine.has(p.id)) { im.className = 'mine'; im.style.animationDelay = i * .15 + 's'; }
-    if (!p.thumb && !p.img) store.full(p.id).then(u => { if (u) { im.src = u; p.full = u; } }).catch(() => {});
+    if ((!p.thumb && !p.img) || p.s * (devicePixelRatio || 1) > 520) store.full(p.id).then(u => { if (u) { im.src = u; p.full = u; } }).catch(() => {});
     im.onclick = () => openZoom(placed, i);
     wall.appendChild(im);
   });
