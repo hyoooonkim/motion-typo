@@ -207,8 +207,8 @@ function transferSound() {
 }
 
 /* ───── 끌기: 지나간 자리에 사진이 계속 찍힌다 ───── */
-// 끄는 동안 원래 통로가 새 위치로 따라와 다시 이어지고, 지나간 경로에는 잔상이 남는다
-let drag = null, queued = false;
+// 화면을 다시 그리지 않고 잔상만 덧그린다. 원래 통로와 옛 자리 그림은 창 드래그 오류처럼 그대로 남는다
+let drag = null;
 function hit(x, y) {
   for (let i = panels.length - 1; i >= 0; i--) {
     const u = panels[i], cx = u.x + u.w / 2, cy = u.y + u.h / 2, c = Math.cos(-u.tilt), s = Math.sin(-u.tilt);
@@ -234,14 +234,14 @@ cv.addEventListener('pointermove', e => {
   for (let i = 1; i <= n; i++) {
     const p = L2(last, to, i / n);
     trail.pts.push(p);
+    stamp(u, p[0], p[1], true);
   }
   const end = trail.pts[trail.pts.length - 1];
   u.x = end[0] - u.w / 2; u.y = end[1] - u.h / 2;
-  if (!queued) { queued = true; requestAnimationFrame(() => { queued = false; draw(); }); }
 });
 cv.addEventListener('pointerup', () => {
   if (!drag) return;
-  draw();
+  stamp(drag.u, drag.u.x + drag.u.w / 2, drag.u.y + drag.u.h / 2, false);
   drag = null;
   cv.style.cursor = 'grab';
 });
