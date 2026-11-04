@@ -5,41 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>유통기한 · 배양 접시</title>
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 45%, #123461 0%, #0b2347 55%, #071733 100%); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
   #track { display: flex; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
   .slide { flex: 0 0 100vw; height: 100%; display: grid; place-items: center; scroll-snap-align: center; }
   .slide canvas { touch-action: none; cursor: crosshair; display: block; }
-  .back { position: fixed; left: 18px; top: 14px; z-index: 2; color: #4f6694; font: 13px/1 system-ui, sans-serif; text-decoration: none; }
-  .nav { position: fixed; top: 50%; z-index: 2; transform: translateY(-50%); padding: 18px; border: 0; background: none; color: #3d5585; font-size: 26px; cursor: pointer; }
-  .nav:hover { color: #a9bce4; }
+  .back { position: fixed; left: 18px; top: 14px; z-index: 2; color: #aaa; font: 13px/1 system-ui, sans-serif; text-decoration: none; }
+  .nav { position: fixed; top: 50%; z-index: 2; transform: translateY(-50%); padding: 18px; border: 0; background: none; color: #c4c4c4; font-size: 26px; cursor: pointer; }
+  .nav:hover { color: #555; }
   #prev { left: 4px; } #next { right: 4px; }
   #dots { position: fixed; left: 0; right: 0; bottom: 22px; display: flex; justify-content: center; gap: 9px; }
-  #dots i { width: 6px; height: 6px; border-radius: 50%; background: #253f6e; transition: background .3s; }
-  #dots i.on { background: #a9bce4; }
-  .pill { border: 1px solid rgba(169,188,228,.35); border-radius: 999px; background: rgba(169,188,228,.08); color: #c9d6f2; font: 500 13px/1 system-ui, sans-serif; padding: 11px 20px; cursor: pointer; backdrop-filter: blur(6px); }
-  .pill:hover { background: rgba(169,188,228,.18); }
+  #dots i { width: 6px; height: 6px; border-radius: 50%; background: #e2e2e2; transition: background .3s; }
+  #dots i.on { background: #777; }
+  .pill { border: 1px solid rgba(0,0,0,.14); border-radius: 999px; background: rgba(255,255,255,.7); color: #333; font: 500 13px/1 system-ui, sans-serif; padding: 11px 20px; cursor: pointer; backdrop-filter: blur(6px); }
+  .pill:hover { background: rgba(0,0,0,.05); }
   .pill:disabled { opacity: .35; cursor: default; }
   #submit { position: fixed; left: 50%; bottom: 46px; z-index: 3; transform: translateX(-50%); }
   #toGallery { position: fixed; right: 16px; top: 10px; z-index: 3; padding: 9px 14px; font-size: 12px; }
-  #gallery { position: fixed; inset: 0; z-index: 5; overflow-y: auto; background: #000; }
+  #gallery { position: fixed; inset: 0; z-index: 5; overflow-y: auto; background: #fff; }
   #gallery[hidden] { display: none; }
-  #gallery header { background: linear-gradient(#000 60%, rgba(0,0,0,0));
+  #gallery header { background: linear-gradient(#fff 60%, rgba(255,255,255,0));
     position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
-  #gcount { color: #6f86b5; font: 12px/1 ui-monospace, monospace; }
+  #gcount { color: #999; font: 12px/1 ui-monospace, monospace; }
   #wall { position: relative; margin: 8px auto 60px; }
   #wall img { position: absolute; border-radius: 50%; transition: transform .35s; }
   #wall img:hover { transform: scale(1.06); z-index: 1; }
   #wall img.mine { animation: pop .9s ease-out both; }
   @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
   #wall img { cursor: zoom-in; }
-  #zoom { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(0,0,0,.88); cursor: zoom-out; opacity: 0; transition: opacity .3s; }
+  #zoom { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(255,255,255,.94); cursor: zoom-out; opacity: 0; transition: opacity .3s; }
   #zoom[hidden] { display: none; }
   #zoom.on { opacity: 1; }
   #zoom img { width: min(92vw, 92vh); height: min(92vw, 92vh); transform: scale(.6); transition: transform .4s cubic-bezier(.2,.9,.3,1.2); }
   #zoom.on img { transform: none; }
-  #zoom p { position: fixed; bottom: 18px; margin: 0; color: #6f86b5; font: 12px/1 ui-monospace, monospace; }
-  #gmsg { color: #6f86b5; font: 13px/1.6 system-ui, sans-serif; text-align: center; padding-top: 30vh; }
+  #zoom p { position: fixed; bottom: 18px; margin: 0; color: #999; font: 12px/1 ui-monospace, monospace; }
+  #gmsg { color: #999; font: 13px/1.6 system-ui, sans-serif; text-align: center; padding-top: 30vh; }
 </style>
 </head>
 <body>
@@ -201,7 +201,7 @@ void main() {
   vec2 Ld = normalize(vec2(-.5, .55)), dir = p / max(r, 1e-4);
   vec2 sp = p - vec2(.045, -.07);
   float sr = length(sp);
-  vec4 o = vec4(0., 0., 0., (1. - smoothstep(.82, 1.2, sr)) * .6);
+  vec4 o = vec4(0., 0., 0., (1. - smoothstep(.82, 1.2, sr)) * .3);
   float ca = exp(-pow((sr - .97) / .06, 2.)) * .13 * max(0., dot(sp / max(sr, 1e-4), -Ld)) * step(1., r);
   o = vec4(mix(uA, vec3(1.), .5) * ca, ca) + o * (1. - ca);
 
@@ -223,14 +223,14 @@ void main() {
 
   float wt = clamp((r - RIN) / (1. - RIN), 0., 1.);
   vec2 q = p / max(r, 1e-4) * (RIN - .03 - wt * .14);
-  vec3 wall = agarCol(q) * .6 + vec3(.08, .13, .22) * .5;
+  vec3 wall = agarCol(q) * .55 + vec3(.86, .89, .93) * .4;
   float u = wt * 2. - 1.;
   vec3 tn = normalize(vec3(dir * u, sqrt(max(0., 1. - u * u)) * .8 + .05));
   vec3 L3 = normalize(vec3(Ld * .8, .6));
   float wd = clamp(dot(tn, L3), 0., 1.);
   float ws = pow(clamp(dot(reflect(-L3, tn), vec3(0., 0., 1.)), 0., 1.), 70.);
   float wf = pow(1. - tn.z, 2.);
-  wall = mix(wall, vec3(.6, .68, .78), .15 + .3 * wf);
+  wall = mix(wall, vec3(.93, .95, .98), .2 + .35 * wf);
   wall *= .5 + .6 * wd;
   wall += vec3(.95, .97, 1.) * (ws * 1.1 + wf * .18);
   wall += vec3(.92, .96, 1.) * exp(-pow((r - .997) / .0025, 2.)) * (.25 + .6 * lightA);
@@ -608,8 +608,8 @@ function snapshot(d) {
   g.drawImage(d.cv, 0, 0, n, n);
   const webp = c.toDataURL('image/webp', .8);
   if (webp.startsWith('data:image/webp') && webp.length < 380000) return webp;
-  // webp를 못 만드는 브라우저는 갤러리와 같은 검정 바탕의 jpeg로
-  g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
+  // webp를 못 만드는 브라우저는 갤러리와 같은 흰 바탕의 jpeg로
+  g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#fff'; g.fillRect(0, 0, n, n);
   return c.toDataURL('image/jpeg', .82);
 }
 
