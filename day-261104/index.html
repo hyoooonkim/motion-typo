@@ -17,6 +17,21 @@
   #dots { position: fixed; left: 0; right: 0; bottom: 22px; display: flex; justify-content: center; gap: 9px; }
   #dots i { width: 6px; height: 6px; border-radius: 50%; background: #253f6e; transition: background .3s; }
   #dots i.on { background: #a9bce4; }
+  .pill { border: 1px solid rgba(169,188,228,.35); border-radius: 999px; background: rgba(169,188,228,.08); color: #c9d6f2; font: 500 13px/1 system-ui, sans-serif; padding: 11px 20px; cursor: pointer; backdrop-filter: blur(6px); }
+  .pill:hover { background: rgba(169,188,228,.18); }
+  .pill:disabled { opacity: .35; cursor: default; }
+  #submit { position: fixed; left: 50%; bottom: 46px; z-index: 3; transform: translateX(-50%); }
+  #toGallery { position: fixed; right: 16px; top: 10px; z-index: 3; padding: 9px 14px; font-size: 12px; }
+  #gallery { position: fixed; inset: 0; z-index: 5; overflow-y: auto; background: radial-gradient(circle at 50% 30%, #123461 0%, #0b2347 60%, #071733 100%); }
+  #gallery[hidden] { display: none; }
+  #gallery header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; }
+  #gcount { color: #6f86b5; font: 12px/1 ui-monospace, monospace; }
+  #wall { position: relative; margin: 8px auto 60px; }
+  #wall img { position: absolute; border-radius: 50%; transition: transform .35s; }
+  #wall img:hover { transform: scale(1.06); z-index: 1; }
+  #wall img.mine { animation: pop .9s ease-out both; }
+  @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+  #gmsg { color: #6f86b5; font: 13px/1.6 system-ui, sans-serif; text-align: center; padding-top: 30vh; }
 </style>
 </head>
 <body>
@@ -25,6 +40,12 @@
 <button class="nav" id="prev" aria-label="이전 접시">‹</button>
 <button class="nav" id="next" aria-label="다음 접시">›</button>
 <div id="dots"></div>
+<button class="pill" id="submit" disabled>배양 완료 · 제출하기</button>
+<button class="pill" id="toGallery">갤러리</button>
+<section id="gallery" hidden>
+  <header><button class="pill" id="again">← 다시 배양하기</button><span id="gcount"></span></header>
+  <div id="wall"></div>
+</section>
 <script>
 const COMMON = `
 precision highp float;
@@ -438,6 +459,8 @@ class Dish {
   inside(x, y) { return Math.hypot(x - this.c, y - this.c) < this.Rin * .96; }
   spawn(type, x, y, Rpx, dur, o) {
     if (this.growing.length > 60) return;
+    this.count = (this.count || 0) + 1;
+    document.getElementById('submit').disabled = false;
     this.growing.push(new Colony(type, x, y, Rpx, dur, { agar: this.m.a, ...o }));
   }
   clip(g) { g.beginPath(); g.arc(this.c, this.c, this.Rin, 0, TAU); g.clip(); }
@@ -467,7 +490,7 @@ class Dish {
 
 // 접시 여러 장을 가로로 넘겨 본다
 const track = document.getElementById('track'), dotsEl = document.getElementById('dots');
-const dishes = MEDIA.map(m => new Dish(m));
+const dishes = [...MEDIA].sort(() => rnd() - .5).slice(0, 3).map(m => new Dish(m));
 
 dishes.forEach(d => {
   const slide = document.createElement('div');
@@ -537,6 +560,103 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
+// ───── 제출과 갤러리 ─────
+// Supabase 프로젝트 URL과 anon public 키를 여기에 직접 넣는다. 비워 두면 이 브라우저에만 쌓인다
+const SUPABASE = { url: '', key: '' };
+const LOCAL_KEY = 'petri-gallery-261104';
+const sbHeaders = () => ({ apikey: SUPABASE.key, Authorization: `Bearer ${SUPABASE.key}` });
+const store = {
+  async list() {
+    if (SUPABASE.url) {
+      const r = await fetch(`${SUPABASE.url}/rest/v1/dishes?select=id,img,created_at&order=created_at.desc&limit=150`, { headers: sbHeaders() });
+      if (!r.ok) throw new Error(r.status);
+      return r.json();
+    }
+    try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]'); } catch { return []; }
+  },
+  async add(imgs) {
+    if (SUPABASE.url) {
+      const r = await fetch(`${SUPABASE.url}/rest/v1/dishes?select=id`, {
+        method: 'POST', headers: { ...sbHeaders(), 'Content-Type': 'application/json', Prefer: 'return=representation' },
+        body: JSON.stringify(imgs.map(img => ({ img }))),
+      });
+      if (!r.ok) throw new Error(r.status);
+      return (await r.json()).map(x => x.id);
+    }
+    const now = new Date().toISOString(), rows = imgs.map((img, i) => ({ id: `${Date.now()}-${i}`, img, created_at: now }));
+    try {
+      const list = JSON.parse(localStorage.getItem(LOCAL_KEY) || '[]');
+      localStorage.setItem(LOCAL_KEY, JSON.stringify([...rows, ...list].slice(0, 30)));
+    } catch {}
+    return rows.map(x => x.id);
+  },
+};
+function snapshot(d) {
+  d.render(performance.now() + 1e9, 0);
+  const n = 360, c = document.createElement('canvas');
+  c.width = c.height = n;
+  c.getContext('2d').drawImage(d.cv, 0, 0, n, n);
+  const webp = c.toDataURL('image/webp', .82);
+  return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/png');
+}
+
+// 크기가 제각각인 접시를 위에서부터 빈자리에 채워 넣는다
+let mine = new Set();
+function pack(items, W) {
+  const placed = [];
+  let lastY = 0;
+  for (const it of items) {
+    const f = mine.has(it.id) ? rr(.26, .34) : pick([.1, .13, .16, .2, .24, .3]);
+    const s = Math.max(90, Math.min(W * f, 440)), r = s / 2 / 1.12;
+    for (let y = Math.max(r, lastY - 500); ; y += 8) {
+      let x = null;
+      for (let t = 0; t < 24 && x === null; t++) {
+        const cx = rr(r, W - r);
+        if (placed.every(p => Math.hypot(p.x - cx, p.y - y) > p.r + r + 4)) x = cx;
+      }
+      if (x !== null) { placed.push({ ...it, x, y, r, s }); lastY = y; break; }
+    }
+  }
+  return placed;
+}
+const gallery = document.getElementById('gallery'), wall = document.getElementById('wall'), gcount = document.getElementById('gcount');
+async function openGallery() {
+  gallery.hidden = false;
+  wall.innerHTML = '<p id="gmsg">접시를 모으는 중…</p>';
+  let list;
+  try { list = await store.list(); } catch (e) { wall.innerHTML = `<p id="gmsg">갤러리를 불러오지 못했어요 (${e.message})</p>`; return; }
+  gcount.textContent = `${list.length} plates`;
+  if (!list.length) { wall.innerHTML = '<p id="gmsg">아직 제출된 접시가 없어요</p>'; return; }
+  const W = Math.min(innerWidth - 32, 1400), placed = pack(list, W);
+  wall.innerHTML = '';
+  wall.style.width = W + 'px';
+  wall.style.height = Math.max(...placed.map(p => p.y + p.r)) + 40 + 'px';
+  placed.forEach((p, i) => {
+    const im = new Image();
+    im.src = p.img; im.alt = '배양 접시'; im.title = new Date(p.created_at).toLocaleDateString('ko-KR');
+    Object.assign(im.style, { left: p.x - p.s / 2 + 'px', top: p.y - p.s / 2 + 'px', width: p.s + 'px', height: p.s + 'px' });
+    if (mine.has(p.id)) { im.className = 'mine'; im.style.animationDelay = i * .15 + 's'; }
+    wall.appendChild(im);
+  });
+}
+const submitBtn = document.getElementById('submit');
+let submitted = false;
+submitBtn.onclick = async () => {
+  const used = dishes.filter(d => d.count);
+  if (!used.length) return;
+  submitBtn.disabled = true; submitBtn.textContent = '제출 중…';
+  try {
+    mine = new Set(await store.add(used.map(snapshot)));
+    submitted = true;
+    submitBtn.textContent = '제출 완료';
+    await openGallery();
+  } catch (e) {
+    submitBtn.disabled = false; submitBtn.textContent = `제출 실패 (${e.message}) · 다시 시도`;
+  }
+};
+document.getElementById('toGallery').onclick = openGallery;
+document.getElementById('again').onclick = () => { if (submitted) location.reload(); else gallery.hidden = true; };
 </script>
+
 </body>
 </html>
