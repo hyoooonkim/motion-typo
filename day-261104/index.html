@@ -47,6 +47,7 @@ float pnoise(vec2 p, float per) {
 // 군락 하나: 높이맵 → 법선 → 조명. 파라미터로 곰팡이·세균·거품·색소를 모두 만든다
 const COLONY_FS = COMMON + `
 uniform vec2 uSeed;
+uniform float uSector, uBands;
 uniform float uPx, uR, uAge, uLobe, uLobeF, uHeight, uProf, uFuzz, uGloss, uRadial, uRings, uRingF, uWrinkle, uSpeck, uHalo, uHaloR, uTrans, uVelvet, uFront, uBody, uBubble;
 uniform vec3 uC0, uC1, uC2, uC3, uCs;
 uniform vec3 uB[16];
@@ -75,7 +76,7 @@ float detailH(vec2 p, float d) {
   float x = min(d, 1.), r = length(p), a = atan(p.y, p.x) / TAU + .5, h = 0.;
   h += uRadial * .05 * (pnoise(vec2(a * 64., r * 4. + uSeed.x), 64.) - .5) * smoothstep(1., .15, x);
   h += uRadial * .03 * (pnoise(vec2(a * 160., r * 9. + uSeed.y), 160.) - .5) * smoothstep(1., .3, x);
-  h += uRings * .03 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5) * smoothstep(1., .85, x);
+  h += uRings * .014 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5) * smoothstep(1., .85, x);
   float w = 1. - abs(fbm(p * 6. + uSeed + vec2(fbm(p * 2.5 + uSeed.yx)) * 1.6) * 2. - 1.);
   h += uWrinkle * .09 * pow(w, 2.5) * smoothstep(1., .25, x);
   h += uVelvet * .012 * fbm(p * uPx * .08 + uSeed);
@@ -87,45 +88,59 @@ void main() {
   vec2 p = vUv * 2. - 1.;
   vec2 s = shape(p);
   float d = s.x, x = min(d, 1.), e = 2. / uPx;
-  float h0 = Hf(p), hx = Hf(p + vec2(e, 0.)), hy = Hf(p + vec2(0., e));
+  float det = detailH(p, d);
+  float h0 = s.y + det, hx = Hf(p + vec2(e, 0.)), hy = Hf(p + vec2(0., e));
   vec3 n = normalize(vec3(-(hx - h0) / e, -(hy - h0) / e, 1.));
   float r = length(p), a = atan(p.y, p.x) / TAU + .5;
 
+  // 가장자리: 털 같은 균사는 반쯤 비치고, 세균은 매끈하게 끊긴다
   float per = floor(uPx * 1.1);
-  float fib = pnoise(vec2(a * per, r * uPx * .02 + uSeed.x), per);
+  float fib = pnoise(vec2(a * per, r * uPx * .07 + uSeed.x), per);
   float fib2 = pnoise(vec2(a * floor(per * .5), r * uPx * .008 + uSeed.y), floor(per * .5));
   float aa = e * 1.5 / max(uR, .05);
   float hard = 1. - smoothstep(1. - aa, 1. + aa, d);
-  float soft = 1. - smoothstep(1. - .3 * uFuzz, 1. + .08 * uFuzz, d + (fib - .5) * .4 * uFuzz + (fib2 - .5) * .2 * uFuzz);
+  float soft = 1. - smoothstep(1. - .45 * uFuzz, 1. + .06 * uFuzz, d + (fib - .5) * .18 * uFuzz + (fib2 - .5) * .22 * uFuzz);
   float alpha = mix(hard, soft, step(.01, uFuzz));
-  float hairs = smoothstep(.72, .95, fib) * (1. - smoothstep(1., 1.22, d)) * step(1., d) * uFuzz;
-  alpha = max(alpha, hairs * .6) * uBody;
+  alpha *= mix(1., .5 + .5 * fib, uFuzz * smoothstep(.78, 1., d));
+  float hairs = smoothstep(.8, .97, fib) * (1. - smoothstep(1., 1.08, d)) * step(1., d) * uFuzz;
+  alpha = max(alpha, hairs * .25) * uBody;
 
+  // 색: 가운데부터 포자색이 올라오고, 부채꼴 얼룩과 하루치 성장 띠가 생긴다
   float front = uFront * (.3 + .7 * uAge);
-  float spor = 1. - smoothstep(front - .15, front + .1, x + (fbm(p * 7. + uSeed) - .5) * .18);
+  float spor = 1. - smoothstep(front - .2, front + .12, x + (fbm(p * 7. + uSeed) - .5) * .22);
   vec3 body = mix(uC0, uC1, smoothstep(0., max(front, .05), x));
+  float sec = pnoise(vec2(a * 7., uSeed.x), 7.) * .6 + pnoise(vec2(a * 19., uSeed.y), 19.) * .4;
+  body *= 1. + uSector * (sec - .5) * .5;
   vec3 col = mix(uC2, body, spor);
+  col *= 1. - uBands * .09 * smoothstep(.2, .8, sin(x * 15. + fbm(p * 4. + uSeed) * 3.)) * step(x, .97);
   col *= 1. + uRings * .14 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5);
   float sp = smoothstep(.62, .8, noise(p * uPx * .09 + uSeed)) * smoothstep(.4, .9, noise(p * uPx * .02 + uSeed.yx));
   col = mix(col, uCs, clamp(sp * uSpeck * 1.6, 0., 1.) * spor);
-  col *= .86 + .28 * mix(.5, fbm(p * uPx * .05 + uSeed * 3.), uVelvet);
+  col *= 1. + uVelvet * (.22 * (fbm(p * uPx * .05 + uSeed * 3.) - .5) + .14 * (noise(p * uPx * .4 + uSeed) - .5));
+  col *= clamp(1. + det * 7., .55, 1.15);
 
+  // 조명: 부드러운 확산광 + 젖은 표면엔 창문 모양 반사
   vec3 L = normalize(vec3(-.5, .55, .75));
-  float nl = dot(n, L), lam = mix(clamp(nl, 0., 1.), .5 + .5 * nl, uFuzz * .8);
-  vec3 Hv = normalize(L + vec3(0., 0., 1.));
-  float spec = pow(clamp(dot(n, Hv), 0., 1.), mix(16., 140., uGloss)) * uGloss * 1.3;
-  float fres = pow(1. - clamp(n.z, 0., 1.), 2.) * uGloss * .5;
-  vec3 lit = col * (.45 + .7 * lam) + spec + fres * vec3(.9, .95, 1.);
-  lit = mix(lit, uC2 * 1.05, uFuzz * .5 * smoothstep(.85, 1.05, d));
+  float nl = dot(n, L);
+  float lam = mix(clamp(nl, 0., 1.), .5 + .5 * nl, .5 + uFuzz * .4);
+  vec3 rf = reflect(vec3(0., 0., -1.), n);
+  float win = smoothstep(.12, 0., abs(rf.x + .42) - .16) * smoothstep(.12, 0., abs(rf.y - .45) - .2);
+  float env = win * 1.1 + smoothstep(-.2, .9, rf.y) * .18;
+  float fres = .04 + .96 * pow(1. - clamp(n.z, 0., 1.), 4.);
+  float spec = env * mix(.15, 1., fres) * uGloss + pow(clamp(dot(n, normalize(L + vec3(0., 0., 1.))), 0., 1.), 160.) * uGloss * .8;
+  float th = clamp(s.y / max(uHeight, .001), 0., 1.);
+  col *= 1. + uTrans * .25 * th;
+  col *= 1. - uGloss * .3 * smoothstep(.82, .99, x) * (1. - uFuzz);
+  vec3 lit = col * (.5 + .62 * lam) + spec * vec3(.95, .97, 1.);
+  lit = mix(lit, uC2 * 1.04, uFuzz * .45 * smoothstep(.85, 1.05, d));
   lit = min(lit, vec3(1.));
 
-  float th = clamp(s.y / max(uHeight, .001), 0., 1.);
-  alpha *= mix(1., .45 + .55 * smoothstep(0., .5, th), uTrans);
+  alpha *= mix(1., .4 + .6 * smoothstep(0., .5, th), uTrans);
   alpha *= mix(1., .1 + .9 * smoothstep(.55, 1., x) + spec, uBubble);
   alpha = clamp(alpha, 0., 1.);
 
   float ds = shape(p - vec2(.03, -.045) * uHeight * 6.).x;
-  float shA = (1. - smoothstep(.8, 1.2, ds)) * .32 * clamp(uHeight * 7., 0., 1.) * uBody;
+  float shA = (1. - smoothstep(.75, 1.3, ds)) * .28 * clamp(uHeight * 7., 0., 1.) * uBody;
   float haloA = uHalo * (1. - smoothstep(.95, uHaloR + .25 * (fbm(p * 3. + uSeed) - .5), d)) * (.45 + .6 * fbm(p * 4. + uSeed.yx));
   haloA = clamp(haloA, 0., 1.) * .7;
 
@@ -183,7 +198,7 @@ vec4 drops(vec2 p, float k, float sc, vec2 seed, float rl) {
   float rad = .12 + .3 * hash(c + 2.3), dd = length(f - ctr) / rad;
   float on = step(1. - mask * zone * k, hh) * step(dd, 1.);
   float da = on * smoothstep(.55, 1., dd) * .35;
-  float ha = on * (1. - smoothstep(0., .35, length(f - ctr - vec2(-.3, .3) * rad))) * .8;
+  float ha = on * (1. - smoothstep(0., .3, length(f - ctr - vec2(-.3, .3) * rad))) * .3;
   return vec4(da, ha, 0., 0.);
 }
 void main() {
@@ -198,10 +213,17 @@ void main() {
   a += smoothstep(0., .06, w.y - .52) * smoothstep(0., .05, .72 - w.y) * smoothstep(0., .15, .5 - abs(w.x)) * .07 * step(rl, 1.);
   a += (1. - smoothstep(0., 1.2, length(p - vec2(-.45, .5)))) * .07 * step(rl, 1.);
   vec4 o = vec4(vec3(a), a);
-  vec4 d1 = drops(p, .9, 70., uSeed, rl), d2 = drops(p, .5, 32., uSeed + 7., rl);
+  vec4 d1 = drops(p, .45, 70., uSeed, rl), d2 = drops(p, .25, 32., uSeed + 7., rl);
   float da = max(d1.x, d2.x), ha = max(d1.y, d2.y);
   o = vec4(vec3(.05, .08, .12) * da, da) + o * (1. - da);
   o = vec4(vec3(ha), ha) + o * (1. - ha);
+  float inDisk = step(length(p), 1.);
+  float vig = smoothstep(.5, 1., length(p)) * .2 * inDisk;
+  o = vec4(0., 0., 0., vig) + o * (1. - vig);
+  float gr = hash(floor(vUv * uPx) + uSeed) - .5, ga = abs(gr) * .07 * inDisk;
+  o = vec4((gr > 0. ? vec3(1.) : vec3(0.)) * ga, ga) + o * (1. - ga);
+  float dust = step(.9975, hash(floor(p * 140.) + uSeed + 3.)) * inDisk * .12;
+  o = vec4(vec3(dust), dust) + o * (1. - dust);
   gl_FragColor = o;
 }
 `;
@@ -259,7 +281,7 @@ function shade(pr, w, U, target) {
 
 // 군락 종류 = 파라미터 묶음
 const BASE = { R: .55, lobe: .05, lobeF: 2, height: .08, prof: .6, fuzz: 0, gloss: 0, radial: 0, rings: 0, ringF: 4, wrinkle: 0, speck: 0,
-  halo: 0, haloR: 1.5, trans: 0, velvet: .5, front: 3, body: 1, bubble: 0, c0: [1, 1, 1], c1: [1, 1, 1], c2: [1, 1, 1], c3: [1, 1, 1], cs: [0, 0, 0], beads: null };
+  halo: 0, haloR: 1.5, sector: .25, bands: 0, trans: 0, velvet: .5, front: 3, body: 1, bubble: 0, c0: [1, 1, 1], c1: [1, 1, 1], c2: [1, 1, 1], c3: [1, 1, 1], cs: [0, 0, 0], beads: null };
 function beadList(n, rmin, rmax, gap) {
   const out = [];
   for (let tries = 0; tries < 400 && out.length < n; tries++) {
@@ -270,39 +292,39 @@ function beadList(n, rmin, rmax, gap) {
   }
   return out;
 }
-const glossyColor = () => pick([[18, 80, 55], [35, 85, 58], [48, 80, 62], [355, 75, 45], [340, 60, 70], [195, 45, 60], [40, 40, 85], [0, 0, 90], [300, 30, 75]]);
+const glossyColor = () => pick([[40, 35, 82], [45, 55, 68], [22, 55, 58], [352, 50, 48], [330, 28, 76], [0, 0, 86], [55, 30, 74], [30, 40, 72], [190, 20, 70]]);
 const TYPES = {
   penicillium() {
     const h = rr(150, 195);
-    return { R: .52, lobe: rr(.03, .08), lobeF: rr(1.5, 3), height: rr(.05, .09), prof: .7, fuzz: rr(.55, .8), radial: rr(.6, 1), rings: rnd() < .4 ? rr(.3, .8) : 0, ringF: rr(3, 6),
+    return { sector: rr(.5, 1), bands: rr(.3, .9), R: .52, lobe: rr(.03, .08), lobeF: rr(1.5, 3), height: rr(.05, .09), prof: .7, fuzz: rr(.55, .8), radial: rr(.6, 1), rings: rnd() < .4 ? rr(.3, .8) : 0, ringF: rr(3, 6),
       velvet: 1, front: rr(.6, .8), halo: rnd() < .5 ? rr(.4, .8) : 0, haloR: 1.35, speck: rr(0, .3),
       c0: hsl(h, rr(18, 30), rr(28, 38)), c1: hsl(h, rr(15, 25), rr(45, 55)), c2: hsl(45, 30, 92), c3: hsl(rr(42, 52), 85, 52), cs: hsl(h, 20, 22) };
   },
   trichoderma() {
     const h = rr(90, 125);
-    return { R: .52, lobe: rr(.04, .1), lobeF: rr(1.5, 3), height: .07, prof: .7, fuzz: rr(.6, .85), radial: rr(.3, .7), rings: rr(.6, 1), ringF: rr(2.5, 4),
+    return { sector: rr(.5, 1), bands: rr(.3, .9), R: .52, lobe: rr(.04, .1), lobeF: rr(1.5, 3), height: .07, prof: .7, fuzz: rr(.6, .85), radial: rr(.3, .7), rings: rr(.6, 1), ringF: rr(2.5, 4),
       velvet: 1.1, front: rr(.65, .85), c0: hsl(h, rr(40, 55), rr(26, 34)), c1: hsl(h, 40, 46), c2: hsl(60, 25, 92), cs: hsl(h, 40, 18), speck: .2 };
   },
   niger() {
-    return { R: .5, lobe: rr(.06, .12), lobeF: rr(2, 4), height: .08, prof: .6, fuzz: rr(.35, .55), radial: .3, velvet: 1.2, front: rr(.75, .9), speck: 1,
+    return { sector: rr(.5, 1), bands: rr(.3, .9), R: .5, lobe: rr(.06, .12), lobeF: rr(2, 4), height: .08, prof: .6, fuzz: rr(.35, .55), radial: .3, velvet: 1.2, front: rr(.75, .9), speck: 1,
       halo: rr(.5, .9), haloR: 1.3, c0: hsl(25, 30, 8), c1: hsl(28, 35, 14), c2: hsl(48, 55, 80), c3: hsl(rr(45, 55), 90, 55), cs: hsl(20, 20, 3) };
   },
   rhizopus() {
-    return { R: .5, lobe: rr(.08, .15), lobeF: rr(2, 4), height: rr(.12, .18), prof: .35, fuzz: 1, velvet: 1.5, front: rr(.5, 1.5), speck: rr(.2, .6),
+    return { sector: .6, bands: .2, R: .5, lobe: rr(.08, .15), lobeF: rr(2, 4), height: rr(.12, .18), prof: .35, fuzz: 1, velvet: 1.5, front: rr(.5, 1.5), speck: rr(.2, .6),
       c0: hsl(40, 6, 70), c1: hsl(40, 8, 86), c2: hsl(45, 15, 96), cs: hsl(30, 10, 18) };
   },
   fusarium() {
     const h = pick([320, 335, 290, 15]);
-    return { R: .5, lobe: rr(.05, .12), lobeF: rr(2, 4), height: .09, prof: .5, fuzz: rr(.75, 1), radial: .4, velvet: 1.3, front: rr(.5, .8),
+    return { sector: rr(.5, 1), bands: rr(.3, .9), R: .5, lobe: rr(.05, .12), lobeF: rr(2, 4), height: .09, prof: .5, fuzz: rr(.75, 1), radial: .4, velvet: 1.3, front: rr(.5, .8),
       halo: rr(.5, .9), haloR: 1.45, c0: hsl(h, 40, 60), c1: hsl(h, 35, 77), c2: hsl(h, 20, 94), c3: hsl(h - 20, 60, 30) };
   },
-  glossy() {
-    const [h, s, l] = glossyColor();
-    return { R: .55, lobe: .02, height: rr(.16, .24), prof: .55, gloss: rr(.75, 1), trans: rr(.3, .6), velvet: .15, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4) };
+  glossy(o) {
+    const [h, s, l] = o.color || glossyColor();
+    return { R: .55, lobe: .03, height: rr(.05, .09), prof: .35, gloss: rr(.7, .95), trans: rr(.5, .8), velvet: .15, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4) };
   },
   ringed() {
     const [h, s, l] = pick([[340, 65, 70], [45, 60, 78], [200, 55, 58], [25, 70, 62], [280, 35, 72]]);
-    return { R: .55, lobe: .03, height: .06, prof: 1.2, gloss: .6, rings: 1, ringF: rr(3, 7), trans: .6, velvet: .2,
+    return { R: .55, lobe: .03, height: .035, prof: 1.2, gloss: .45, rings: .7, ringF: rr(3, 7), trans: .6, velvet: .2,
       c0: hsl(h, s, l - 10), c1: hsl(h, s, l + 5), c2: hsl(h, s, l + 5), halo: rnd() < .3 ? .3 : 0, c3: hsl(h, s, l - 20) };
   },
   wrinkled() {
@@ -311,12 +333,12 @@ const TYPES = {
   },
   beads(o) {
     const [h, s, l] = o.color || glossyColor();
-    return { R: .3, height: .22, prof: .5, gloss: rr(.8, 1), trans: rr(.2, .5), velvet: .1, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4),
-      beads: beadList(o.n || (4 + rnd() * 12 | 0), .07, .2, rnd() < .5 ? 0.85 : null) };
+    return { R: .3, height: .08, prof: .4, gloss: rr(.7, .95), trans: rr(.45, .75), velvet: .1, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4),
+      beads: beadList(o.n || (5 + rnd() * 11 | 0), .05, .15, null) };
   },
   yeast() {
     const [h, s, l] = pick([[40, 40, 86], [30, 50, 80], [0, 0, 92], [50, 50, 80], [15, 50, 75]]);
-    return { R: .3, height: .14, prof: .7, gloss: .3, velvet: .6, c0: hsl(h, s, l - 4), c1: hsl(h, s, l + 3), c2: hsl(h, s, l + 3), beads: beadList(5 + rnd() * 10 | 0, .08, .2, .9) };
+    return { R: .3, height: .06, prof: .5, gloss: .3, velvet: .6, c0: hsl(h, s, l - 4), c1: hsl(h, s, l + 3), c2: hsl(h, s, l + 3), beads: beadList(5 + rnd() * 10 | 0, .08, .2, .9) };
   },
   bubbles() {
     const h = pick([205, 215, 190, 30]);
@@ -333,6 +355,9 @@ const weighted = list => { let x = rnd() * list.reduce((s, [, w]) => s + w, 0); 
 class Colony {
   constructor(type, x, y, Rpx, dur, o = {}) {
     this.P = { ...BASE, ...TYPES[type](o) };
+    if (o.agar) for (const k of ['c0', 'c1', 'c2']) this.P[k] = this.P[k].map((v, i) => v * .86 + o.agar[i] * .14);
+    if (!this.P.halo && this.P.body && rnd() < .35)
+      Object.assign(this.P, { halo: rr(.25, .5), haloR: rr(1.3, 1.8), c3: pick([o.agar ? o.agar.map(v => v * .5) : hsl(0, 0, 20), hsl(52, 90, 60), hsl(290, 45, 35), hsl(20, 80, 45)]) });
     this.half = Math.min(S / 2, Math.ceil(Rpx / (this.P.beads ? .62 : this.P.R)));
     this.w = this.half * 2;
     this.cv = document.createElement('canvas');
@@ -344,7 +369,7 @@ class Colony {
     const P = this.P, g = .12 + .88 * e;
     const U = { uSeed: this.seed, uPx: this.w, uR: P.R * g, uAge: e, uLobe: P.lobe, uLobeF: P.lobeF, uHeight: P.height, uProf: P.prof, uFuzz: P.fuzz, uGloss: P.gloss,
       uRadial: P.radial, uRings: P.rings, uRingF: P.ringF, uWrinkle: P.wrinkle, uSpeck: P.speck, uHalo: P.halo * e, uHaloR: P.haloR, uTrans: P.trans, uVelvet: P.velvet,
-      uFront: P.front, uBody: P.body, uBubble: P.bubble, uC0: P.c0, uC1: P.c1, uC2: P.c2, uC3: P.c3, uCs: P.cs, uBN: 0 };
+      uFront: P.front, uSector: P.sector, uBands: P.bands, uBody: P.body, uBubble: P.bubble, uC0: P.c0, uC1: P.c1, uC2: P.c2, uC3: P.c3, uCs: P.cs, uBN: 0 };
     if (P.beads) {
       const arr = new Float32Array(48), spread = .55 + .45 * e;
       P.beads.forEach((b, i) => { arr[i * 3] = b[0] * spread; arr[i * 3 + 1] = b[1] * spread; arr[i * 3 + 2] = b[2] * g; });
@@ -378,7 +403,7 @@ class Dish {
   inside(x, y) { return Math.hypot(x - this.c, y - this.c) < this.Rin * .96; }
   spawn(type, x, y, Rpx, dur, o) {
     if (this.growing.length > 60) return;
-    this.growing.push(new Colony(type, x, y, Rpx, dur, o));
+    this.growing.push(new Colony(type, x, y, Rpx, dur, { agar: this.m.a, ...o }));
   }
   clip(g) { g.beginPath(); g.arc(this.c, this.c, this.Rin, 0, TAU); g.clip(); }
   render(now, frameNo) {
@@ -436,7 +461,7 @@ dishes.forEach(d => {
     if (!st || st.moved > 8 * DPR) return;
     const type = weighted(BIG), big = type === 'stain' ? rr(.18, .32) : rr(.08, .22);
     d.spawn(type, st.sx, st.sy, d.R * big, type === 'stain' ? rr(5000, 8000) : rr(3000, 6000), {});
-    for (let i = rnd() * 4 | 0; i > 0; i--) {
+    for (let i = 2 + rnd() * 8 | 0; i > 0; i--) {
       const t = rr(0, TAU), dd = d.R * big * rr(1.2, 1.9), x = st.sx + Math.cos(t) * dd, y = st.sy + Math.sin(t) * dd;
       if (d.inside(x, y)) d.spawn(pick(['glossy', 'beads', 'yeast']), x, y, d.R * rr(.02, .05), rr(2500, 5000), {});
     }
