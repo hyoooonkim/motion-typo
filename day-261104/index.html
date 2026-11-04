@@ -181,124 +181,6 @@ void main() {
 }
 `;
 
-// 접시 바닥: 그림자와 커스틱, 배지, 두꺼운 유리벽(배지를 굴절시켜 비추고 바깥으로 갈수록 반사가 세진다)
-const DISH_FS = COMMON + `
-uniform vec3 uA, uBc, uT1, uT2;
-uniform vec2 uSeed;
-uniform float uPx;
-const float RIN = .935;
-vec3 agarCol(vec2 p) {
-  vec3 ag = mix(uA, uBc, smoothstep(0., 1.2, length(p - vec2(-.25, .3))));
-  ag = mix(ag, uT1, smoothstep(.5, .78, fbm(p * 1.7 + uSeed)) * .6);
-  ag = mix(ag, uT2, smoothstep(.55, .82, fbm(p * 2.4 + uSeed * 1.9)) * .5);
-  return ag * (.95 + .1 * fbm(p * 30. + uSeed));
-}
-void main() {
-  vec2 p = (vUv * 2. - 1.) * 1.3;
-  float r = length(p), px = 2.6 / uPx, th = atan(p.y, p.x);
-  float lightA = .35 + .65 * pow(max(0., cos(th - 2.35)), 2.) + .35 * pow(max(0., cos(th + .8)), 4.);
-
-  vec2 Ld = normalize(vec2(-.5, .55)), dir = p / max(r, 1e-4);
-  vec2 sp = p - vec2(.045, -.07);
-  float sr = length(sp);
-  float soft = (1. - smoothstep(.8, 1.24, sr)) * .2;
-  float contact = exp(-max(0., r - 1.) / .018) * .16 * step(1., r);
-  vec3 tint = mix(uBc, vec3(0.), .55);
-  vec4 o = vec4(tint * soft, soft);
-  o = vec4(vec3(0.), contact) + o * (1. - contact);
-
-  float disk = 1. - smoothstep(1. - px, 1. + px, r);
-  vec3 ag = agarCol(p) * (.97 + .06 * noise(p * uPx * .25));
-  float m = smoothstep(RIN - .08, RIN, r);
-  ag = mix(ag, ag * .6, m * .65);
-  ag += vec3(.16) * exp(-pow((r - (RIN - .005)) / .003, 2.)) * lightA;
-  float edge = max(0., RIN - r);
-  ag *= 1. - .38 * exp(-edge / .045) * max(0., dot(dir, Ld));
-  ag += agarCol(p) * .3 * exp(-edge / .03) * max(0., -dot(dir, Ld));
-  ag *= 1. - .06 * exp(-pow((r - .82) / .006, 2.));
-  ag += vec3(.035) * exp(-pow((r - .812) / .004, 2.)) * lightA;
-  ag *= .94 + .1 * dot(p, Ld);
-  vec2 cell = floor(p * 90.), f = fract(p * 90.) - .5;
-  float hh = hash(cell + uSeed);
-  float part = step(.97, hh) * (1. - smoothstep(.05, .14, length(f - (vec2(hash(cell + 1.7), hash(cell + 3.1)) - .5) * .6)));
-  ag = mix(ag, ag * (hh > .988 ? 1.3 : .72), part * .6);
-
-  float wt = clamp((r - RIN) / (1. - RIN), 0., 1.);
-  vec2 q = p / max(r, 1e-4) * (RIN - .03 - wt * .14);
-  vec3 wall = agarCol(q) * .55 + vec3(.86, .89, .93) * .4;
-  float u = wt * 2. - 1.;
-  vec3 tn = normalize(vec3(dir * u, sqrt(max(0., 1. - u * u)) * .8 + .05));
-  vec3 L3 = normalize(vec3(Ld * .8, .6));
-  float wd = clamp(dot(tn, L3), 0., 1.);
-  float ws = pow(clamp(dot(reflect(-L3, tn), vec3(0., 0., 1.)), 0., 1.), 70.);
-  float wf = pow(1. - tn.z, 2.);
-  wall = mix(wall, vec3(.93, .95, .98), .2 + .35 * wf);
-  wall *= .74 + .36 * wd;
-  wall += vec3(.95, .97, 1.) * (ws * 1.1 + wf * .18);
-  wall += vec3(.92, .96, 1.) * exp(-pow((r - .991) / .0025, 2.)) * (.25 + .6 * lightA);
-  wall -= vec3(.34) * exp(-pow((r - .9995) / .002, 2.));
-  wall -= vec3(.2) * exp(-pow((r - (RIN + .0005)) / .0018, 2.));
-  wall -= vec3(.08) * (1. - wd) * smoothstep(.2, .8, wt) * (1. - smoothstep(.85, 1., wt));
-  wall += vec3(.92, .96, 1.) * exp(-pow((r - (RIN + .006)) / .002, 2.)) * (.15 + .45 * lightA);
-  float agar = 1. - smoothstep(RIN - px, RIN + px, r);
-  o = vec4(mix(wall, ag, agar), 1.) * disk + o * (1. - disk);
-  gl_FragColor = o;
-}
-`;
-
-// 뚜껑: 살짝 어긋난 테두리 띠, 짧고 날카로운 반사, 넓은 창문 반사, 김 서린 물방울, 그레인
-const LID_FS = COMMON + `
-uniform vec2 uSeed;
-uniform float uPx, uFog;
-vec4 drops(vec2 p, float k, float sc, vec2 seed, float rl) {
-  float zone = smoothstep(.74, .9, rl) * (1. - smoothstep(.94, .955, rl));
-  float mask = (smoothstep(.45, .65, fbm(p * 3. + seed)) + .25) * uFog;
-  vec2 g = p * sc, c = floor(g), f = fract(g);
-  float hh = hash(c + seed);
-  vec2 ctr = vec2(hash(c + 5.1), hash(c + 9.7)) * .6 + .2;
-  float rad = .12 + .3 * hash(c + 2.3), dd = length(f - ctr) / rad;
-  float on = step(1. - mask * zone * k, hh) * step(dd, 1.);
-  float da = on * smoothstep(.55, 1., dd) * .3;
-  float ha = on * (1. - smoothstep(0., .3, length(f - ctr - vec2(-.3, .3) * rad))) * .3;
-  return vec4(da, ha, 0., 0.);
-}
-void main() {
-  vec2 p = (vUv * 2. - 1.) * 1.3;
-  vec2 q = p - vec2(-.014, .018);
-  float rl = length(q), th = atan(q.y, q.x), px = 2.6 / uPx;
-  vec2 Ld = normalize(vec2(-.5, .55)), dir = q / max(rl, 1e-4);
-  float lightA = .3 + .7 * pow(max(0., cos(th - 2.35)), 2.) + .4 * pow(max(0., cos(th + .8)), 4.);
-  float inLid = 1. - smoothstep(1.012 - px, 1.012 + px, rl);
-  float lu = clamp((rl - .972) / .04, 0., 1.) * 2. - 1.;
-  vec3 tn = normalize(vec3(dir * lu, sqrt(max(0., 1. - lu * lu)) * .8 + .05));
-  float ls = pow(clamp(dot(reflect(-normalize(vec3(Ld * .8, .6)), tn), vec3(0., 0., 1.)), 0., 1.), 90.);
-  float band = smoothstep(.968, .976, rl) * inLid;
-  float a = band * (.05 + .1 * lightA + ls * .8 + pow(1. - tn.z, 2.) * .2);
-  float arc1 = pow(max(0., cos(th - 2.25)), 40.), arc2 = pow(max(0., cos(th + .85)), 60.);
-  a += (arc1 * .85 + arc2 * .5) * exp(-pow((rl - .99) / .005, 2.));
-  a += arc1 * .5 * exp(-pow((rl - .962) / .003, 2.));
-  a += .45 * lightA * exp(-pow((rl - 1.01) / .0018, 2.));
-  a += .22 * lightA * exp(-pow((rl - .97) / .002, 2.));
-  vec2 w = p * mat2(.8, -.6, .6, .8);
-  a += smoothstep(0., .06, w.y - .52) * smoothstep(0., .05, .72 - w.y) * smoothstep(0., .15, .5 - abs(w.x)) * .06 * inLid;
-  a += (1. - smoothstep(0., 1.2, length(p - vec2(-.45, .5)))) * .06 * inLid;
-  a += exp(-pow((rl - .9) / .012, 2.)) * pow(max(0., cos(th - 2.4)), 8.) * .12;
-  float dl = .28 * exp(-pow((rl - 1.013) / .0022, 2.)) + .1 * exp(-pow((rl - .969) / .002, 2.));
-  vec4 o = vec4(vec3(a), a) + vec4(0., 0., 0., dl) * (1. - a);
-  vec4 d1 = drops(p, .45, 70., uSeed, rl), d2 = drops(p, .25, 32., uSeed + 7., rl);
-  float da = max(d1.x, d2.x), ha = max(d1.y, d2.y);
-  o = vec4(vec3(.05, .08, .12) * da, da) + o * (1. - da);
-  o = vec4(vec3(ha), ha) + o * (1. - ha);
-  float vig = smoothstep(.5, 1., length(p)) * .2 * inLid;
-  o = vec4(0., 0., 0., vig) + o * (1. - vig);
-  float gr = hash(floor(vUv * uPx) + uSeed) - .5, ga = abs(gr) * .07 * inLid;
-  o = vec4((gr > 0. ? vec3(1.) : vec3(0.)) * ga, ga) + o * (1. - ga);
-  float dust = step(.9975, hash(floor(p * 140.) + uSeed + 3.)) * inLid * .12;
-  o = vec4(vec3(dust), dust) + o * (1. - dust);
-  gl_FragColor = o;
-}
-`;
-
 const DPR = Math.min(2, devicePixelRatio || 1), TAU = Math.PI * 2;
 const rnd = Math.random, rr = (a, b) => a + rnd() * (b - a), pick = a => a[rnd() * a.length | 0];
 const ease = t => 1 - Math.pow(1 - t, 3);
@@ -330,7 +212,7 @@ function program(fs) {
   const locs = {};
   return { p, a: gl.getAttribLocation(p, 'a'), loc: n => (n in locs ? locs[n] : (locs[n] = gl.getUniformLocation(p, n))) };
 }
-const PR = { colony: program(COLONY_FS), dish: program(DISH_FS), lid: program(LID_FS) };
+const PR = { colony: program(COLONY_FS) };
 function shade(pr, w, U, target) {
   gl.useProgram(pr.p);
   gl.enableVertexAttribArray(pr.a);
@@ -450,35 +332,37 @@ class Colony {
   }
 }
 
-// 접시마다 다른 배지 색과 뚜껑 김 서림 정도
-const MEDIA = [
-  { a: hsl(192, 55, 45), b: hsl(200, 70, 24), t1: hsl(180, 50, 50), t2: hsl(205, 70, 30), fog: .8 },
-  { a: hsl(12, 78, 52), b: hsl(355, 70, 34), t1: hsl(28, 85, 55), t2: hsl(178, 50, 38), fog: .5 },
-  { a: hsl(350, 72, 62), b: hsl(340, 70, 38), t1: hsl(48, 70, 82), t2: hsl(290, 45, 40), fog: .6 },
-  { a: hsl(260, 40, 46), b: hsl(235, 55, 30), t1: hsl(330, 55, 48), t2: hsl(205, 60, 42), fog: .7 },
-  { a: hsl(42, 82, 60), b: hsl(26, 75, 44), t1: hsl(50, 70, 80), t2: hsl(12, 65, 48), fog: .4 },
-  { a: hsl(195, 25, 82), b: hsl(200, 25, 62), t1: hsl(335, 40, 85), t2: hsl(60, 40, 88), fog: 1 },
+// 빈 유리 접시 사진(Azure gpt-image-2로 생성). cx·cy·r 은 사진 폭 대비 배지 영역, agar 는 배지 평균색
+const PLATES = [
+  { src: '01-teal', cx: .4959, cy: .488, r: .4113, agar: [.023, .422, .522] },
+  { src: '02-red', cx: .5023, cy: .5007, r: .4191, agar: [.882, .229, .107] },
+  { src: '03-pink', cx: .4963, cy: .4879, r: .4167, agar: [.943, .532, .582] },
+  { src: '04-purple', cx: .4985, cy: .4913, r: .3971, agar: [.418, .314, .594] },
+  { src: '05-amber', cx: .4982, cy: .4921, r: .4365, agar: [.984, .792, .299] },
+  { src: '06-clear', cx: .4984, cy: .4987, r: .4096, agar: [.942, .897, .798] },
 ];
 
+// 사진 위에 곰팡이를 쌓고, 사진에서 뽑은 반사광을 맨 위에 다시 얹는다
 class Dish {
   constructor(m) {
-    Object.assign(this, { m, c: S / 2, R: S / 2 / 1.3, growing: [], dirty: true, stroke: null });
-    this.Rin = this.R * .935;
+    Object.assign(this, { m, cx: m.cx * S, cy: m.cy * S, R: m.r * S, growing: [], dirty: true, stroke: null });
+    this.Rin = this.R * .965;
     const mk = () => { const c = document.createElement('canvas'); c.width = c.height = S; return c; };
     this.cv = mk(); this.ctx = this.cv.getContext('2d');
     this.settled = mk(); this.sctx = this.settled.getContext('2d');
     this.glass = mk();
-    shade(PR.dish, S, { uA: m.a, uBc: m.b, uT1: m.t1, uT2: m.t2, uSeed: [rr(0, 50), rr(0, 50)], uPx: S }, this.sctx);
-    shade(PR.lid, S, { uSeed: [rr(0, 50), rr(0, 50)], uPx: S, uFog: m.fog }, this.glass.getContext('2d'));
+    const load = (src, ctx) => { const im = new Image(); im.onload = () => { ctx.drawImage(im, 0, 0, S, S); this.dirty = true; }; im.src = src; };
+    load(`plates/${m.src}.jpg`, this.sctx);
+    load(`plates/${m.src}-hl.png`, this.glass.getContext('2d'));
   }
-  inside(x, y) { return Math.hypot(x - this.c, y - this.c) < this.Rin * .96; }
+  inside(x, y) { return Math.hypot(x - this.cx, y - this.cy) < this.Rin * .96; }
   spawn(type, x, y, Rpx, dur, o) {
     if (this.growing.length > 60) return;
     this.count = (this.count || 0) + 1;
     document.getElementById('submit').disabled = false;
-    this.growing.push(new Colony(type, x, y, Rpx, dur, { agar: this.m.a, ...o }));
+    this.growing.push(new Colony(type, x, y, Rpx, dur, { agar: this.m.agar, ...o }));
   }
-  clip(g) { g.beginPath(); g.arc(this.c, this.c, this.Rin, 0, TAU); g.clip(); }
+  clip(g) { g.beginPath(); g.arc(this.cx, this.cy, this.Rin, 0, TAU); g.clip(); }
   render(now, frameNo) {
     if (!this.dirty && !this.growing.length) return;
     this.dirty = false;
@@ -505,7 +389,7 @@ class Dish {
 
 // 접시 여러 장을 가로로 넘겨 본다
 const track = document.getElementById('track'), dotsEl = document.getElementById('dots');
-const dishes = [...MEDIA].sort(() => rnd() - .5).slice(0, 3).map(m => new Dish(m));
+const dishes = [...PLATES].sort(() => rnd() - .5).slice(0, 3).map(m => new Dish(m));
 
 dishes.forEach(d => {
   const slide = document.createElement('div');
@@ -544,7 +428,7 @@ dishes.forEach(d => {
 });
 
 function layout() {
-  const D = Math.min(fitD() * 1.3, innerWidth * .96, innerHeight * .96);
+  const D = Math.min(fitD() / .86, innerWidth * .98, innerHeight * .98);
   dishes.forEach(d => { d.cv.style.width = d.cv.style.height = D + 'px'; });
 }
 layout();
@@ -641,7 +525,7 @@ function pack(items, W) {
   for (const it of items) {
     // 작은 접시가 많고 큰 접시는 가끔. 작은 접시는 큰 접시 사이 틈을 메운다
     const f = mine.has(it.id) ? rr(.3, .4) : .025 + .38 * Math.pow(rnd(), 3.2);
-    const s = Math.max(26, Math.min(W * f, 560)), r = s / 2 / 1.3;
+    const s = Math.max(26, Math.min(W * f, 560)), r = s * .45;
     for (let y = Math.max(r, lastY - 900); ; y += 6) {
       let x = null;
       for (let t = 0; t < 40 && x === null; t++) {
