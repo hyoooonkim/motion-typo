@@ -32,6 +32,13 @@
   #wall img:hover { transform: scale(1.06); z-index: 1; }
   #wall img.mine { animation: pop .9s ease-out both; }
   @keyframes pop { from { transform: scale(.3); opacity: 0; } to { transform: none; opacity: 1; } }
+  #wall img { cursor: zoom-in; }
+  #zoom { position: fixed; inset: 0; z-index: 9; display: grid; place-items: center; background: rgba(0,0,0,.88); cursor: zoom-out; opacity: 0; transition: opacity .3s; }
+  #zoom[hidden] { display: none; }
+  #zoom.on { opacity: 1; }
+  #zoom img { width: min(92vw, 92vh); height: min(92vw, 92vh); transform: scale(.6); transition: transform .4s cubic-bezier(.2,.9,.3,1.2); }
+  #zoom.on img { transform: none; }
+  #zoom p { position: fixed; bottom: 18px; margin: 0; color: #6f86b5; font: 12px/1 ui-monospace, monospace; }
   #gmsg { color: #6f86b5; font: 13px/1.6 system-ui, sans-serif; text-align: center; padding-top: 30vh; }
 </style>
 </head>
@@ -47,6 +54,7 @@
   <header><button class="pill" id="again">← 다시 배양하기</button><span id="gcount"></span></header>
   <div id="wall"></div>
 </section>
+<div id="zoom" hidden><img alt="크게 본 배양 접시"><p></p></div>
 <script>
 const COMMON = `
 precision highp float;
@@ -595,11 +603,14 @@ const store = {
 };
 function snapshot(d) {
   d.render(performance.now() + 1e9, 0);
-  const n = 360, c = document.createElement('canvas');
+  const n = 640, c = document.createElement('canvas'), g = c.getContext('2d');
   c.width = c.height = n;
-  c.getContext('2d').drawImage(d.cv, 0, 0, n, n);
-  const webp = c.toDataURL('image/webp', .82);
-  return webp.startsWith('data:image/webp') ? webp : c.toDataURL('image/png');
+  g.drawImage(d.cv, 0, 0, n, n);
+  const webp = c.toDataURL('image/webp', .8);
+  if (webp.startsWith('data:image/webp') && webp.length < 380000) return webp;
+  // webp를 못 만드는 브라우저는 갤러리와 같은 검정 바탕의 jpeg로
+  g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
+  return c.toDataURL('image/jpeg', .82);
 }
 
 // 크기가 제각각인 접시를 위에서부터 빈자리에 채워 넣는다
@@ -639,9 +650,31 @@ async function openGallery() {
     im.src = p.img; im.alt = '배양 접시'; im.title = new Date(p.created_at).toLocaleDateString('ko-KR');
     Object.assign(im.style, { left: p.x - p.s / 2 + 'px', top: p.y - p.s / 2 + 'px', width: p.s + 'px', height: p.s + 'px' });
     if (mine.has(p.id)) { im.className = 'mine'; im.style.animationDelay = i * .15 + 's'; }
+    im.onclick = () => openZoom(placed, i);
     wall.appendChild(im);
   });
 }
+// 접시를 누르면 크게. 화살표로 앞뒤, 아무 데나 누르거나 Esc로 닫기
+const zoom = document.getElementById('zoom'), zimg = zoom.querySelector('img'), zcap = zoom.querySelector('p');
+let zlist = [], zi = 0;
+function showZoom() {
+  const p = zlist[zi];
+  zimg.src = p.img;
+  zcap.textContent = `${zi + 1} / ${zlist.length} · ${new Date(p.created_at).toLocaleDateString('ko-KR')}`;
+}
+function openZoom(list, i) {
+  zlist = list; zi = i; showZoom();
+  zoom.hidden = false;
+  requestAnimationFrame(() => zoom.classList.add('on'));
+}
+function closeZoom() { zoom.classList.remove('on'); setTimeout(() => { zoom.hidden = true; }, 300); }
+zoom.onclick = closeZoom;
+addEventListener('keydown', e => {
+  if (zoom.hidden) return;
+  if (e.key === 'Escape') closeZoom();
+  if (e.key === 'ArrowRight') { zi = (zi + 1) % zlist.length; showZoom(); }
+  if (e.key === 'ArrowLeft') { zi = (zi - 1 + zlist.length) % zlist.length; showZoom(); }
+});
 const submitBtn = document.getElementById('submit');
 let submitted = false;
 submitBtn.onclick = async () => {
