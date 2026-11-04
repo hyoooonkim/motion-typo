@@ -188,6 +188,24 @@ function draw() {
   for (const u of panels) stamp(u, u.x + u.w / 2, u.y + u.h / 2, false);
 }
 
+/* ───── 환승음: 카드 찍는 '삑' + "환승입니다" ───── */
+let ac;
+function transferSound() {
+  ac ||= new (window.AudioContext || window.webkitAudioContext)();
+  ac.resume();
+  const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'square'; o.frequency.value = 1980;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.005);
+  g.gain.setValueAtTime(0.12, t + 0.11); g.gain.linearRampToValueAtTime(0, t + 0.13);
+  o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + 0.14);
+  if (!window.speechSynthesis) return;
+  speechSynthesis.cancel();
+  const say = new SpeechSynthesisUtterance('환승입니다');
+  say.lang = 'ko-KR'; say.rate = 1.05; say.pitch = 1.15;
+  say.voice = speechSynthesis.getVoices().find(v => v.lang.startsWith('ko')) || null;
+  setTimeout(() => speechSynthesis.speak(say), 160);
+}
+
 /* ───── 끌기: 지나간 자리에 사진이 계속 찍힌다 ───── */
 // 끄는 동안 원래 통로가 새 위치로 따라와 다시 이어지고, 지나간 경로에는 잔상이 남는다
 let drag = null, queued = false;
@@ -205,6 +223,7 @@ cv.addEventListener('pointerdown', e => {
   const c = [u.x + u.w / 2, u.y + u.h / 2];
   drag = { u, dx: e.clientX - c[0], dy: e.clientY - c[1], trail: { u, pts: [c] } };
   trails.push(drag.trail);
+  transferSound();
   try { cv.setPointerCapture(e.pointerId); } catch {}
   cv.style.cursor = 'grabbing';
 });
