@@ -8,7 +8,7 @@
   html, body { margin: 0; height: 100%; overflow: hidden; background: #fff; }
   #track { display: flex; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; }
   #track::-webkit-scrollbar { display: none; }
-  .slide { flex: 0 0 100vw; height: 100%; display: grid; place-items: center; scroll-snap-align: center; }
+  .slide { flex: 0 0 100vw; height: 100%; overflow: hidden; display: grid; place-items: center; scroll-snap-align: center; }
   .slide canvas { touch-action: none; cursor: crosshair; display: block; }
   .back { position: fixed; left: 18px; top: 14px; z-index: 2; color: #aaa; font: 13px/1 system-ui, sans-serif; text-decoration: none; }
   .nav { position: fixed; top: 50%; z-index: 2; transform: translateY(-50%); padding: 18px; border: 0; background: none; color: #c4c4c4; font-size: 26px; cursor: pointer; }
@@ -197,7 +197,7 @@ const hsl = (h, s, l) => {
   return [0, 8, 4].map(n => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)));
 };
 const fitD = () => Math.max(320, Math.min(innerWidth * 0.86, innerHeight * 0.84));
-const S = Math.round(fitD() * DPR);
+const S = Math.min(2600, Math.round(fitD() / .69 * DPR));
 
 // 셰이더는 화면 밖 WebGL 캔버스 하나에서 돌리고, 결과를 2D 캔버스로 옮겨 쌓는다
 const glc = document.createElement('canvas');
@@ -341,12 +341,12 @@ class Colony {
 
 // 빈 유리 접시 사진(Azure gpt-image-2로 생성). cx·cy·r 은 사진 폭 대비 배지 영역, agar 는 배지 평균색
 const PLATES = [
-  { src: '01-teal', cx: .4959, cy: .488, r: .4113, agar: [.023, .422, .522] },
-  { src: '02-red', cx: .5023, cy: .5007, r: .4191, agar: [.882, .229, .107] },
-  { src: '03-pink', cx: .4963, cy: .4879, r: .4167, agar: [.943, .532, .582] },
-  { src: '04-purple', cx: .4985, cy: .4913, r: .3971, agar: [.418, .314, .594] },
-  { src: '05-amber', cx: .4982, cy: .4921, r: .4365, agar: [.984, .792, .299] },
-  { src: '06-clear', cx: .4984, cy: .4987, r: .4096, agar: [.942, .897, .798] },
+  { src: '01-teal', cx: .4968, cy: .4907, r: .3191, agar: [.023, .422, .522] },
+  { src: '02-red', cx: .5018, cy: .5005, r: .3251, agar: [.882, .229, .107] },
+  { src: '03-pink', cx: .4971, cy: .4906, r: .3233, agar: [.943, .532, .582] },
+  { src: '04-purple', cx: .4988, cy: .4933, r: .3081, agar: [.418, .314, .594] },
+  { src: '05-amber', cx: .4986, cy: .4939, r: .3386, agar: [.984, .792, .299] },
+  { src: '06-clear', cx: .4988, cy: .499, r: .3178, agar: [.942, .897, .798] },
 ];
 
 // 사진 위에 곰팡이를 쌓고, 사진에서 뽑은 반사광을 맨 위에 다시 얹는다
@@ -435,7 +435,7 @@ dishes.forEach(d => {
 });
 
 function layout() {
-  const D = Math.min(fitD() / .86, innerWidth * .98, innerHeight * .98);
+  const D = Math.min(fitD() / .69, innerWidth, innerHeight);
   dishes.forEach(d => { d.cv.style.width = d.cv.style.height = D + 'px'; });
 }
 layout();
@@ -521,7 +521,7 @@ function encode(src, n, limit) {
 }
 function snapshot(d) {
   d.render(performance.now() + 1e9, 0);
-  return { full: encode(d.cv, Math.min(S, 1400), 1400000), thumb: encode(d.cv, 480, 140000) };
+  return { full: encode(d.cv, Math.min(S, 1800), 1400000), thumb: encode(d.cv, 560, 140000) };
 }
 
 // 크기가 제각각인 접시를 위에서부터 빈자리에 채워 넣는다
@@ -532,7 +532,7 @@ function pack(items, W) {
   for (const it of items) {
     // 작은 접시가 조금 더 많고 큰 접시는 가끔. 내 접시는 큰 편
     const f = mine.has(it.id) ? rr(.22, .28) : .08 + .22 * Math.pow(rnd(), 1.6);
-    const s = Math.max(70, Math.min(W * f, 480)), r = s * .43;
+    const s = Math.max(90, Math.min(W * f * 1.27, 610)), r = s * .34;
     for (let y = Math.max(r, lastY - 900); ; y += 6) {
       let x = null;
       for (let t = 0; t < 40 && x === null; t++) {
