@@ -1,0 +1,468 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>유통기한 · 배양 접시</title>
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 45%, #123461 0%, #0b2347 55%, #071733 100%); }
+  #track { display: flex; height: 100%; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none; }
+  #track::-webkit-scrollbar { display: none; }
+  .slide { flex: 0 0 100vw; height: 100%; display: grid; place-items: center; scroll-snap-align: center; }
+  .slide canvas { touch-action: none; cursor: crosshair; display: block; }
+  .back { position: fixed; left: 18px; top: 14px; z-index: 2; color: #4f6694; font: 13px/1 system-ui, sans-serif; text-decoration: none; }
+  .nav { position: fixed; top: 50%; z-index: 2; transform: translateY(-50%); padding: 18px; border: 0; background: none; color: #3d5585; font-size: 26px; cursor: pointer; }
+  .nav:hover { color: #a9bce4; }
+  #prev { left: 4px; } #next { right: 4px; }
+  #dots { position: fixed; left: 0; right: 0; bottom: 22px; display: flex; justify-content: center; gap: 9px; }
+  #dots i { width: 6px; height: 6px; border-radius: 50%; background: #253f6e; transition: background .3s; }
+  #dots i.on { background: #a9bce4; }
+</style>
+</head>
+<body>
+<a class="back" href="../index.html">←</a>
+<div id="track"></div>
+<button class="nav" id="prev" aria-label="이전 접시">‹</button>
+<button class="nav" id="next" aria-label="다음 접시">›</button>
+<div id="dots"></div>
+<script>
+const DPR = Math.min(2, devicePixelRatio || 1), TAU = Math.PI * 2;
+const rnd = Math.random, rr = (a, b) => a + rnd() * (b - a), pick = a => a[rnd() * a.length | 0];
+const H = (h, s, l, a = 1) => `hsla(${h},${s}%,${l}%,${a})`;
+const ease = t => 1 - Math.pow(1 - t, 3);
+
+// 가장자리 모양: 저주파 사인 몇 개를 더해 울퉁불퉁한 원
+function harmonics(n, amp) {
+  const hs = [];
+  for (let k = 2; k < 2 + n; k++) hs.push([k, amp * rr(0.3, 1) / (k * 0.5), rr(0, TAU)]);
+  return t => 1 + hs.reduce((s, [k, a, p]) => s + a * Math.sin(k * t + p), 0);
+}
+function blob(g, R, sh, n = 120) {
+  g.beginPath();
+  for (let i = 0; i <= n; i++) { const t = i / n * TAU, r = R * sh(t); g.lineTo(Math.cos(t) * r, Math.sin(t) * r); }
+  g.closePath();
+}
+// 균사: 짧은 선을 수천 개, 투명도 3단으로 묶어 한 번에 그린다
+function fibers(g, n, R, sh, col, a0, a1, L0, L1, w) {
+  g.lineWidth = w;
+  for (let b = 0; b < 3; b++) {
+    g.strokeStyle = col.replace('A', (a0 + (a1 - a0) * b / 2).toFixed(3));
+    g.beginPath();
+    for (let i = 0; i < n / 3; i++) {
+      const t = rr(0, TAU), r = R * Math.sqrt(rnd()) * sh(t), x = Math.cos(t) * r, y = Math.sin(t) * r, a = rr(0, TAU), L = rr(L0, L1);
+      g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L);
+    }
+    g.stroke();
+  }
+}
+function edgeFuzz(g, n, R, sh, col, a0, a1, L0, L1, w) {
+  g.lineWidth = w;
+  for (let b = 0; b < 3; b++) {
+    g.strokeStyle = col.replace('A', (a0 + (a1 - a0) * b / 2).toFixed(3));
+    g.beginPath();
+    for (let i = 0; i < n / 3; i++) {
+      const t = rr(0, TAU), r = R * sh(t) * rr(0.88, 1.0), a = t + rr(-0.6, 0.6), L = rr(L0, L1);
+      const x = Math.cos(t) * r, y = Math.sin(t) * r;
+      g.moveTo(x, y); g.lineTo(x + Math.cos(a) * L, y + Math.sin(a) * L);
+    }
+    g.stroke();
+  }
+}
+function speckDots(g, n, R, sh, col, r0, r1, inner = 0) {
+  g.fillStyle = col; g.beginPath();
+  for (let i = 0; i < n; i++) {
+    const t = rr(0, TAU), d = R * sh(t) * Math.sqrt(rr(inner, 1)), r = rr(r0, r1), x = Math.cos(t) * d, y = Math.sin(t) * d;
+    g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU);
+  }
+  g.fill();
+}
+function sphere(g, x, y, r, h, s, l, alpha = 1) {
+  g.save(); g.globalAlpha = alpha;
+  g.fillStyle = 'rgba(0,0,0,0.22)'; g.beginPath(); g.arc(x + r * 0.1, y + r * 0.16, r * 1.03, 0, TAU); g.fill();
+  const gr = g.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.04, x, y, r);
+  gr.addColorStop(0, H(h, s, Math.min(97, l + 28))); gr.addColorStop(0.5, H(h, s, l)); gr.addColorStop(1, H(h, Math.min(100, s + 6), l - 18));
+  g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+  g.fillStyle = 'rgba(255,255,255,0.75)'; g.beginPath(); g.ellipse(x - r * 0.38, y - r * 0.42, r * 0.17, r * 0.1, -0.6, 0, TAU); g.fill();
+  g.restore();
+}
+function gloss(g, R, sh, a = 0.4) {
+  const gr = g.createRadialGradient(-R * 0.3, -R * 0.35, 0, -R * 0.3, -R * 0.35, R * 0.75);
+  gr.addColorStop(0, `rgba(255,255,255,${a})`); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; blob(g, R, sh); g.fill();
+}
+
+// 곰팡이·세균 군락 종류. 모두 원점 중심, 반지름 R 기준으로 그리고 가장자리 모양 함수를 돌려준다
+const GEN = {
+  // 푸른곰팡이: 방사형 주름 + 흰 솜털 테두리, 가끔 노란 후광
+  fuzzy(g, R) {
+    const sh = harmonics(5, 0.05), [h, s, l] = pick([[140, 18, 60], [160, 24, 54], [100, 22, 50], [188, 22, 56], [330, 30, 74], [45, 36, 68], [210, 10, 76], [75, 30, 52]]);
+    if (rnd() < 0.55) { g.save(); g.filter = `blur(${R * 0.05}px)`; blob(g, R * 1.08, sh); g.fillStyle = H(pick([48, 36, 58]), 90, 62, 0.9); g.fill(); g.restore(); }
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+    gr.addColorStop(0, H(h, s + 6, l - 12)); gr.addColorStop(0.62, H(h, s, l)); gr.addColorStop(0.88, H(h, s - 8, l + 16)); gr.addColorStop(1, H(48, 40, 93));
+    blob(g, R, sh); g.fillStyle = gr; g.fill();
+    g.save(); blob(g, R, sh); g.clip();
+    g.lineWidth = Math.max(1, R * 0.007);
+    for (const c of ['rgba(0,0,0,0.1)', 'rgba(255,255,255,0.13)']) {
+      g.strokeStyle = c; g.beginPath();
+      for (let i = 0; i < R * 0.7; i++) {
+        const t = rr(0, TAU), r0 = R * rr(0.04, 0.3), r1 = R * sh(t) * rr(0.7, 1);
+        g.moveTo(Math.cos(t) * r0, Math.sin(t) * r0); g.lineTo(Math.cos(t) * r1, Math.sin(t) * r1);
+      }
+      g.stroke();
+    }
+    if (rnd() < 0.6) { g.strokeStyle = 'rgba(255,255,255,0.2)'; g.lineWidth = R * 0.035; blob(g, R * rr(0.35, 0.7), sh); g.stroke(); }
+    fibers(g, R * R * 0.06, R, sh, 'rgba(255,255,255,A)', 0.05, 0.16, R * 0.01, R * 0.04, Math.max(1, R * 0.004));
+    fibers(g, R * R * 0.02, R * 0.8, sh, `hsla(${h},${s}%,${l - 25}%,A)`, 0.05, 0.12, R * 0.01, R * 0.03, Math.max(1, R * 0.004));
+    g.restore();
+    edgeFuzz(g, R * 8, R, sh, 'rgba(255,253,240,A)', 0.15, 0.5, R * 0.02, R * 0.09, Math.max(1, R * 0.005));
+    return sh;
+  },
+  // 검은곰팡이: 울퉁불퉁한 갈색·검정 알갱이, 노란 띠와 흰 솜털 테두리
+  sooty(g, R) {
+    const sh = harmonics(7, 0.1), body = t => sh(t) * 0.88;
+    g.save(); g.filter = `blur(${R * 0.04}px)`; blob(g, R * 1.06, sh); g.fillStyle = H(rr(40, 52), 92, 58, 0.95); g.fill(); g.restore();
+    blob(g, R * 0.97, sh); g.fillStyle = H(45, 45, 86); g.fill();
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+    gr.addColorStop(0, '#1b110a'); gr.addColorStop(0.75, '#36210f'); gr.addColorStop(1, '#5c3c1e');
+    blob(g, R, body); g.fillStyle = gr; g.fill();
+    g.save(); blob(g, R, body); g.clip();
+    speckDots(g, R * R * 0.02, R, body, '#0a0604', R * 0.004, R * 0.014);
+    speckDots(g, R * R * 0.012, R, body, 'rgba(120,80,45,0.8)', R * 0.003, R * 0.01);
+    speckDots(g, R * R * 0.004, R, body, 'rgba(200,170,120,0.5)', R * 0.002, R * 0.007);
+    g.restore();
+    edgeFuzz(g, R * 6, R * 0.97, sh, 'rgba(255,240,190,A)', 0.15, 0.45, R * 0.02, R * 0.07, Math.max(1, R * 0.005));
+    return sh;
+  },
+  // 반짝이는 구슬 세균: 동그란 알갱이 여러 개가 뭉친 무리
+  beads(g, R, o) {
+    const h0 = o.h ?? pick([14, 22, 340, 48, 0, 190, 30, 320]), s = h0 === 0 ? 8 : rr(60, 85), l = h0 === 0 ? 86 : rr(55, 66);
+    const n = o.n ?? (3 + rnd() * 12 | 0), list = [];
+    for (let i = 0; i < n; i++) {
+      const r = R * (i ? rr(0.12, 0.32) : rr(0.3, 0.45)), t = rr(0, TAU), d = i ? rr(0, R - r) : 0;
+      list.push({ x: Math.cos(t) * d, y: Math.sin(t) * d, r, h: h0 + rr(-8, 8), l: l + rr(-8, 8) });
+    }
+    list.sort((a, b) => a.y - b.y).forEach(b => sphere(g, b.x, b.y, b.r, b.h, s, b.l));
+    return () => 1.1;
+  },
+  // 동심원 군락: 반투명한 링이 겹친 렌즈 모양
+  ring(g, R) {
+    const sh = harmonics(3, 0.03), [h, s, l] = pick([[340, 70, 72], [350, 62, 62], [50, 60, 84], [200, 62, 58], [170, 50, 68], [20, 72, 64], [280, 40, 72]]);
+    const n = 3 + rnd() * 5 | 0;
+    for (let k = 0; k < n; k++) { blob(g, R * (1 - k / n * rr(0.8, 0.95)), sh); g.fillStyle = H(h + rr(-6, 6), s, l + (k % 2 ? 10 : -6), 0.5 + 0.4 * k / n); g.fill(); }
+    g.lineWidth = R * rr(0.03, 0.08); g.strokeStyle = H(h, s, l - 22, 0.8); blob(g, R * 0.96, sh); g.stroke();
+    if (rnd() < 0.45) { g.save(); blob(g, R * 0.9, sh); g.clip(); speckDots(g, R * 0.8, R * 0.9, sh, H(h, s, l - 28, 0.7), R * 0.012, R * 0.035, 0.15); g.restore(); }
+    gloss(g, R, sh, 0.45);
+    if (rnd() < 0.5) sphere(g, 0, 0, R * rr(0.1, 0.2), h, s, l + 8, 0.9);
+    return sh;
+  },
+  // 점박이 군락: 크림빛 원판에 붉은 점
+  dotted(g, R) {
+    const sh = harmonics(4, 0.03), [h, s, l] = pick([[40, 30, 93], [0, 0, 95], [340, 60, 88], [50, 70, 85], [190, 40, 88]]), [dh, ds, dl] = pick([[355, 72, 40], [10, 60, 34], [330, 52, 44], [25, 72, 44], [150, 40, 30]]);
+    const gr = g.createRadialGradient(-R * 0.2, -R * 0.25, 0, 0, 0, R);
+    gr.addColorStop(0, H(h, s, Math.min(99, l + 5))); gr.addColorStop(0.8, H(h, s, l)); gr.addColorStop(1, H(h, s, l - 15));
+    blob(g, R, sh); g.fillStyle = gr; g.fill();
+    g.lineWidth = Math.max(1, R * 0.015); g.strokeStyle = H(h, s, l - 25, 0.5); g.stroke();
+    g.save(); blob(g, R * 0.88, sh); g.clip();
+    speckDots(g, 12 + rnd() * 50 | 0, R * 0.88, sh, H(dh, ds, dl, 0.9), R * 0.02, R * 0.06);
+    g.restore();
+    gloss(g, R, sh, 0.5);
+    return sh;
+  },
+  // 쭈글쭈글한 뇌 모양 곰팡이: 물결 등고선을 겹쳐 주름을 만든다
+  wrinkled(g, R) {
+    const sh = harmonics(6, 0.09), [h, s, l] = pick([[85, 25, 54], [95, 30, 46], [345, 40, 82], [30, 30, 80], [110, 16, 58], [0, 0, 88]]);
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R);
+    gr.addColorStop(0, H(h, s, l - 6)); gr.addColorStop(1, H(h, s, l + 8));
+    blob(g, R, sh); g.fillStyle = gr; g.fill();
+    g.save(); blob(g, R, sh); g.clip();
+    for (let k = 1; k < 16; k++) {
+      const f = 1 - k / 16, p1 = rr(0, TAU), p2 = rr(0, TAU), fq = rr(6, 14) | 0;
+      const s2 = t => sh(t) * (1 + 0.07 * Math.sin(t * fq + p1) + 0.03 * Math.sin(t * (fq * 2 + 3) + p2));
+      g.lineWidth = R * 0.032; g.strokeStyle = 'rgba(0,0,0,0.17)'; blob(g, R * f, s2); g.stroke();
+      g.save(); g.translate(-R * 0.012, -R * 0.014); g.lineWidth = R * 0.016; g.strokeStyle = 'rgba(255,255,255,0.2)'; blob(g, R * f, s2); g.stroke(); g.restore();
+    }
+    fibers(g, R * R * 0.03, R, sh, 'rgba(255,255,255,A)', 0.04, 0.12, R * 0.01, R * 0.03, Math.max(1, R * 0.004));
+    g.restore();
+    edgeFuzz(g, R * 5, R, sh, 'rgba(255,255,245,A)', 0.1, 0.35, R * 0.02, R * 0.06, Math.max(1, R * 0.005));
+    return sh;
+  },
+  // 투명한 거품 덩어리
+  bubbles(g, R) {
+    const h = pick([210, 220, 195, 30, 280, 160]), list = [];
+    for (let tries = 0; tries < 500 && list.length < 45; tries++) {
+      const r = R * rr(0.08, 0.22), t = rr(0, TAU), d = R * Math.sqrt(rnd());
+      if (d + r > R) continue;
+      const x = Math.cos(t) * d, y = Math.sin(t) * d;
+      if (list.every(b => Math.hypot(b.x - x, b.y - y) > b.r + r - R * 0.03)) list.push({ x, y, r });
+    }
+    for (const b of list) {
+      const gr = g.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+      gr.addColorStop(0, H(h, 70, 50, 0.12)); gr.addColorStop(0.8, H(h, 70, 40, 0.35)); gr.addColorStop(1, H(h, 70, 28, 0.6));
+      g.fillStyle = gr; g.beginPath(); g.arc(b.x, b.y, b.r, 0, TAU); g.fill();
+      g.lineWidth = Math.max(1, R * 0.008); g.strokeStyle = H(h, 50, 15, 0.5); g.stroke();
+      g.lineCap = 'round'; g.lineWidth = b.r * 0.08; g.strokeStyle = 'rgba(255,255,255,0.65)';
+      g.beginPath(); g.arc(b.x, b.y, b.r * 0.76, -2.7, -1.7); g.stroke();
+      g.fillStyle = 'rgba(255,255,255,0.8)'; g.beginPath(); g.arc(b.x + b.r * 0.35, b.y + b.r * 0.4, b.r * 0.05, 0, TAU); g.fill();
+    }
+    return () => 1.05;
+  },
+  // 배지에 번지는 색소 얼룩
+  stain(g, R) {
+    const sh = harmonics(6, 0.15), h = pick([350, 0, 280, 230, 45, 320, 15, 190]);
+    g.save(); g.filter = `blur(${R * 0.12}px)`;
+    for (let i = 0; i < 7; i++) {
+      const t = rr(0, TAU), d = R * rr(0, 0.45);
+      g.beginPath(); g.arc(Math.cos(t) * d, Math.sin(t) * d, R * rr(0.3, 0.55), 0, TAU);
+      g.fillStyle = H(h + rr(-15, 15), rr(60, 90), rr(28, 55), 0.35); g.fill();
+    }
+    g.restore();
+    return sh;
+  },
+  // 솜뭉치 같은 흰 곰팡이
+  cotton(g, R) {
+    const sh = harmonics(6, 0.1), [h, s, l] = pick([[0, 0, 97], [345, 50, 92], [50, 50, 92], [90, 20, 88], [200, 30, 92]]);
+    for (let i = 0; i < 40; i++) {
+      const t = rr(0, TAU), d = R * Math.sqrt(rnd()) * 0.78 * sh(t), r = R * rr(0.15, 0.35), x = Math.cos(t) * d, y = Math.sin(t) * d;
+      const gr = g.createRadialGradient(x, y, 0, x, y, r);
+      gr.addColorStop(0, H(h, s, l, 0.5)); gr.addColorStop(1, H(h, s, l, 0));
+      g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill();
+    }
+    fibers(g, R * R * 0.08, R * 0.95, sh, 'rgba(255,255,255,A)', 0.06, 0.22, R * 0.02, R * 0.06, Math.max(1, R * 0.004));
+    edgeFuzz(g, R * 10, R, sh, 'rgba(255,255,255,A)', 0.1, 0.35, R * 0.03, R * 0.12, Math.max(1, R * 0.004));
+    return sh;
+  },
+  // 가는 실이 사방으로 뻗는 방사형 균사
+  star(g, R) {
+    const h = pick([270, 200, 0, 60, 330]), n = 24 + rnd() * 40 | 0;
+    g.lineCap = 'round';
+    for (let i = 0; i < n; i++) {
+      const t = i / n * TAU + rr(-0.06, 0.06), L = R * rr(0.5, 1), bend = rr(-0.3, 0.3);
+      g.strokeStyle = H(h, 30, rr(80, 95), rr(0.3, 0.7)); g.lineWidth = Math.max(1, R * rr(0.005, 0.014));
+      const mx = Math.cos(t + bend) * L * 0.5, my = Math.sin(t + bend) * L * 0.5, ex = Math.cos(t) * L, ey = Math.sin(t) * L;
+      g.beginPath(); g.moveTo(0, 0); g.quadraticCurveTo(mx, my, ex, ey); g.stroke();
+      if (rnd() < 0.5) { const b = t + rr(-0.5, 0.5), bl = L * rr(0.2, 0.4); g.beginPath(); g.moveTo(mx, my); g.lineTo(mx + Math.cos(b) * bl, my + Math.sin(b) * bl); g.stroke(); }
+      if (rnd() < 0.3) sphere(g, ex, ey, R * rr(0.015, 0.035), h, 30, 85);
+    }
+    sphere(g, 0, 0, R * 0.12, h, 30, 82);
+    return () => 1.05;
+  },
+  // 꽃 모양 무리: 연보라 알갱이가 초록 심을 둘러싼다
+  flower(g, R) {
+    const h = pick([280, 300, 330, 200, 20]), csh = harmonics(3, 0.04);
+    for (const [rad, r, m, a] of [[0.68, 0.28, 11 + rnd() * 4 | 0, 0.7], [0.46, 0.2, 8 + rnd() * 3 | 0, 0.8]]) {
+      const off = rr(0, TAU);
+      for (let i = 0; i < m; i++) {
+        const t = off + i / m * TAU, rad2 = R * rad * rr(0.92, 1.05);
+        sphere(g, Math.cos(t) * rad2, Math.sin(t) * rad2, R * r * rr(0.85, 1.1), h + rr(-10, 10), 40, rr(78, 88), a);
+      }
+    }
+    const gr = g.createRadialGradient(0, 0, 0, 0, 0, R * 0.36);
+    gr.addColorStop(0, H(80, 50, 36)); gr.addColorStop(1, H(95, 40, 24));
+    blob(g, R * 0.36, csh); g.fillStyle = gr; g.fill();
+    for (let i = 0; i < 18; i++) { const t = rr(0, TAU), d = R * 0.3 * Math.sqrt(rnd()); sphere(g, Math.cos(t) * d, Math.sin(t) * d, R * rr(0.025, 0.04), 55, 90, 58); }
+    return () => 1.08;
+  },
+  // 작은 점들이 흩뿌려진 군락
+  speckle(g, R, o) {
+    const h = o.h ?? pick([0, 45, 190, 20, 330]), n = 30 + rnd() * 80 | 0;
+    for (let i = 0; i < n; i++) {
+      const t = rr(0, TAU), d = R * Math.sqrt(rnd());
+      sphere(g, Math.cos(t) * d, Math.sin(t) * d, R * rr(0.015, 0.06), h, h === 0 ? 0 : 60, h === 0 ? 90 : 74);
+    }
+    return () => 1.05;
+  },
+};
+
+const BIG = [['fuzzy', 3], ['sooty', 2], ['ring', 2], ['wrinkled', 2], ['flower', 1.5], ['dotted', 1.5], ['beads', 2], ['bubbles', 1.5], ['cotton', 2], ['star', 1.2], ['stain', 1.5]];
+const STREAK = ['beads', 'beads', 'speckle', 'dotted', 'ring', 'fuzzy', 'cotton', 'bubbles', 'wrinkled', 'sooty'];
+const weighted = list => { let x = rnd() * list.reduce((s, [, w]) => s + w, 0); for (const [k, w] of list) if ((x -= w) < 0) return k; return list[0][0]; };
+
+function makeColony(type, R, o = {}) {
+  const half = Math.ceil(R * 1.3), cv = document.createElement('canvas');
+  cv.width = cv.height = half * 2;
+  const g = cv.getContext('2d');
+  g.translate(half, half);
+  const sh = GEN[type](g, R, o) || (() => 1);
+  return { cv, half, sh, jp: rr(0, TAU), jf: 18 + rnd() * 30 | 0 };
+}
+
+// 접시마다 다른 배지 색
+const MEDIA = [
+  { a: '#38a9bd', b: '#135c7c', tints: ['#46c6cc', '#1b7a9a', '#79d4c6', '#0f4f73'] },
+  { a: '#e5552f', b: '#9e1d22', tints: ['#f2903a', '#c42a4a', '#2aa3a0', '#7a1430'] },
+  { a: '#ea6a82', b: '#ad1f4b', tints: ['#f3e6b0', '#8a3aa0', '#ff8a7a', '#c02040'] },
+  { a: '#6c50ad', b: '#252d86', tints: ['#c0407a', '#2a7ac0', '#e0a040', '#3a1a70'] },
+  { a: '#ecbb48', b: '#bf6a1d', tints: ['#f2e3a6', '#d05030', '#7ab070', '#e08a30'] },
+  { a: '#d3e3e8', b: '#8fafbd', tints: ['#ebc2d2', '#b0d0e8', '#f2f1e0', '#9ac0b8'] },
+];
+
+class Dish {
+  constructor(m, S) {
+    Object.assign(this, { m, S, c: S / 2, R: S / 2 / 1.12, growing: [], dirty: true, stroke: null });
+    this.Rin = this.R * 0.955;
+    const mk = () => { const c = document.createElement('canvas'); c.width = c.height = S; return c; };
+    this.cv = mk(); this.ctx = this.cv.getContext('2d');
+    this.settled = mk(); this.sctx = this.settled.getContext('2d');
+    this.glass = mk();
+    this.paintMedium(); this.paintGlass();
+  }
+  paintMedium() {
+    const { sctx: g, c, R, Rin, m, S } = this;
+    g.save(); g.shadowColor = 'rgba(0,0,0,0.55)'; g.shadowBlur = R * 0.08; g.shadowOffsetY = R * 0.035;
+    g.fillStyle = '#0d2142'; g.beginPath(); g.arc(c, c, R, 0, TAU); g.fill(); g.restore();
+    g.fillStyle = 'rgba(170,200,235,0.1)'; g.beginPath(); g.arc(c, c, R, 0, TAU); g.fill();
+    g.save(); g.beginPath(); g.arc(c, c, Rin, 0, TAU); g.clip();
+    const gr = g.createRadialGradient(c - Rin * 0.2, c - Rin * 0.2, 0, c, c, Rin);
+    gr.addColorStop(0, m.a); gr.addColorStop(1, m.b);
+    g.fillStyle = gr; g.fillRect(0, 0, S, S);
+    g.filter = `blur(${Rin * 0.14}px)`; g.globalAlpha = 0.45;
+    for (let i = 0; i < 5; i++) {
+      const t = rr(0, TAU), d = Rin * rr(0, 0.8);
+      g.fillStyle = pick(m.tints); g.beginPath(); g.arc(c + Math.cos(t) * d, c + Math.sin(t) * d, Rin * rr(0.2, 0.5), 0, TAU); g.fill();
+    }
+    g.filter = 'none'; g.globalAlpha = 1;
+    for (const col of ['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.07)']) {
+      g.fillStyle = col; g.beginPath();
+      for (let i = 0; i < 2500; i++) { const x = rr(0, S), y = rr(0, S), r = rr(0.4, 1.4) * DPR; g.moveTo(x + r, y); g.arc(x, y, r, 0, TAU); }
+      g.fill();
+    }
+    const mg = g.createRadialGradient(c, c, Rin * 0.78, c, c, Rin);
+    mg.addColorStop(0, 'rgba(0,0,0,0)'); mg.addColorStop(1, 'rgba(0,0,0,0.3)');
+    g.fillStyle = mg; g.fillRect(0, 0, S, S);
+    g.restore();
+  }
+  paintGlass() {
+    const g = this.glass.getContext('2d'), { c, R, Rin } = this;
+    g.lineWidth = R * 0.02; g.strokeStyle = 'rgba(200,225,255,0.16)'; g.beginPath(); g.arc(c, c, R * 0.978, 0, TAU); g.stroke();
+    g.lineWidth = Math.max(1, R * 0.004);
+    g.strokeStyle = 'rgba(255,255,255,0.5)'; g.beginPath(); g.arc(c, c, R, 0, TAU); g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.3)'; g.beginPath(); g.arc(c, c, Rin, 0, TAU); g.stroke();
+    g.save(); g.filter = `blur(${R * 0.006}px)`; g.lineCap = 'round';
+    g.lineWidth = R * 0.014; g.strokeStyle = 'rgba(255,255,255,0.7)'; g.beginPath(); g.arc(c, c, R * 0.976, Math.PI * 1.06, Math.PI * 1.36); g.stroke();
+    g.lineWidth = R * 0.008; g.strokeStyle = 'rgba(255,255,255,0.4)'; g.beginPath(); g.arc(c, c, R * 0.976, Math.PI * 0.08, Math.PI * 0.26); g.stroke();
+    g.restore();
+    g.lineWidth = Math.max(1, R * 0.002); g.strokeStyle = 'rgba(255,255,255,0.3)';
+    for (let i = 0; i < 70; i++) {
+      const t = rr(0, TAU), d = R * rr(0.958, 0.99);
+      g.beginPath(); g.arc(c + Math.cos(t) * d, c + Math.sin(t) * d, R * rr(0.002, 0.008), 0, TAU); g.stroke();
+    }
+    const sg = g.createRadialGradient(c - R * 0.4, c - R * 0.45, 0, c - R * 0.4, c - R * 0.45, R * 1.1);
+    sg.addColorStop(0, 'rgba(255,255,255,0.08)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+    g.fillStyle = sg; g.beginPath(); g.arc(c, c, R, 0, TAU); g.fill();
+  }
+  inside(x, y) { return Math.hypot(x - this.c, y - this.c) < this.Rin * 0.96; }
+  spawn(type, x, y, R, dur, o) {
+    if (this.growing.length > 60) return;
+    this.growing.push({ col: makeColony(type, R, o), x, y, t0: performance.now(), dur });
+  }
+  bake(k) {
+    const g = this.sctx;
+    g.save(); g.beginPath(); g.arc(this.c, this.c, this.Rin, 0, TAU); g.clip();
+    g.drawImage(k.col.cv, k.x - k.col.half, k.y - k.col.half);
+    g.restore();
+  }
+  render(now) {
+    if (!this.dirty && !this.growing.length) return;
+    this.dirty = false;
+    const g = this.ctx, { c, Rin } = this;
+    g.clearRect(0, 0, this.S, this.S);
+    g.drawImage(this.settled, 0, 0);
+    g.save(); g.beginPath(); g.arc(c, c, Rin, 0, TAU); g.clip();
+    this.growing = this.growing.filter(k => {
+      const p = Math.min(1, (now - k.t0) / k.dur), s = k.col;
+      if (p >= 1) { g.drawImage(s.cv, k.x - s.half, k.y - s.half); this.bake(k); return false; }
+      const e = ease(p), M = s.half * 1.15 * e;
+      g.save(); g.translate(k.x, k.y);
+      g.beginPath();
+      for (let i = 0; i <= 90; i++) {
+        const t = i / 90 * TAU, r = M * s.sh(t) * (1 + 0.06 * Math.sin(t * s.jf + s.jp + p * 4));
+        g.lineTo(Math.cos(t) * r, Math.sin(t) * r);
+      }
+      g.clip();
+      const sc = 0.82 + 0.18 * e;
+      g.scale(sc, sc);
+      g.drawImage(s.cv, -s.half, -s.half);
+      g.restore();
+      return true;
+    });
+    g.restore();
+    g.drawImage(this.glass, 0, 0);
+  }
+}
+
+// 접시 여러 장을 가로로 넘겨 본다
+const track = document.getElementById('track'), dotsEl = document.getElementById('dots');
+const fitD = () => Math.max(320, Math.min(innerWidth * 0.86, innerHeight * 0.84));
+const S = Math.round(fitD() * DPR);
+const dishes = MEDIA.map(m => new Dish(m, S));
+
+dishes.forEach(d => {
+  const slide = document.createElement('div');
+  slide.className = 'slide'; slide.appendChild(d.cv); track.appendChild(slide);
+  dotsEl.appendChild(document.createElement('i'));
+  const pos = e => { const b = d.cv.getBoundingClientRect(); return [(e.clientX - b.left) * S / b.width, (e.clientY - b.top) * S / b.height]; };
+  d.cv.addEventListener('pointerdown', e => {
+    const [x, y] = pos(e);
+    if (!d.inside(x, y)) return;
+    try { d.cv.setPointerCapture(e.pointerId); } catch {}
+    d.stroke = { x, y, sx: x, sy: y, moved: 0, acc: 0, type: pick(STREAK), o: { h: pick([14, 22, 340, 48, 0, 190, 30, 320]) }, gap: d.R * rr(0.05, 0.09) };
+  });
+  d.cv.addEventListener('pointermove', e => {
+    const st = d.stroke;
+    if (!st) return;
+    const [x, y] = pos(e), step = Math.hypot(x - st.x, y - st.y);
+    st.moved += step; st.acc += step; st.x = x; st.y = y;
+    if (st.acc < st.gap || !d.inside(x, y)) return;
+    st.acc = 0;
+    const j = d.R * 0.03, size = d.R * rr(0.03, 0.09);
+    d.spawn(st.type, x + rr(-j, j), y + rr(-j, j), size, rr(900, 2200), st.o);
+    if (rnd() < 0.25) d.spawn('speckle', x + rr(-j, j) * 2, y + rr(-j, j) * 2, size * 1.5, rr(1200, 2500), {});
+  });
+  const end = () => {
+    const st = d.stroke;
+    d.stroke = null;
+    if (!st || st.moved > 8 * DPR) return;
+    const type = weighted(BIG), big = type === 'stain' ? rr(0.25, 0.45) : rr(0.12, 0.32);
+    d.spawn(type, st.sx, st.sy, d.R * big, type === 'stain' ? rr(5000, 8000) : rr(2500, 5000), {});
+    for (let i = rnd() * 4 | 0; i > 0; i--) {
+      const t = rr(0, TAU), dd = d.R * big * rr(1.1, 1.8), x = st.sx + Math.cos(t) * dd, y = st.sy + Math.sin(t) * dd;
+      if (d.inside(x, y)) d.spawn(pick(['beads', 'speckle', 'dotted', 'ring']), x, y, d.R * rr(0.025, 0.06), rr(2000, 4500), {});
+    }
+  };
+  d.cv.addEventListener('pointerup', end);
+  d.cv.addEventListener('pointercancel', end);
+});
+
+function layout() {
+  const D = fitD() * 1.12;
+  dishes.forEach(d => { d.cv.style.width = d.cv.style.height = Math.min(D, innerWidth * 0.96, innerHeight * 0.96) + 'px'; });
+}
+layout();
+addEventListener('resize', layout);
+
+const current = () => Math.round(track.scrollLeft / innerWidth);
+// 스냅이 부드러운 스크롤을 끊는 브라우저가 있어 직접 움직인다
+const go = i => {
+  const from = track.scrollLeft, to = Math.max(0, Math.min(dishes.length - 1, i)) * innerWidth, t0 = performance.now();
+  track.style.scrollSnapType = 'none';
+  const step = now => {
+    const p = Math.min(1, (now - t0) / 550);
+    track.scrollLeft = from + (to - from) * (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+    if (p < 1) requestAnimationFrame(step); else track.style.scrollSnapType = '';
+  };
+  requestAnimationFrame(step);
+};
+document.getElementById('prev').onclick = () => go(current() - 1);
+document.getElementById('next').onclick = () => go(current() + 1);
+addEventListener('keydown', e => { if (e.key === 'ArrowRight') go(current() + 1); if (e.key === 'ArrowLeft') go(current() - 1); });
+
+function frame(now) {
+  const i = current();
+  [...dotsEl.children].forEach((el, k) => el.classList.toggle('on', k === i));
+  for (let k = Math.max(0, i - 1); k <= Math.min(dishes.length - 1, i + 1); k++) dishes[k].render(now);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
