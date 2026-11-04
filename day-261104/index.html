@@ -77,7 +77,7 @@ float pnoise(vec2 p, float per) {
 // 군락 하나: 높이맵 → 법선 → 조명. 파라미터로 곰팡이·세균·거품·색소를 모두 만든다
 const COLONY_FS = COMMON + `
 uniform vec2 uSeed;
-uniform float uSector, uBands;
+uniform float uSector, uBands, uCotton, uUmbo;
 uniform float uPx, uR, uAge, uLobe, uLobeF, uHeight, uProf, uFuzz, uGloss, uRadial, uRings, uRingF, uWrinkle, uSpeck, uHalo, uHaloR, uTrans, uVelvet, uFront, uBody, uBubble;
 uniform vec3 uC0, uC1, uC2, uC3, uCs;
 uniform vec3 uB[16];
@@ -104,8 +104,11 @@ vec2 shape(vec2 p) {
 }
 float detailH(vec2 p, float d) {
   float x = min(d, 1.), r = length(p), a = atan(p.y, p.x) / TAU + .5, h = 0.;
-  h += uRadial * .05 * (pnoise(vec2(a * 64., r * 4. + uSeed.x), 64.) - .5) * smoothstep(1., .15, x);
-  h += uRadial * .03 * (pnoise(vec2(a * 160., r * 9. + uSeed.y), 160.) - .5) * smoothstep(1., .3, x);
+  // 방사형 주름은 가운데로 모이지 않게 중간~바깥에만
+  float rz = smoothstep(.15, .55, x) * (1. - smoothstep(.92, 1., x));
+  h += uRadial * .035 * (pnoise(vec2(a * 64., r * 4. + uSeed.x), 64.) - .5) * rz;
+  h += uRadial * .02 * (pnoise(vec2(a * 160., r * 9. + uSeed.y), 160.) - .5) * rz;
+  h += uUmbo * .06 * exp(-x * x * 30.);
   h += uRings * .014 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5) * smoothstep(1., .85, x);
   float w = 1. - abs(fbm(p * 6. + uSeed + vec2(fbm(p * 2.5 + uSeed.yx)) * 1.6) * 2. - 1.);
   h += uWrinkle * .09 * pow(w, 2.5) * smoothstep(1., .25, x);
@@ -146,7 +149,7 @@ void main() {
   col *= 1. + uRings * .14 * sin(x * uRingF * TAU + fbm(p * 5. + uSeed) * 2.5);
   float sp = smoothstep(.62, .8, noise(p * uPx * .09 + uSeed)) * smoothstep(.4, .9, noise(p * uPx * .02 + uSeed.yx));
   col = mix(col, uCs, clamp(sp * uSpeck * 1.6, 0., 1.) * spor);
-  col *= 1. + uVelvet * (.22 * (fbm(p * uPx * .05 + uSeed * 3.) - .5) + .14 * (noise(p * uPx * .4 + uSeed) - .5));
+  col *= 1. + uVelvet * (.22 * (fbm(p * uPx * .05 + uSeed * 3.) - .5) + .18 * (fbm(p * uPx * .16 + uSeed.yx) - .5) + .14 * (noise(p * uPx * .4 + uSeed) - .5));
   col *= clamp(1. + det * 7., .55, 1.15);
 
   // 조명: 부드러운 확산광 + 젖은 표면엔 창문 모양 반사
@@ -163,9 +166,13 @@ void main() {
   col *= 1. - uGloss * .3 * smoothstep(.82, .99, x) * (1. - uFuzz);
   vec3 lit = col * (.5 + .62 * lam) + spec * vec3(.95, .97, 1.);
   lit = mix(lit, uC2 * 1.04, uFuzz * .45 * smoothstep(.85, 1.05, d));
+  // 공중 균사: 군데군데 반투명한 흰 솜 구름
+  float cl = fbm(p * 9. + uSeed);
+  lit = mix(lit, vec3(.97, .96, .94), uCotton * .4 * smoothstep(.35, .75, cl));
   lit = min(lit, vec3(1.));
 
   alpha *= mix(1., .4 + .6 * smoothstep(0., .5, th), uTrans);
+  alpha *= mix(1., .5 + .5 * smoothstep(.25, .7, cl), uCotton * smoothstep(.5, 1., d));
   alpha *= mix(1., .1 + .9 * smoothstep(.55, 1., x) + spec, uBubble);
   alpha = clamp(alpha, 0., 1.);
 
@@ -234,7 +241,7 @@ function shade(pr, w, U, target) {
 
 // 군락 종류 = 파라미터 묶음
 const BASE = { R: .55, lobe: .05, lobeF: 2, height: .08, prof: .6, fuzz: 0, gloss: 0, radial: 0, rings: 0, ringF: 4, wrinkle: 0, speck: 0,
-  halo: 0, haloR: 1.5, sector: .25, bands: 0, trans: 0, velvet: .5, front: 3, body: 1, bubble: 0, c0: [1, 1, 1], c1: [1, 1, 1], c2: [1, 1, 1], c3: [1, 1, 1], cs: [0, 0, 0], beads: null };
+  halo: 0, haloR: 1.5, sector: .25, bands: 0, cotton: 0, umbo: 0, trans: 0, velvet: .5, front: 3, body: 1, bubble: 0, c0: [1, 1, 1], c1: [1, 1, 1], c2: [1, 1, 1], c3: [1, 1, 1], cs: [0, 0, 0], beads: null };
 function beadList(n, rmin, rmax, gap) {
   const out = [];
   for (let tries = 0; tries < 400 && out.length < n; tries++) {
@@ -249,7 +256,7 @@ const glossyColor = () => pick([[40, 35, 82], [45, 55, 68], [22, 55, 58], [352, 
 const TYPES = {
   penicillium() {
     const h = rr(150, 195);
-    return { sector: rr(.5, 1), bands: rr(.3, .9), R: .52, lobe: rr(.03, .08), lobeF: rr(1.5, 3), height: rr(.05, .09), prof: .7, fuzz: rr(.55, .8), radial: rr(.6, 1), rings: rnd() < .4 ? rr(.3, .8) : 0, ringF: rr(3, 6),
+    return { sector: rr(.5, 1), bands: rr(.3, .9), cotton: rr(0, .4), R: .52, lobe: rr(.05, .13), lobeF: rr(1.5, 3.5), height: rr(.04, .07), prof: .8, fuzz: rr(.55, .8), radial: rr(.3, .7), rings: rnd() < .4 ? rr(.3, .8) : 0, ringF: rr(3, 6),
       velvet: 1, front: rr(.6, .8), halo: rnd() < .5 ? rr(.4, .8) : 0, haloR: 1.35, speck: rr(0, .3),
       c0: hsl(h, rr(18, 30), rr(28, 38)), c1: hsl(h, rr(15, 25), rr(45, 55)), c2: hsl(45, 30, 92), c3: hsl(rr(42, 52), 85, 52), cs: hsl(h, 20, 22) };
   },
@@ -263,17 +270,17 @@ const TYPES = {
       halo: rr(.5, .9), haloR: 1.3, c0: hsl(25, 30, 8), c1: hsl(28, 35, 14), c2: hsl(48, 55, 80), c3: hsl(rr(45, 55), 90, 55), cs: hsl(20, 20, 3) };
   },
   rhizopus() {
-    return { sector: .6, bands: .2, R: .5, lobe: rr(.08, .15), lobeF: rr(2, 4), height: rr(.12, .18), prof: .35, fuzz: 1, velvet: 1.5, front: rr(.5, 1.5), speck: rr(.2, .6),
+    return { sector: .6, bands: .2, cotton: 1, R: .5, lobe: rr(.08, .15), lobeF: rr(2, 4), height: rr(.12, .18), prof: .35, fuzz: 1, velvet: 1.5, front: rr(.5, 1.5), speck: rr(.2, .6),
       c0: hsl(40, 6, 70), c1: hsl(40, 8, 86), c2: hsl(45, 15, 96), cs: hsl(30, 10, 18) };
   },
   fusarium() {
     const h = pick([320, 335, 290, 15]);
-    return { sector: rr(.5, 1), bands: rr(.3, .9), R: .5, lobe: rr(.05, .12), lobeF: rr(2, 4), height: .09, prof: .5, fuzz: rr(.75, 1), radial: .4, velvet: 1.3, front: rr(.5, .8),
+    return { sector: rr(.5, 1), bands: rr(.3, .9), cotton: rr(.4, .8), R: .5, lobe: rr(.05, .12), lobeF: rr(2, 4), height: .09, prof: .5, fuzz: rr(.75, 1), radial: .4, velvet: 1.3, front: rr(.5, .8),
       halo: rr(.5, .9), haloR: 1.45, c0: hsl(h, 40, 60), c1: hsl(h, 35, 77), c2: hsl(h, 20, 94), c3: hsl(h - 20, 60, 30) };
   },
   glossy(o) {
     const [h, s, l] = o.color || glossyColor();
-    return { R: .55, lobe: .03, height: rr(.05, .09), prof: .35, gloss: rr(.7, .95), trans: rr(.5, .8), velvet: .15, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4) };
+    return { umbo: rnd() < .4 ? rr(.5, 1) : 0, R: .55, lobe: rnd() < .3 ? rr(.07, .13) : .03, lobeF: rr(2, 5), height: rr(.05, .09), prof: .35, gloss: rr(.7, .95), trans: rr(.5, .8), velvet: .15, c0: hsl(h, s, l - 8), c1: hsl(h, s, l + 4), c2: hsl(h, s, l + 4) };
   },
   ringed() {
     const [h, s, l] = pick([[340, 65, 70], [45, 60, 78], [200, 55, 58], [25, 70, 62], [280, 35, 72]]);
@@ -322,7 +329,7 @@ class Colony {
     const P = this.P, g = .12 + .88 * e;
     const U = { uSeed: this.seed, uPx: this.w, uR: P.R * g, uAge: e, uLobe: P.lobe, uLobeF: P.lobeF, uHeight: P.height, uProf: P.prof, uFuzz: P.fuzz, uGloss: P.gloss,
       uRadial: P.radial, uRings: P.rings, uRingF: P.ringF, uWrinkle: P.wrinkle, uSpeck: P.speck, uHalo: P.halo * e, uHaloR: P.haloR, uTrans: P.trans, uVelvet: P.velvet,
-      uFront: P.front, uSector: P.sector, uBands: P.bands, uBody: P.body, uBubble: P.bubble, uC0: P.c0, uC1: P.c1, uC2: P.c2, uC3: P.c3, uCs: P.cs, uBN: 0 };
+      uFront: P.front, uSector: P.sector, uBands: P.bands, uCotton: P.cotton, uUmbo: P.umbo, uBody: P.body, uBubble: P.bubble, uC0: P.c0, uC1: P.c1, uC2: P.c2, uC3: P.c3, uCs: P.cs, uBN: 0 };
     if (P.beads) {
       const arr = new Float32Array(48), spread = .55 + .45 * e;
       P.beads.forEach((b, i) => { arr[i * 3] = b[0] * spread; arr[i * 3 + 1] = b[1] * spread; arr[i * 3 + 2] = b[2] * g; });
