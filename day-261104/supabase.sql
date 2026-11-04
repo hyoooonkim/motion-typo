@@ -10,3 +10,5 @@ alter table public.dishes enable row level security;
 -- 누구나 보기와 제출만 가능. 수정·삭제 정책은 만들지 않는다
 create policy "dishes are public" on public.dishes for select using (true);
 create policy "anyone can submit" on public.dishes for insert with check (true);
+
+-- (2026-11-05 추가) 썸네일 칸과 원본 용량 상한은 supabase-update.sql 참고
