@@ -46,6 +46,9 @@ const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const INK = '58,42,26', HOME = [127, 37.5], DEG = 180 / Math.PI;
 let W = 0, H = 0, DPR = 1, BASE = 300, z = 1, rot = [-HOME[0], -HOME[1]], spin = [0, 0];
 let drag = null, homing = false, moved = false, idle = 0, last = performance.now();
+// 사용자가 직접 돌린 누적 각도. 세 바퀴부터 일곱 바퀴까지 Q 가 0→1 로 오르며 지도가 흐려지고 용이 떠오른다
+let spun = 0, Q = 0;
+const REVEAL_FROM = 1080, REVEAL_SPAN = 1440;
 
 function hash(x, y, s = 0) {
   let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0;
@@ -66,9 +69,10 @@ const jit = (lon, lat, u) => { const k = u * u * 2.4; return [lon + (vnoise(lon 
 const proj = d3.geoOrthographic().clipAngle(90).precision(0);
 const path = d3.geoPath(proj, ctx);
 const GRAT = d3.geoGraticule10();
-let COAST = [], COAST_FINE = [], RIVER = [], LABELS = [], UNKNOWN = [], PHRASE = [];
+let COAST = [], COAST_FINE = [], COAST0 = [], COAST_FINE0 = [], RIVER0 = [], RIVER = [], LABELS = [], UNKNOWN = [], PHRASE = [];
 
 // 선을 짧은 조각으로 나누고, 알려진 정도별로 10묶음으로 모아 둔다
+function cleanLines(lines) { return [{ u: 0, geo: { type: 'MultiLineString', coordinates: lines.filter(l => l.length > 1) } }]; }
 function bucketLines(lines, step, drop) {
   const B = Array.from({ length: 10 }, () => []);
   for (const ln of lines) for (let i = 0; i < ln.length - 1; i += step) {
@@ -87,14 +91,15 @@ async function loadWorld() {
   ]);
   // 멀리서는 가벼운 1:1억1천만, 확대하면 정밀한 1:5천만 해안선
   const ringsOf = t => { const out = []; for (const f of topojson.feature(t, t.objects.land).features) { const g = f.geometry; (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).forEach(p => p.forEach(r => out.push(r.filter(([, lat]) => lat > -84)))); } return out; };
-  COAST = bucketLines(ringsOf(small), 4, true);
-  COAST_FINE = bucketLines(ringsOf(topo), 10, true);
-  RIVER = bucketLines(places.rivers.map(seg => seg.map(([lat, lon]) => [lon, lat])), 8, true);
+  const small_ = ringsOf(small), fine_ = ringsOf(topo), rivers_ = places.rivers.map(seg => seg.map(([lat, lon]) => [lon, lat]));
+  COAST0 = cleanLines(small_); COAST_FINE0 = cleanLines(fine_); RIVER0 = cleanLines(rivers_);
+  COAST = bucketLines(small_, 4, true);
+  COAST_FINE = bucketLines(fine_, 10, true);
+  RIVER = bucketLines(rivers_, 8, true);
   LABELS = places.labels.map(([n, lat, lon, k, sz, side]) => {
-    const u = unc(lon, lat), hk = n.length * 7 + (lon * 10 | 0);
-    const txt = [...n].map((ch, i) => ch !== ' ' && hash(hk, i, 30) < u * 1.2 ? '?' : ch).join('');
-    return { txt, p: jit(lon, lat, u), k, sz, side, u };
-  }).filter(l => l.u < .82);
+    const u = unc(lon, lat);
+    return { name: n, ch: [...n], hk: n.length * 7 + (lon * 10 | 0), p0: [lon, lat], pj: jit(lon, lat, u), p: [lon, lat], k, sz, side, u };
+  });
   for (let lat = -78; lat <= 80; lat += 7) for (let lon = -180; lon < 180; lon += 7 / Math.max(.25, Math.cos(lat / DEG))) {
     const u = unc(lon, lat);
     if (u > .78 && hash(lon * 10 | 0, lat * 10 | 0, 71) < .3) UNKNOWN.push({ p: [lon + hash(lon | 0, lat | 0, 72) * 4, lat + hash(lon | 0, lat | 0, 73) * 4], u, s: hash(lon | 0, lat | 0, 74) });
@@ -155,19 +160,22 @@ function drawGlobe(R, cx, cy, t) {
   ctx.beginPath(); path(GRAT); ctx.strokeStyle = `rgba(${INK},.17)`; ctx.lineWidth = .6; ctx.stroke();
   ctx.beginPath(); path({ type: 'LineString', coordinates: [[-180, 0], [-90, 0], [0, 0], [90, 0], [180, 0]] }); ctx.strokeStyle = `rgba(${INK},.35)`; ctx.lineWidth = 1; ctx.stroke();
   const lw = clamp(Math.sqrt(z), 1, 2.2);
-  for (const { u, geo } of (z >= 1.8 && COAST_FINE.length ? COAST_FINE : COAST)) {
-    if (!geo.coordinates.length) continue;
+  const fine = z >= 1.8 && COAST_FINE.length;
+  for (const [set, fade] of [[fine ? COAST_FINE0 : COAST0, 1 - Q], [fine ? COAST_FINE : COAST, Q]]) for (const { u, geo } of set) {
+    if (!geo.coordinates.length || fade < .01) continue;
+    ctx.globalAlpha = fade;
     ctx.beginPath(); path(geo);
     ctx.setLineDash(u > .5 ? [5 * lw, (3 + u * 8) * lw] : []);
     if (z < 3) { ctx.strokeStyle = `rgba(${INK},${.1 * (1 - u)})`; ctx.lineWidth = 7 * lw; ctx.stroke(); }
     ctx.strokeStyle = `rgba(${INK},${.92 * (1 - u * .8)})`; ctx.lineWidth = 1.25 * lw; ctx.stroke();
   }
-  for (const { u, geo } of RIVER) {
-    if (!geo.coordinates.length) continue;
+  for (const [set, fade] of [[RIVER0, 1 - Q], [RIVER, Q]]) for (const { u, geo } of set) {
+    if (!geo.coordinates.length || fade < .01) continue;
+    ctx.globalAlpha = fade;
     ctx.beginPath(); path(geo); ctx.setLineDash(u > .5 ? [3, 4 + u * 6] : []);
     ctx.strokeStyle = `rgba(${INK},${.5 * (1 - u)})`; ctx.lineWidth = .7 * lw; ctx.stroke();
   }
-  ctx.setLineDash([]);
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
 
   // 지명: 지구 표면에 인쇄된 것처럼, 글자마다 그 자리의 위선 방향과 구의 기울기를 따른다
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -193,16 +201,19 @@ function drawGlobe(R, cx, cy, t) {
     ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 1;
   }
   for (const L of LABELS) {
+    const uq = L.u * Q; if (uq > .82) continue;
+    L.p[0] = L.p0[0] + (L.pj[0] - L.p0[0]) * Q; L.p[1] = L.p0[1] + (L.pj[1] - L.p0[1]) * Q;
+    L.txt = L.ch.map((ch, i) => ch !== ' ' && hash(L.hk, i, 30) < uq * 1.2 ? '?' : ch).join('');
     const d = d3.geoDistance(L.p, center); if (d > 1.5) continue;
     const [x, y] = proj(L.p); if (x < -150 || y < -60 || x > W + 150 || y > H + 60) continue;
     const sp = L.k === 1 ? 6 : L.k === 0 ? 3 : 0;
     ctx.font = `${L.k === 0 ? 900 : 500} ${L.sz}px 'Noto Serif KR'`;
-    if (!L.w) L.w = ctx.measureText(L.txt).width / L.sz;
+    if (!L.w) L.w = ctx.measureText(L.name).width / L.sz;
     // 겹침 검사용 상자: 가장자리일수록 옆으로 눌린 폭
     const squash = Math.max(.15, Math.cos(d)), w = (L.w * L.sz + sp * [...L.txt].length) * fs * squash, h = L.sz * fs * .7;
     const b = L.k === 2 ? (L.side < 0 ? [x - w - 8, y - h, x + 3, y + h] : [x - 3, y - h, x + w + 8, y + h]) : [x - w / 2, y - h, x + w / 2, y + h];
     if (hit(b)) continue; boxes.push(b);
-    const a = (.18 + .8 * (1 - L.u)) * (L.k === 3 ? .7 : 1);
+    const a = (.18 + .8 * (1 - uq)) * (L.k === 3 ? .7 : 1);
     ctx.fillStyle = `rgba(${INK},1)`;
     const [lon, lat] = L.p;
     if (L.k === 2) {
@@ -215,15 +226,15 @@ function drawGlobe(R, cx, cy, t) {
     } else surface(L.txt, lon, lat, L.sz, sp, L.k ? -.2 : 0, 0, a);
   }
   // 지구 반대편: 물음표와 '여기서부터는 용이 산다'
-  for (const q of UNKNOWN) {
+  for (const q of Q > .02 ? UNKNOWN : []) {
     const d = d3.geoDistance(q.p, center); if (d > 1.5) continue;
     ctx.font = `500 ${12 + q.s * 16}px 'Noto Serif KR'`; ctx.fillStyle = `rgba(${INK},1)`;
-    surface('?', q.p[0], q.p[1], 0, 0, 0, 0, .2 + .25 * Math.sin(t * .8 + q.s * 40));
+    surface('?', q.p[0], q.p[1], 0, 0, 0, 0, Q * (.2 + .25 * Math.sin(t * .8 + q.s * 40)));
   }
   ctx.font = `900 20px 'Noto Serif KR'`; ctx.fillStyle = `rgba(${INK},1)`;
-  for (const p of PHRASE) {
+  for (const p of Q > .02 ? PHRASE : []) {
     if (d3.geoDistance(p, center) > 1.5) continue;
-    surface('여기서부터는 용이 산다', p[0], p[1], 20, 4, 0, 0, .8);
+    surface('여기서부터는 용이 산다', p[0], p[1], 20, 4, 0, 0, .8 * Q);
   }
   if (R < Math.hypot(W, H) * .8) { const shade = layer('shade', R, .02, paintShade); if (shade) put(shade, R, cx, cy); else paintShade(ctx, R, cx, cy); }
   ctx.restore();
@@ -234,7 +245,7 @@ function drawGlobe(R, cx, cy, t) {
 
 
 function coordText(t) {
-  const [lon, lat] = proj.invert([W / 2, H / 2]), u = unc(lon, lat);
+  const [lon, lat] = proj.invert([W / 2, H / 2]), u = unc(lon, lat) * Q;
   if (u > .86) return '여기는 지도 밖입니다';
   const dm = (v, a, b) => { const d = Math.abs(v), D = Math.floor(d), M = Math.floor((d - D) * 60); return `${v >= 0 ? a : b} ${D}° ${String(M).padStart(2, '0')}′`; };
   const raw = `${dm(lat, '북위', '남위')}   ${dm(lon, '동경', '서경')}`, slot = Math.floor(t * 3);
@@ -248,10 +259,11 @@ function frame(now) {
     rot[0] += dl * k; rot[1] += (-HOME[1] - rot[1]) * k; z += (1 - z) * k;
     if (Math.abs(dl) < .05 && Math.abs(z - 1) < .004) { homing = false; z = 1; }
   } else if (!drag) {
-    rot[0] += spin[0] * dt * 60; rot[1] = clamp(rot[1] + spin[1] * dt * 60, -88, 88);
+    rot[0] += spin[0] * dt * 60; rot[1] = clamp(rot[1] + spin[1] * dt * 60, -88, 88); spun += Math.hypot(spin[0], spin[1]) * dt * 60;
     spin[0] *= Math.pow(.94, dt * 60); spin[1] *= Math.pow(.94, dt * 60);
     idle += dt; if (idle > 4) rot[0] += dt * 2.2 * clamp((idle - 4) / 2);
   }
+  Q += (clamp((spun - REVEAL_FROM) / REVEAL_SPAN) - Q) * Math.min(1, dt * 1.5);
   const R = BASE * z, cx = W / 2, cy = H / 2;
   proj.scale(R).translate([cx, cy]).rotate([rot[0], rot[1], 0]);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
@@ -260,7 +272,7 @@ function frame(now) {
 
 
   drawGlobe(R, cx, cy, t);
-  window.GLOBE = { R, cx, cy, t, W, H, DPR };
+  window.GLOBE = { R, cx, cy, t, W, H, DPR, Q };
   $('coord').textContent = coordText(t);
   $('zoomv').textContent = `${Math.round(z * 100)}%`;
   $('home').classList.toggle('on', d3.geoDistance(proj.invert([cx, cy]), HOME) > .5 || Math.abs(z - 1) > .05);
@@ -271,7 +283,7 @@ function frame(now) {
 const zoomBy = f => { z = clamp(z * f, .55, 7); homing = false; };
 const pts = new Map();
 let pinch = null;
-const turn = (dx, dy) => { const k = 57.3 / (BASE * z); rot[0] += dx * k; rot[1] = clamp(rot[1] - dy * k, -88, 88); };
+const turn = (dx, dy) => { const k = 57.3 / (BASE * z); rot[0] += dx * k; rot[1] = clamp(rot[1] - dy * k, -88, 88); spun += Math.hypot(dx, dy) * k; };
 cv.addEventListener('pointerdown', e => {
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); cv.setPointerCapture(e.pointerId);
   homing = false; spin = [0, 0]; idle = 0;

@@ -115,10 +115,13 @@ scene.add(new THREE.Mesh(body, bronze));
 const thick = s => s < .05 ? .62 + .38 * s / .05 : s < .45 ? 1 : 1 - .8 * Math.pow((s - .45) / .55, 1.4);
 const SP = Array.from({ length: SEG + 1 }, () => ({ p: new THREE.Vector3(), t: new THREE.Vector3(), n: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 }));
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
+// 떠오름: Q(0→1)에 따라 머리부터 지구 안에서 바깥으로 솟는다
+let EMQ = 0;
+const rise = s => { const x = Math.max(0, Math.min(1, EMQ * 1.7 - s * .7)); return .55 + .45 * x * x * (3 - 2 * x); };
 function layBody(head, t, Rw) {
   for (let i = 0; i <= SEG; i++) {
     const s = i / SEG, th = head - s * LEN, q = SP[i];
-    pathAt(th, q.p); pathAt(th - .002, tmp); q.t.subVectors(tmp, q.p).normalize();
+    const f = rise(s); pathAt(th, q.p).multiplyScalar(f); pathAt(th - .002, tmp).multiplyScalar(f); q.t.subVectors(tmp, q.p).normalize();
     q.n.copy(q.p).addScaledVector(q.t, -q.p.dot(q.t)).normalize();
     q.b.crossVectors(q.t, q.n).normalize();
     q.p.addScaledVector(q.b, Math.sin(s * 22 - t * 2.2) * .022 * (.3 + s)).addScaledVector(q.n, Math.sin(s * 17 - t * 1.9) * .01);
@@ -228,6 +231,8 @@ function render() {
     Object.assign(camera, { left: -G.W / 2, right: G.W / 2, top: G.H / 2, bottom: -G.H / 2 }); camera.updateProjectionMatrix();
   }
   const R = G.R, t = G.t;
+  EMQ = G.Q || 0;
+  if (EMQ < .003) { renderer.clear(); return; }
   occluder.scale.setScalar(R * .995);
   layBody(t * .1, t, R);
 
