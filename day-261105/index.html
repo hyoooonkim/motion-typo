@@ -13,6 +13,7 @@
   .bg { flex: 0 0 100vw; height: 100%; background: #0d1210 center / cover no-repeat; position: relative; }
   .bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 70% at 50% 50%, rgba(13,18,16,0) 30%, rgba(13,18,16,.75) 80%, #0d1210 100%); }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
+  #goo { pointer-events: none; filter: url(#tension); }
   .ui { position: fixed; font: 500 11px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; color: rgba(233,230,224,.7); pointer-events: none; }
   .title { left: 18px; top: 18px; }
   #vol { right: 18px; top: 18px; }
@@ -26,6 +27,13 @@
 </head>
 <body>
 <div id="track"></div>
+<svg width="0" height="0" style="position:absolute">
+  <filter id="tension" color-interpolation-filters="sRGB">
+    <feGaussianBlur id="tensionBlur" stdDeviation="3.5"/>
+    <feColorMatrix values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -8"/>
+  </filter>
+</svg>
+<canvas id="goo"></canvas>
 <canvas id="cv"></canvas>
 <div class="ui title">WHITE NOISE · 백색소음</div>
 <div class="ui" id="vol"></div>
@@ -43,7 +51,8 @@ const SOUNDS = [
   { key: 'fan', word: '선풍기', en: 'FAN', vol: .5, style: 'cloud', font: SANS, color: '#8f7cf2' },
 ];
 const BG = ['01-rain', '02-wave', '03-fire', '04-fan'];
-const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const cv = document.getElementById('cv'), main = cv.getContext('2d'), goo = document.getElementById('goo'), gctx = goo.getContext('2d');
+let ctx = main;
 const $ = id => document.getElementById(id);
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 let W = 0, H = 0, DPR = 1, cur = 0, pos = 0, playing = false, vol = .7;
@@ -62,7 +71,8 @@ const swing = t => Math.sin(t * Math.PI * 2 / 8);
 function build() {
   DPR = Math.min(2, devicePixelRatio || 1);
   W = innerWidth; H = innerHeight;
-  cv.width = W * DPR; cv.height = H * DPR;
+  cv.width = goo.width = W * DPR; cv.height = goo.height = H * DPR;
+  document.getElementById('tensionBlur').setAttribute('stdDeviation', clamp(Math.min(H * .62, W * .42) / 140, 1.2, 4).toFixed(2));
   const off = document.createElement('canvas');
   off.width = W; off.height = H;
   const o = off.getContext('2d', { willReadFrequently: true });
@@ -281,10 +291,10 @@ function draw(s, t, dt) {
       const d = (hx[i] - W / 2) / W * .3;
       const g0 = clamp((sw - .5 + d) / .32) * on, g = g0 * g0 * (3 - 2 * g0);
       const p = t * 1.7 - hx[i] / (FS * .7);
-      const x = sx + (hx[i] + Math.sin(p) * C * .6 * (1 - g) - sx) * g;
+      const pair = Math.sin(t * (1.1 + r[i] * .9) + ph[i]) * C * .55 * (1 - g * .8);
+      const x = sx + (hx[i] + Math.sin(p) * C * .6 * (1 - g) - sx) * g + pair;
       const y = sy + (hy[i] + Math.cos(p * 1.2) * C * .3 * (1 - g) - sy) * g;
-      const glint = .55 + .3 * Math.sin(t * 2.2 + ph[i] * 5);
-      put(s, i, x, y, 1.1 - .1 * g, .4 + .6 * g, glint + (1 - glint) * g);
+      put(s, i, x, y);
     }
   } else if (s.key === 'fire') {
     for (let i = 0; i < n; i++) {
@@ -325,11 +335,12 @@ function frame(now) {
     s.lv += (s.level - s.lv) * Math.min(1, dt * 4);
     s.m += ((playing ? near : 0) * .92 + .08 - s.m) * Math.min(1, dt * 3);
   });
+  gctx.setTransform(DPR, 0, 0, DPR, 0, 0); gctx.clearRect(0, 0, W, H);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
   events(dt);
   audioParams(t);
-  SOUNDS.forEach((s, i) => { OX = (i - pos) * W; if (Math.abs(OX) < W) { ctx.save(); ctx.beginPath(); ctx.rect(OX, 0, W, H); ctx.clip(); ctx.fillStyle = ctx.strokeStyle = s.color; draw(s, t, dt); ctx.restore(); } });
+  SOUNDS.forEach((s, i) => { OX = (i - pos) * W; if (Math.abs(OX) < W) { ctx = s.key === 'wave' ? gctx : main; ctx.save(); ctx.beginPath(); ctx.rect(OX, 0, W, H); ctx.clip(); ctx.fillStyle = ctx.strokeStyle = s.color; draw(s, t, dt); ctx.restore(); ctx = main; } });
   OX = (2 - pos) * W; ctx.save(); ctx.beginPath(); ctx.rect(OX, 0, W, H); ctx.clip();
   embers = embers.filter(e => (e.life -= dt * .55) > 0);
   for (const e of embers) {
