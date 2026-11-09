@@ -32,6 +32,7 @@
 <div class="ui" id="coord"></div>
 <a class="back" href="../index.html">←</a>
 
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <script>
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -52,8 +53,54 @@ function vnoise(x, y, s = 0) {
   const a = hash(ix, iy, s), b = hash(ix + 1, iy, s), c = hash(ix, iy + 1, s), d = hash(ix + 1, iy + 1, s);
   return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
 }
-function fbm(x, y) { let v = 0, a = .5; for (let o = 0; o < 5; o++) { v += vnoise(x, y, o) * a; x *= 2.03; y *= 2.03; a *= .5; } return v; }
-const land = (x, y) => fbm(x * .0011 + 11.3, y * .0011 - 7.7) * .95 + .28 * Math.exp(-(x * x + y * y) / (750 * 750)) - .08;
+// 실제 세계: 북극을 가운데 두고 남위 10°까지 펼친 방위등거리도법, 한반도 경도(127°E)가 위쪽
+const LON0 = 127, SPAN = 100;
+const proj = (lat, lon) => { const r = (90 - lat) / SPAN * (RM - RING), d = (lon - LON0) * Math.PI / 180; return [-r * Math.sin(d), -r * Math.cos(d)]; };
+const unproj = (x, y) => { const r = Math.hypot(x, y); let lon = LON0 + Math.atan2(-x, -y) * 180 / Math.PI; lon = ((lon + 540) % 360) - 180; return [90 - r / (RM - RING) * SPAN, lon]; };
+const MS = 1600, MK = MS / (2 * RM);
+let MA = null, MB = null, COAST = [];
+const sampleM = (M, x, y) => {
+  if (!M) return 0;
+  const u = (x + RM) * MK - .5, v = (y + RM) * MK - .5, i = Math.floor(u), j = Math.floor(v);
+  if (i < 0 || j < 0 || i >= MS - 1 || j >= MS - 1) return 0;
+  const fx = u - i, fy = v - j, k = j * MS + i;
+  return (M[k] * (1 - fx) + M[k + 1] * fx) * (1 - fy) + (M[k + MS] * (1 - fx) + M[k + MS + 1] * fx) * fy;
+};
+const land = (x, y) => sampleM(MA, x, y), landSoft = (x, y) => sampleM(MB, x, y);
+function boxBlur(src, r) {
+  const a = new Float32Array(src.length), b = new Float32Array(src.length), n = 2 * r + 1;
+  for (let y = 0; y < MS; y++) { let acc = 0; for (let x = -r; x <= r; x++) acc += src[y * MS + clamp(x, 0, MS - 1)]; for (let x = 0; x < MS; x++) { a[y * MS + x] = acc / n; acc += src[y * MS + Math.min(MS - 1, x + r + 1)] - src[y * MS + Math.max(0, x - r)]; } }
+  for (let x = 0; x < MS; x++) { let acc = 0; for (let y = -r; y <= r; y++) acc += a[clamp(y, 0, MS - 1) * MS + x]; for (let y = 0; y < MS; y++) { b[y * MS + x] = acc / n; acc += a[Math.min(MS - 1, y + r + 1) * MS + x] - a[Math.max(0, y - r) * MS + x]; } }
+  return b;
+}
+async function loadWorld() {
+  const topo = await fetch('https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/land-50m.json').then(r => r.json());
+  const geo = topojson.feature(topo, topo.objects.land), polys = [];
+  for (const f of geo.features) { const g = f.geometry; (g.type === 'Polygon' ? [g.coordinates] : g.coordinates).forEach(p => polys.push(p)); }
+  const mc = document.createElement('canvas'); mc.width = mc.height = MS;
+  const m = mc.getContext('2d', { willReadFrequently: true });
+  m.setTransform(MK, 0, 0, MK, RM * MK, RM * MK); m.fillStyle = '#000';
+  for (const poly of polys) {
+    if (poly[0].every(([, lat]) => lat < -12)) continue;
+    m.beginPath();
+    for (const ring of poly) ring.forEach(([lon, lat], i) => { const [x, y] = proj(Math.max(lat, -40), lon); i ? m.lineTo(x, y) : m.moveTo(x, y); });
+    m.fill('evenodd');
+    for (const ring of poly) {
+      let cur = [];
+      for (let i = 0; i < ring.length; i++) {
+        const [lon, lat] = ring[i], prev = ring[i - 1];
+        const cutHere = lat < -14 || (prev && Math.abs(lon) > 179.9 && Math.abs(prev[0]) > 179.9);
+        if (cutHere) { if (cur.length > 1) COAST.push(cur); cur = []; if (lat < -14) continue; }
+        cur.push(proj(lat, lon));
+      }
+      if (cur.length > 1) COAST.push(cur);
+    }
+  }
+  COAST = COAST.map(pts => { let a = Infinity, b = Infinity, c = -Infinity, d = -Infinity; for (const [x, y] of pts) { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); d = Math.max(d, y); } return { pts, box: [a, b, c, d] }; });
+  const px = m.getImageData(0, 0, MS, MS).data, raw = new Float32Array(MS * MS);
+  for (let i = 0; i < raw.length; i++) raw[i] = px[i * 4 + 3] / 255;
+  MA = boxBlur(raw, 1); MB = boxBlur(boxBlur(raw, 6), 6);
+}
 // 불확실함: 알려진 세계(0)에서 지도 밖(1)까지
 // 불확실함: 지도 가운데(0)에서 눈금 띠 안쪽(.88)으로, 원 밖은 1
 const unc = (x, y) => { const r = Math.hypot(x, y); if (r >= RM - RING) return 1; const t = clamp((r / (RM - RING) - .3) / .7); return t * t * (3 - 2 * t) * .88; };
@@ -67,13 +114,24 @@ const BIG = {};
 ['d1-eastern', 'd2-western', 'd3-leviathan'].forEach(n => { const im = new Image(); im.onload = () => BIG[n] = im; im.src = `${n}.webp`; });
 let PAPER = null;
 { const im = new Image(); im.onload = () => PAPER = ctx.createPattern(im, 'repeat'); im.src = 'paper.webp'; }
+const FACE = { 'd1-eastern': -1, 'd2-western': 1, 'd3-leviathan': -1 };
 const DRAGONS = [
   ['d1-eastern', 195, 1850, -.15, 1], ['d2-western', -30, 1900, .12, 1], ['d3-leviathan', 95, 1900, 0, -1],
   ['d2-western', 245, 1800, .2, -1], ['d1-eastern', 330, 1800, -.25, -1], ['d3-leviathan', 145, 1800, .3, 1],
 ];
-const LAND_NAMES = ['흐린곶', '잊은섬', '안개목', '숨은만', '먼등대', '달빛포', '늦은언덕', '낯선고개', '바람섬', '검은곶', '옛나루', '모래톱', '소금밭', '고래등', '첫물섬', '빈터', '외딴곶'];
-const SEA_NAMES = ['고요한 바다', '잠든 바다', '이름 없는 물', '안개 바다', '잊힌 해협', '깊은 소리의 바다', '돌아오지 않는 물'];
-const ROSES = [[0, 0], [-640, -420], [700, 480]];
+// [이름, 위도, 경도, 종류] 종류: 0 땅, 1 바다, 2 도시
+const PLACES = [
+  ['그린란드', 72, -41, 0], ['아이슬란드', 65, -18.5, 0], ['스칸디나비아', 64, 15, 0], ['브리타니아', 54, -2.5, 0], ['유럽', 49, 12, 0],
+  ['시베리아', 64, 100, 0], ['러시아', 58, 45, 0], ['타타르', 50, 75, 0], ['몽골', 46.5, 103, 0], ['중국', 33, 106, 0], ['한반도', 37.2, 127.6, 0],
+  ['일본', 36.5, 138.5, 0], ['캄차카', 56.5, 159.5, 0], ['알래스카', 64.5, -152, 0], ['캐나다', 60, -105, 0], ['아메리카', 40, -100, 0],
+  ['멕시코', 23, -102.5, 0], ['아라비아', 23, 46, 0], ['인도', 21, 78.5, 0], ['사하라', 23, 8, 0], ['아프리카', 6, 20, 0], ['페르시아', 32, 54, 0],
+  ['북극해', 80, 100, 1], ['북극해', 82, -60, 1], ['북대서양', 42, -42, 1], ['북태평양', 38, -165, 1], ['태평양', 18, 160, 1], ['대서양', 15, -38, 1],
+  ['인도양', -2, 75, 1], ['지중해', 35.5, 18, 1], ['허드슨 만', 60, -86, 1], ['베링 해협', 66, -169, 1], ['오호츠크 해', 55, 149, 1], ['동해', 40, 134, 1],
+  ['카스피 해', 42, 50.5, 1], ['노르웨이 해', 69, 3, 1], ['멕시코 만', 25, -90, 1], ['남중국해', 13, 114, 1],
+  ['서울', 37.57, 126.98, 2], ['베이징', 39.9, 116.4, 2], ['도쿄', 35.68, 139.7, 2], ['모스크바', 55.75, 37.6, 2], ['런던', 51.5, -.13, 2],
+  ['파리', 48.86, 2.35, 2], ['카이로', 30.04, 31.24, 2], ['뉴욕', 40.71, -74, 2], ['레이캬비크', 64.15, -21.9, 2], ['콘스탄티노플', 41.01, 28.97, 2],
+].map(([n, lat, lon, k]) => [n, ...proj(lat, lon), k]);
+const ROSES = [[0, 0], [-760, 380], [620, 560]];
 
 function contour(vals, n, s, x0, y0, th, seg) {
   const P = (i, j) => vals[j * (n + 1) + i];
@@ -153,41 +211,45 @@ function renderTile(tx, ty) {
   }
   for (const [rx, ry] of ROSES) for (let k = 0; k < 32; k++) { const a = k / 32 * 6.283; ray(g, x0, y0, rx, ry, Math.cos(a), Math.sin(a), 0, 2600, .45, k % 4 === 0 ? .16 : .08); }
   const s = 8, n = TILE / s, vals = new Float32Array((n + 1) * (n + 1));
-  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) vals[j * (n + 1) + i] = land(x0 + i * s, y0 + j * s);
-  [3, 2, 1].forEach(k => contour(vals, n, s, x0, y0, TH - k * .022, (a, b, c2, d) => line(g, [[a, b], [c2, d]], 0, .6, .55 - k * .12, true)));
-  contour(vals, n, s, x0, y0, TH, (a, b, c2, d) => line(g, [[a, b], [c2, d]], 0, 1.7, .92, true));
+  for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) vals[j * (n + 1) + i] = landSoft(x0 + i * s, y0 + j * s);
+  [[.3, .5], [.17, .36], [.08, .22]].forEach(([th, a]) => contour(vals, n, s, x0, y0, th, (a1, b, c2, d) => line(g, [[a1, b], [c2, d]], 0, .6, a, true)));
+  for (const { pts, box } of COAST) {
+    if (box[2] < x0 - 40 || box[0] > x0 + TILE + 40 || box[3] < y0 - 40 || box[1] > y0 + TILE + 40) continue;
+    line(g, pts, 0, 1.5, .92, true);
+  }
 
   for (let y = Math.ceil(y0 / 36) * 36; y < y0 + TILE; y += 36) for (let x = Math.ceil(x0 / 36) * 36; x < x0 + TILE; x += 36) {
     const uu = unc(x, y);
-    if (hash(x, y, 11) > .25 || hash(x, y, 12) < uu * 1.3 || land(x, y) < TH + .06) continue;
+    if (hash(x, y, 11) > .25 || hash(x, y, 12) < uu * 1.3 || landSoft(x, y) < .9) continue;
     const z = 6 + hash(x, y, 13) * 7, [px, py] = jit(x + (hash(x, y, 14) - .5) * 24, y, uu);
     g.strokeStyle = `rgba(${INK},${.75 * (1 - uu)})`; g.lineWidth = .9;
     g.beginPath(); g.moveTo(px - z, py + z * .5); g.lineTo(px, py - z * .6); g.lineTo(px + z, py + z * .5); g.stroke();
     g.beginPath(); g.moveTo(px + z * .15, py - z * .3); g.lineTo(px + z * .5, py + z * .45); g.stroke();
   }
 
-  const C = 380;
-  for (let cy = Math.floor((y0 - 300) / C); cy <= Math.floor((y0 + TILE + 300) / C); cy++)
-    for (let cx = Math.floor((x0 - 300) / C); cx <= Math.floor((x0 + TILE + 300) / C); cx++) {
-      const px = (cx + .2 + .6 * hash(cx, cy, 22)) * C, py = (cy + .2 + .6 * hash(cx, cy, 23)) * C, uu = unc(px, py), h = hash(cx, cy, 21);
-      if (uu > .8) continue;
-      const L = land(px, py), isLand = L > TH + .03 && h < .6, isSea = L < TH - .12 && h < .32;
-      if (!isLand && !isSea) continue;
-      const list = isLand ? LAND_NAMES : SEA_NAMES;
-      const name = [...list[hash(cx, cy, 24) * list.length | 0]].map((ch, i) => ch !== ' ' && hash(cx, cy, 30 + i) < uu * 1.25 ? '?' : ch).join('');
-      g.save(); g.translate(...jit(px, py, uu)); g.rotate((hash(cx, cy, 25) - .5) * (isSea ? .5 : .2) + uu * (hash(cx, cy, 26) - .5));
-      g.transform(1, 0, -.16, 1, 0, 0);
-      g.fillStyle = `rgba(${INK},${.15 + .8 * (1 - uu)})`;
-      g.font = isLand ? `900 15px 'Noto Serif KR'` : `500 19px 'Noto Serif KR'`;
-      spaced(g, name, 0, 0, isLand ? 2 : 7);
-      g.restore();
+  for (const [name, px, py, kind] of PLACES) {
+    if (!near(px, py, 220)) continue;
+    const uu = unc(px, py), hk = name.length * 7 + (px | 0);
+    if (uu > .82) continue;
+    const txt = [...name].map((ch, i) => ch !== ' ' && hash(hk, i, 30) < uu * 1.2 ? '?' : ch).join('');
+    g.save(); g.translate(...jit(px, py, uu)); g.rotate(uu * (hash(hk, 1, 25) - .5) * .6);
+    g.fillStyle = `rgba(${INK},${.15 + .8 * (1 - uu)})`;
+    if (kind === 2) {
+      g.beginPath(); g.arc(0, 0, 2.6, 0, 6.283); g.fill();
+      g.font = `500 12px 'Noto Serif KR'`; g.textAlign = 'left'; g.fillText(txt, 6, -1); g.textAlign = 'center';
+    } else {
+      g.transform(1, 0, kind ? -.2 : 0, 1, 0, 0);
+      g.font = kind ? `500 17px 'Noto Serif KR'` : `900 ${name.length > 4 ? 15 : 18}px 'Noto Serif KR'`;
+      spaced(g, txt, 0, 0, kind ? 7 : 4);
     }
+    g.restore();
+  }
 
   const MC = 1000, names = Object.keys(IMG);
   if (names.length) for (let cy = Math.floor((y0 - 450) / MC); cy <= Math.floor((y0 + TILE + 450) / MC); cy++)
     for (let cx = Math.floor((x0 - 450) / MC); cx <= Math.floor((x0 + TILE + 450) / MC); cx++) {
       const px = (cx + .25 + .5 * hash(cx, cy, 61)) * MC, py = (cy + .25 + .5 * hash(cx, cy, 62)) * MC, uu = unc(px, py);
-      if (uu < .42 || uu >= 1 || hash(cx, cy, 60) > .6 || land(px, py) > TH - .03) continue;
+      if (uu < .42 || uu >= 1 || hash(cx, cy, 60) > .6 || landSoft(px, py) > .05) continue;
       const im = IMG[names[hash(cx, cy, 63) * names.length | 0]], sz = 230 + 190 * hash(cx, cy, 64);
       g.save(); g.translate(px, py); g.rotate((hash(cx, cy, 65) - .5) * .35); if (hash(cx, cy, 66) < .5) g.scale(-1, 1);
       g.globalAlpha = clamp((uu - .42) / .15) * .85;
@@ -195,15 +257,7 @@ function renderTile(tx, ty) {
     }
 
   for (const [rx, ry] of ROSES) if (near(rx, ry, 160)) rose(g, rx, ry, rx === 0 && ry === 0 ? 60 : 84);
-  if (near(0, -560, 220)) {
-    g.save(); g.translate(0, -560);
-    g.strokeStyle = `rgba(${INK},.8)`; g.lineWidth = 1.4; g.strokeRect(-150, -42, 300, 84);
-    g.lineWidth = .6; g.strokeRect(-142, -34, 284, 68);
-    g.fillStyle = 'rgba(236,222,190,.85)'; g.fillRect(-141, -33, 282, 66);
-    g.fillStyle = `rgba(${INK},.95)`; g.font = `900 30px 'Noto Serif KR'`; spaced(g, '알려진 세계', 0, -4, 8);
-    g.font = `500 11px 'Noto Serif KR'`; g.fillStyle = `rgba(${INK},.6)`; spaced(g, 'TERRA COGNITA · MMXXVI', 0, 22, 4);
-    g.restore();
-  }
+  if (near(0, 0, 120)) { g.fillStyle = `rgba(${INK},.85)`; g.font = `900 14px 'Noto Serif KR'`; spaced(g, '북극', 0, 78, 6); }
   g.restore();
 
   // 바깥 눈금 띠: 세 겹 원, 5°마다 칠한 칸, 10°마다 숫자
@@ -234,7 +288,9 @@ function coordText(t) {
   const uu = unc(cam.x, cam.y);
   if (outside(cam.x, cam.y) > 0) return '여기는 지도 밖입니다';
   const dm = (v, a, b) => { const d = Math.abs(v), D = Math.floor(d), M = Math.floor((d - D) * 60); return `${v >= 0 ? a : b} ${D}° ${String(M).padStart(2, '0')}′`; };
-  const raw = `${dm(37.55 - cam.y * .0008, '북위', '남위')}   ${dm(126.98 + cam.x * .001, '동경', '서경')}`, slot = Math.floor(t * 3);
+  const [lat, lon] = unproj(cam.x, cam.y);
+  if (Math.hypot(cam.x, cam.y) < 8) return '북극점   북위 90°';
+  const raw = `${dm(lat, '북위', '남위')}   ${dm(lon, '동경', '서경')}`, slot = Math.floor(t * 3);
   return [...raw].map((c, i) => /\d/.test(c) && hash(i, slot, 50) < uu * 1.15 ? '?' : c).join('');
 }
 
@@ -277,14 +333,25 @@ function frame(now) {
       ctx.rotate(Math.sin(t * .15 + h * 30) * .3); ctx.fillText(ch, 0, 0); ctx.restore();
     }
 
-  // 원 뒤에서 몸을 감고 엿보는 용들
+  // 원 둘레를 헤엄치며 도는 용들: 세로 띠로 잘라 몸을 굽이치게(동양 용·리바이어던) 하거나 날개를 퍼덕인다(서양 용)
   DRAGONS.forEach(([n, deg, dist, rot, flip], k) => {
     const im = BIG[n]; if (!im) return;
-    const a = deg * Math.PI / 180, w = 1350 - (k % 3) * 120, h = w * im.height / im.width;
-    const x = Math.cos(a) * dist + Math.sin(t * .11 + k) * 40 + ox, y = Math.sin(a) * dist + Math.cos(t * .13 + k * 2) * 30 + oy;
-    if (x + w / 2 < 0 || x - w / 2 > W || y + h / 2 < 0 || y - h / 2 > H) return;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(rot + Math.sin(t * .09 + k) * .035); ctx.scale(flip, 1);
-    ctx.drawImage(im, -w / 2, -h / 2, w, h); ctx.restore();
+    const a = (deg + t * 1.6) * Math.PI / 180, w = 1350 - (k % 3) * 120, h = w * im.height / im.width;
+    const x = Math.cos(a) * dist + ox, y = Math.sin(a) * dist + oy;
+    if (x + w * .6 < 0 || x - w * .6 > W || y + h * .6 < 0 || y - h * .6 > H) return;
+    const tanX = -Math.sin(a), tanY = Math.cos(a), face = FACE[n] * flip;
+    const sx = clamp(tanX * 3, -1, 1) * face;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(clamp(tanY * Math.sign(tanX || 1), -1, 1) * .22 + rot * .3); ctx.scale(Math.abs(sx) < .12 ? .12 * Math.sign(sx || 1) : sx, 1);
+    const N = 60, sw = im.width / N, cw = w / N, wing = n === 'd2-western';
+    for (let i = 0; i < N; i++) {
+      const nx = (i + .5) / N * 2 - 1;
+      const dy = wing
+        ? -Math.sin(t * 2.4 + k) * h * .09 * Math.pow(Math.abs(nx), 1.6) + Math.sin(t * 2.4 + k + 1.2) * h * .015
+        : Math.sin(nx * Math.PI * 2.2 - t * 1.7 - k) * h * .045 * (.4 + .6 * Math.abs(nx));
+      const sy = wing ? 1 + Math.sin(t * 2.4 + k) * .04 * Math.abs(nx) : 1;
+      ctx.drawImage(im, i * sw, 0, sw + .5, im.height, -w / 2 + i * cw, -h / 2 * sy + dy, cw + .6, h * sy);
+    }
+    ctx.restore();
   });
 
   // 원형 지도 한 장
@@ -345,7 +412,7 @@ addEventListener('keydown', e => {
 $('home').onclick = () => { homing = true; vel.x = vel.y = 0; };
 addEventListener('resize', resize);
 resize();
-Promise.all([document.fonts.load(`900 20px 'Noto Serif KR'`, '알려진세계용'), document.fonts.load(`500 20px 'Noto Serif KR'`, '바다')]).catch(() => {})
+Promise.all([document.fonts.load(`900 20px 'Noto Serif KR'`, '알려진세계용'), document.fonts.load(`500 20px 'Noto Serif KR'`, '바다'), loadWorld().catch(e => console.warn('세계 지도 데이터를 불러오지 못했어요', e))])
   .then(() => { tiles.clear(); requestAnimationFrame(frame); });
 </script>
 </body>
