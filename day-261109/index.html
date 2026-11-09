@@ -119,18 +119,13 @@ const DRAGONS = [
   ['d1-eastern', 195, 1850, -.15, 1], ['d2-western', -30, 1900, .12, 1], ['d3-leviathan', 95, 1900, 0, -1],
   ['d2-western', 245, 1800, .2, -1], ['d1-eastern', 330, 1800, -.25, -1], ['d3-leviathan', 145, 1800, .3, 1],
 ];
-// [이름, 위도, 경도, 종류] 종류: 0 땅, 1 바다, 2 도시
-const PLACES = [
-  ['그린란드', 72, -41, 0], ['아이슬란드', 65, -18.5, 0], ['스칸디나비아', 64, 15, 0], ['브리타니아', 54, -2.5, 0], ['유럽', 49, 12, 0],
-  ['시베리아', 64, 100, 0], ['러시아', 58, 45, 0], ['타타르', 50, 75, 0], ['몽골', 46.5, 103, 0], ['중국', 33, 106, 0], ['한반도', 37.2, 127.6, 0],
-  ['일본', 36.5, 138.5, 0], ['캄차카', 56.5, 159.5, 0], ['알래스카', 64.5, -152, 0], ['캐나다', 60, -105, 0], ['아메리카', 40, -100, 0],
-  ['멕시코', 23, -102.5, 0], ['아라비아', 23, 46, 0], ['인도', 21, 78.5, 0], ['사하라', 23, 8, 0], ['아프리카', 6, 20, 0], ['페르시아', 32, 54, 0],
-  ['북극해', 80, 100, 1], ['북극해', 82, -60, 1], ['북대서양', 42, -42, 1], ['북태평양', 38, -165, 1], ['태평양', 18, 160, 1], ['대서양', 15, -38, 1],
-  ['인도양', -2, 75, 1], ['지중해', 35.5, 18, 1], ['허드슨 만', 60, -86, 1], ['베링 해협', 66, -169, 1], ['오호츠크 해', 55, 149, 1], ['동해', 40, 134, 1],
-  ['카스피 해', 42, 50.5, 1], ['노르웨이 해', 69, 3, 1], ['멕시코 만', 25, -90, 1], ['남중국해', 13, 114, 1],
-  ['서울', 37.57, 126.98, 2], ['베이징', 39.9, 116.4, 2], ['도쿄', 35.68, 139.7, 2], ['모스크바', 55.75, 37.6, 2], ['런던', 51.5, -.13, 2],
-  ['파리', 48.86, 2.35, 2], ['카이로', 30.04, 31.24, 2], ['뉴욕', 40.71, -74, 2], ['레이캬비크', 64.15, -21.9, 2], ['콘스탄티노플', 41.01, 28.97, 2],
-].map(([n, lat, lon, k]) => [n, ...proj(lat, lon), k]);
+// 실제 지명(Natural Earth 한국어 이름): [이름, x, y, 종류(0 나라·1 바다·2 도시·3 명소), 글자 크기, 도시 이름 방향]
+let PLACES = [], RIVERS = [];
+async function loadPlaces() {
+  const d = await fetch('places.json').then(r => r.json());
+  PLACES = d.labels.map(([n, lat, lon, k, sz, side]) => [n, ...proj(lat, lon), k, sz, side]);
+  RIVERS = d.rivers.map(seg => { const pts = seg.map(([lat, lon]) => proj(lat, lon)); let a = Infinity, b = Infinity, c = -Infinity, e = -Infinity; for (const [x, y] of pts) { a = Math.min(a, x); b = Math.min(b, y); c = Math.max(c, x); e = Math.max(e, y); } return { pts, box: [a, b, c, e] }; });
+}
 const ROSES = [[0, 0], [-760, 380], [620, 560]];
 
 function contour(vals, n, s, x0, y0, th, seg) {
@@ -213,6 +208,10 @@ function renderTile(tx, ty) {
   const s = 8, n = TILE / s, vals = new Float32Array((n + 1) * (n + 1));
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) vals[j * (n + 1) + i] = landSoft(x0 + i * s, y0 + j * s);
   [[.3, .5], [.17, .36], [.08, .22]].forEach(([th, a]) => contour(vals, n, s, x0, y0, th, (a1, b, c2, d) => line(g, [[a1, b], [c2, d]], 0, .6, a, true)));
+  for (const { pts, box } of RIVERS) {
+    if (box[2] < x0 - 20 || box[0] > x0 + TILE + 20 || box[3] < y0 - 20 || box[1] > y0 + TILE + 20) continue;
+    line(g, pts, 0, .8, .55, true);
+  }
   for (const { pts, box } of COAST) {
     if (box[2] < x0 - 40 || box[0] > x0 + TILE + 40 || box[3] < y0 - 40 || box[1] > y0 + TILE + 40) continue;
     line(g, pts, 0, 1.5, .92, true);
@@ -227,19 +226,21 @@ function renderTile(tx, ty) {
     g.beginPath(); g.moveTo(px + z * .15, py - z * .3); g.lineTo(px + z * .5, py + z * .45); g.stroke();
   }
 
-  for (const [name, px, py, kind] of PLACES) {
-    if (!near(px, py, 220)) continue;
+  for (const [name, px, py, kind, sz, side] of PLACES) {
+    if (!near(px, py, 200)) continue;
     const uu = unc(px, py), hk = name.length * 7 + (px | 0);
     if (uu > .82) continue;
     const txt = [...name].map((ch, i) => ch !== ' ' && hash(hk, i, 30) < uu * 1.2 ? '?' : ch).join('');
     g.save(); g.translate(...jit(px, py, uu)); g.rotate(uu * (hash(hk, 1, 25) - .5) * .6);
     g.fillStyle = `rgba(${INK},${.15 + .8 * (1 - uu)})`;
     if (kind === 2) {
-      g.beginPath(); g.arc(0, 0, 2.6, 0, 6.283); g.fill();
-      g.font = `500 12px 'Noto Serif KR'`; g.textAlign = 'left'; g.fillText(txt, 6, -1); g.textAlign = 'center';
+      g.beginPath(); g.arc(0, 0, 2.4, 0, 6.283); g.fill();
+      g.font = `500 ${sz}px 'Noto Serif KR'`; g.textAlign = side < 0 ? 'right' : 'left'; g.fillText(txt, side * 6, -1); g.textAlign = 'center';
+    } else if (kind === 3) {
+      g.transform(1, 0, -.2, 1, 0, 0); g.font = `500 ${sz}px 'Noto Serif KR'`; g.fillStyle = `rgba(${INK},${.1 + .6 * (1 - uu)})`; spaced(g, txt, 0, 0, 2);
     } else {
       g.transform(1, 0, kind ? -.2 : 0, 1, 0, 0);
-      g.font = kind ? `500 17px 'Noto Serif KR'` : `900 ${name.length > 4 ? 15 : 18}px 'Noto Serif KR'`;
+      g.font = `${kind ? 500 : 900} ${sz}px 'Noto Serif KR'`;
       spaced(g, txt, 0, 0, kind ? 7 : 4);
     }
     g.restore();
@@ -412,7 +413,7 @@ addEventListener('keydown', e => {
 $('home').onclick = () => { homing = true; vel.x = vel.y = 0; };
 addEventListener('resize', resize);
 resize();
-Promise.all([document.fonts.load(`900 20px 'Noto Serif KR'`, '알려진세계용'), document.fonts.load(`500 20px 'Noto Serif KR'`, '바다'), loadWorld().catch(e => console.warn('세계 지도 데이터를 불러오지 못했어요', e))])
+Promise.all([document.fonts.load(`900 20px 'Noto Serif KR'`, '알려진세계용'), document.fonts.load(`500 20px 'Noto Serif KR'`, '바다'), loadWorld().catch(e => console.warn('세계 지도 데이터를 불러오지 못했어요', e)), loadPlaces().catch(e => console.warn('지명을 불러오지 못했어요', e))])
   .then(() => { tiles.clear(); requestAnimationFrame(frame); });
 </script>
 </body>
