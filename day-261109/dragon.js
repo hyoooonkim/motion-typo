@@ -233,9 +233,13 @@ function render() {
   const sz = `${G.W}x${G.H}@${G.DPR}`;
   if (sz !== size) {
     size = sz; renderer.setPixelRatio(G.DPR); renderer.setSize(G.W, G.H, false);
-    camera.aspect = G.W / G.H; CAMD = G.H / 2 / Math.tan(FOV / 2 * Math.PI / 180); camera.far = CAMD * 20; camera.updateProjectionMatrix();
+    camera.aspect = G.W / G.H;
   }
   const R = G.R, t = G.t;
+  // 확대할수록 카메라를 뒤로 물리고 화각을 좁힌다: 지구본 깊이에서는 늘 1px = 1단위, 용은 카메라에 닿지 않는다
+  CAMD = Math.max(G.H / 2 / Math.tan(FOV / 2 * Math.PI / 180), R * 4.8);
+  camera.fov = 2 * Math.atan(G.H / 2 / CAMD) * 180 / Math.PI; camera.near = CAMD * .02; camera.far = CAMD + R * 12;
+  camera.updateProjectionMatrix();
   camera.position.set(-(G.cx - G.W / 2), G.cy - G.H / 2, CAMD);
   EMQ = G.Q || 0;
   if (EMQ < .003) { renderer.clear(); return; }
