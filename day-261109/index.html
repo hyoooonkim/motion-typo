@@ -237,6 +237,15 @@ function drawGlobe(R, cx, cy, t) {
     if (d3.geoDistance(p, center) > 1.5) continue;
     surface('여기서부터는 용이 산다', p[0], p[1], 20, 4, 0, 0, .8 * Q);
   }
+  // 용이 드나드는 구멍: 곡면에 맞게 눌린 타원, 검은 속과 그을린 테두리
+  for (const h of window.HOLES || []) {
+    const hx = cx + h.x * R, hy = cy - h.y * R, a = h.r * R;
+    ctx.save(); ctx.translate(hx, hy); ctx.rotate(Math.atan2(-h.y, h.x)); ctx.scale(Math.max(h.z, .06), 1);
+    const g = ctx.createRadialGradient(0, 0, 0, 0, 0, a * 1.45);
+    g.addColorStop(0, 'rgba(6,4,3,1)'); g.addColorStop(.55, 'rgba(14,8,4,.97)'); g.addColorStop(.68, 'rgba(70,36,12,.85)');
+    g.addColorStop(.8, 'rgba(140,72,24,.4)'); g.addColorStop(1, 'rgba(90,50,20,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, a * 1.45, 0, 6.283); ctx.fill(); ctx.restore();
+  }
   if (R < Math.hypot(W, H) * .8) { const shade = layer('shade', R, .02, paintShade); if (shade) put(shade, R, cx, cy); else paintShade(ctx, R, cx, cy); }
   ctx.restore();
 

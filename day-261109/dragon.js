@@ -100,8 +100,11 @@ function pathAt(th, out) {
   const r = 1.55 + .3 * Math.sin(2 * th + 1.1) + .06 * Math.sin(5 * th + .5);
   out.set(r * Math.cos(lat) * Math.cos(th), r * Math.sin(lat), r * Math.cos(lat) * Math.sin(th));
   out.applyMatrix4(TILT);
-  // 한 구간은 화면 쪽으로 크게 튀어나온다
-  out.z += 1.7 * Math.pow(Math.max(0, Math.sin(th + .6)), 2);
+  // 한 구간은 화면 쪽으로 크게 튀어나오고, 지구 앞면을 지나는 다른 구간에서는 지도 속으로 잠수했다 솟는다
+  const sw = Math.pow(Math.max(0, Math.sin(th + .6)), 2), w = Math.atan2(Math.sin(th - 2.45), Math.cos(th - 2.45));
+  const dive = .82 * Math.exp(-(w / .3) * (w / .3));
+  out.multiplyScalar((r - dive) / r);
+  out.z += 1.7 * sw;
   return out;
 }
 
@@ -243,9 +246,18 @@ function render() {
   camera.updateProjectionMatrix();
   camera.position.set(-(G.cx - G.W / 2), G.cy - G.H / 2, CAMD);
   EMQ = G.Q || 0;
-  if (EMQ < .003) { renderer.clear(); return; }
+  if (EMQ < .003) { window.HOLES = []; renderer.clear(); return; }
   occluder.scale.setScalar(R * CAMD / Math.hypot(CAMD, R) * .995);
   layBody(t * .1, t, R);
+  // 몸이 지구 표면을 지나는 자리: 단면과 표면이 겹치는 만큼 구멍(지구 쪽 2D 캔버스가 그린다)
+  const holes = [];
+  for (let i = 0; i <= SEG; i += 3) {
+    const q = SP[i], L = q.p.length(), d = L - 1, rr = q.r * 1.08;
+    if (Math.abs(d) >= rr) continue;
+    const z = q.p.z / L; if (z < .02) continue;
+    holes.push({ x: q.p.x / L, y: q.p.y / L, z, r: Math.sqrt(rr * rr - d * d) * 1.2 });
+  }
+  window.HOLES = holes;
 
   for (let k = 0; k < FINS; k++) {
     const s = .045 + k / FINS * .9, q = at(s), neck = s < .16 ? 1.8 - s * 5 : 1, r = q.r * R;
