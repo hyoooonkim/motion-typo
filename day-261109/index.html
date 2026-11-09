@@ -8,18 +8,19 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@500;900&display=block">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; overflow: hidden; background: #e9dcc0 url(paper.webp) 0 0 / 1024px; font-family: 'Noto Serif KR', serif; color: #3a2a1a; }
+  html, body { height: 100%; overflow: hidden; background: #0c0b0a; font-family: 'Noto Serif KR', serif; --fg: #3a2a1a; }
+  body.out { --fg: #e6d6b3; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   canvas.drag { cursor: grabbing; }
-  .vig { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 85% 85% at 50% 50%, rgba(60,40,20,0) 55%, rgba(60,40,20,.28) 100%); }
-  .ui { position: fixed; font-size: 12px; letter-spacing: .08em; pointer-events: none; }
+  .vig { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 85% 85% at 50% 50%, rgba(60,40,20,0) 55%, rgba(0,0,0,.45) 100%); }
+  .ui { position: fixed; font-size: 12px; letter-spacing: .08em; pointer-events: none; color: var(--fg); transition: color .6s; }
   .title { left: 18px; top: 16px; font-weight: 900; }
   .title span { font-weight: 500; opacity: .55; margin-left: 6px; }
   #coord { left: 0; right: 0; bottom: 16px; text-align: center; font-size: 13px; letter-spacing: .16em; }
   #hint { left: 0; right: 0; bottom: 40px; text-align: center; opacity: .6; transition: opacity .8s; }
-  #home { position: fixed; right: 16px; top: 12px; font: 500 12px 'Noto Serif KR', serif; color: #3a2a1a; background: none; border: 1px solid rgba(58,42,26,.4); border-radius: 14px; padding: 5px 12px; cursor: pointer; opacity: 0; transition: opacity .6s; }
+  #home { position: fixed; right: 16px; top: 12px; font: 500 12px 'Noto Serif KR', serif; color: var(--fg); background: none; border: 1px solid currentColor; border-radius: 14px; padding: 5px 12px; cursor: pointer; opacity: 0; transition: opacity .6s; }
   #home.on { opacity: 1; }
-  .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: rgba(58,42,26,.5); text-decoration: none; }
+  .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: var(--fg); opacity: .5; text-decoration: none; }
 </style>
 </head>
 <body>
@@ -36,7 +37,7 @@ const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 const INK = '58,42,26';
-const TILE = 512, R0 = 650, R = 3400, TH = .5;
+const TILE = 512, RM = 1500, RING = 72, TH = .5;
 let W = 0, H = 0, DPR = 1, cam = { x: 0, y: 0 }, vel = { x: 0, y: 0 };
 
 // 결정적 해시와 값 노이즈: 같은 자리는 언제 그려도 같은 모양이 나온다
@@ -54,15 +55,25 @@ function vnoise(x, y, s = 0) {
 function fbm(x, y) { let v = 0, a = .5; for (let o = 0; o < 5; o++) { v += vnoise(x, y, o) * a; x *= 2.03; y *= 2.03; a *= .5; } return v; }
 const land = (x, y) => fbm(x * .0011 + 11.3, y * .0011 - 7.7) * .95 + .28 * Math.exp(-(x * x + y * y) / (750 * 750)) - .08;
 // 불확실함: 알려진 세계(0)에서 지도 밖(1)까지
-const unc = (x, y) => { const t = clamp((Math.hypot(x, y) - R0) / (R - R0)); return t * t * (3 - 2 * t); };
+// 불확실함: 지도 가운데(0)에서 눈금 띠 안쪽(.88)으로, 원 밖은 1
+const unc = (x, y) => { const r = Math.hypot(x, y); if (r >= RM - RING) return 1; const t = clamp((r / (RM - RING) - .3) / .7); return t * t * (3 - 2 * t) * .88; };
+const outside = (x, y) => Math.max(0, Math.hypot(x, y) - RM);
 
 const IMG = {};
+const BIG = {};
 ['m1-serpent', 'm2-dragon', 'm3-whale'].forEach(n => {
   const im = new Image(); im.onload = () => { IMG[n] = im; tiles.clear(); }; im.src = `${n}.webp`;
 });
+['d1-eastern', 'd2-western', 'd3-leviathan'].forEach(n => { const im = new Image(); im.onload = () => BIG[n] = im; im.src = `${n}.webp`; });
+let PAPER = null;
+{ const im = new Image(); im.onload = () => PAPER = ctx.createPattern(im, 'repeat'); im.src = 'paper.webp'; }
+const DRAGONS = [
+  ['d1-eastern', 195, 1850, -.15, 1], ['d2-western', -30, 1900, .12, 1], ['d3-leviathan', 95, 1900, 0, -1],
+  ['d2-western', 245, 1800, .2, -1], ['d1-eastern', 330, 1800, -.25, -1], ['d3-leviathan', 145, 1800, .3, 1],
+];
 const LAND_NAMES = ['흐린곶', '잊은섬', '안개목', '숨은만', '먼등대', '달빛포', '늦은언덕', '낯선고개', '바람섬', '검은곶', '옛나루', '모래톱', '소금밭', '고래등', '첫물섬', '빈터', '외딴곶'];
 const SEA_NAMES = ['고요한 바다', '잠든 바다', '이름 없는 물', '안개 바다', '잊힌 해협', '깊은 소리의 바다', '돌아오지 않는 물'];
-const ROSES = [[-430, -250], [980, -620], [-1050, 640], [720, 760], [-120, 1180]];
+const ROSES = [[0, 0], [-640, -420], [700, 480]];
 
 function contour(vals, n, s, x0, y0, th, seg) {
   const P = (i, j) => vals[j * (n + 1) + i];
@@ -114,6 +125,17 @@ function rose(g, x, y, r) {
   g.restore();
 }
 
+function ray(g, x0, y0, ax, ay, dx, dy, t0, t1, w, a) {
+  for (const [o, d, lo, hi] of [[ax, dx, x0, x0 + TILE], [ay, dy, y0, y0 + TILE]]) {
+    if (Math.abs(d) < 1e-6) { if (o < lo || o > hi) return; continue; }
+    let a1 = (lo - o) / d, a2 = (hi - o) / d; if (a1 > a2) [a1, a2] = [a2, a1];
+    t0 = Math.max(t0, a1); t1 = Math.min(t1, a2);
+  }
+  if (t0 >= t1) return;
+  const p = []; for (let t = t0; t < t1 + 48; t += 48) p.push([ax + dx * Math.min(t, t1), ay + dy * Math.min(t, t1)]);
+  line(g, p, 0, w, a, true);
+}
+
 function renderTile(tx, ty) {
   const D = Math.min(2, DPR), c = document.createElement('canvas');
   c.width = c.height = TILE * D;
@@ -121,26 +143,15 @@ function renderTile(tx, ty) {
   g.scale(D, D); g.translate(-x0, -y0); g.lineCap = 'round';
   g.textAlign = 'center'; g.textBaseline = 'middle';
   const near = (x, y, m) => x > x0 - m && x < x0 + TILE + m && y > y0 - m && y < y0 + TILE + m;
+  const RI = RM - RING;
+  g.save(); g.beginPath(); g.arc(0, 0, RI, 0, 6.283); g.clip();
 
-  for (let gx = Math.ceil(x0 / 400) * 400; gx <= x0 + TILE; gx += 400) { const p = []; for (let y = y0; y <= y0 + TILE; y += 32) p.push([gx, y]); line(g, p, 0, .6, .16, true); }
-  for (let gy = Math.ceil(y0 / 400) * 400; gy <= y0 + TILE; gy += 400) { const p = []; for (let x = x0; x <= x0 + TILE; x += 32) p.push([x, gy]); line(g, p, 0, .6, .16, true); }
-
-  for (const [rx, ry] of ROSES) {
-    if (unc(rx, ry) > .45) continue;
-    for (let k = 0; k < 32; k++) {
-      const a = k / 32 * 6.283, dx = Math.cos(a), dy = Math.sin(a);
-      let t0 = 0, t1 = 2800;
-      for (const [o, d, lo, hi] of [[rx, dx, x0, x0 + TILE], [ry, dy, y0, y0 + TILE]]) {
-        if (Math.abs(d) < 1e-6) { if (o < lo || o > hi) t1 = -1; continue; }
-        let a1 = (lo - o) / d, a2 = (hi - o) / d; if (a1 > a2) [a1, a2] = [a2, a1];
-        t0 = Math.max(t0, a1); t1 = Math.min(t1, a2);
-      }
-      if (t0 >= t1) continue;
-      const p = []; for (let t = t0; t <= t1 + 1; t += 48) p.push([rx + dx * Math.min(t, t1), ry + dy * Math.min(t, t1)]);
-      line(g, p, 0, .5, k % 4 === 0 ? .2 : .1, true);
-    }
+  for (let k = 0; k < 36; k++) { const a = k / 36 * 6.283; ray(g, x0, y0, 0, 0, Math.cos(a), Math.sin(a), 0, RI, k % 9 === 0 ? .9 : .55, k % 9 === 0 ? .4 : .22); }
+  for (let r = 250; r < RI; r += 250) {
+    const p = []; for (let k = 0; k <= 240; k++) { const a = k / 240 * 6.283, x = Math.cos(a) * r, y = Math.sin(a) * r; if (near(x, y, 40)) p.push([x, y]); else if (p.length) { line(g, p, 0, r === 750 ? 1 : .55, r === 750 ? .45 : .22, true); p.length = 0; } }
+    if (p.length) line(g, p, 0, r === 750 ? 1 : .55, r === 750 ? .45 : .22, true);
   }
-
+  for (const [rx, ry] of ROSES) for (let k = 0; k < 32; k++) { const a = k / 32 * 6.283; ray(g, x0, y0, rx, ry, Math.cos(a), Math.sin(a), 0, 2600, .45, k % 4 === 0 ? .16 : .08); }
   const s = 8, n = TILE / s, vals = new Float32Array((n + 1) * (n + 1));
   for (let j = 0; j <= n; j++) for (let i = 0; i <= n; i++) vals[j * (n + 1) + i] = land(x0 + i * s, y0 + j * s);
   [3, 2, 1].forEach(k => contour(vals, n, s, x0, y0, TH - k * .022, (a, b, c2, d) => line(g, [[a, b], [c2, d]], 0, .6, .55 - k * .12, true)));
@@ -159,7 +170,7 @@ function renderTile(tx, ty) {
   for (let cy = Math.floor((y0 - 300) / C); cy <= Math.floor((y0 + TILE + 300) / C); cy++)
     for (let cx = Math.floor((x0 - 300) / C); cx <= Math.floor((x0 + TILE + 300) / C); cx++) {
       const px = (cx + .2 + .6 * hash(cx, cy, 22)) * C, py = (cy + .2 + .6 * hash(cx, cy, 23)) * C, uu = unc(px, py), h = hash(cx, cy, 21);
-      if (uu > .86) continue;
+      if (uu > .8) continue;
       const L = land(px, py), isLand = L > TH + .03 && h < .6, isSea = L < TH - .12 && h < .32;
       if (!isLand && !isSea) continue;
       const list = isLand ? LAND_NAMES : SEA_NAMES;
@@ -176,33 +187,37 @@ function renderTile(tx, ty) {
   if (names.length) for (let cy = Math.floor((y0 - 450) / MC); cy <= Math.floor((y0 + TILE + 450) / MC); cy++)
     for (let cx = Math.floor((x0 - 450) / MC); cx <= Math.floor((x0 + TILE + 450) / MC); cx++) {
       const px = (cx + .25 + .5 * hash(cx, cy, 61)) * MC, py = (cy + .25 + .5 * hash(cx, cy, 62)) * MC, uu = unc(px, py);
-      if (uu < .3 || uu > .97 || hash(cx, cy, 60) > .6 || land(px, py) > TH - .03) continue;
+      if (uu < .42 || uu >= 1 || hash(cx, cy, 60) > .6 || land(px, py) > TH - .03) continue;
       const im = IMG[names[hash(cx, cy, 63) * names.length | 0]], sz = 230 + 190 * hash(cx, cy, 64);
       g.save(); g.translate(px, py); g.rotate((hash(cx, cy, 65) - .5) * .35); if (hash(cx, cy, 66) < .5) g.scale(-1, 1);
-      g.globalAlpha = clamp((uu - .3) / .15) * clamp((.97 - uu) / .12) * .9;
+      g.globalAlpha = clamp((uu - .42) / .15) * .85;
       g.drawImage(im, -sz / 2, -sz / 2, sz, sz); g.restore();
     }
 
-  const RR = R0 + (R - R0) * .42, N = Math.round(6.283 * RR / 1500);
-  g.font = `900 26px 'Noto Serif KR'`;
-  for (let k = 0; k < N; k++) {
-    const a = k / N * 6.283 + .4, px = Math.cos(a) * RR, py = Math.sin(a) * RR;
-    if (!near(px, py, 420)) continue;
-    let rot = a + Math.PI / 2; if (Math.cos(rot) < 0) rot += Math.PI;
-    g.save(); g.translate(px, py); g.rotate(rot);
-    g.fillStyle = `rgba(${INK},.85)`; spaced(g, '여기서부터는 용이 산다', 0, 0, 5);
-    g.font = `500 13px 'Noto Serif KR'`; g.fillStyle = `rgba(${INK},.5)`; spaced(g, 'HIC SVNT DRACONES', 0, 28, 6);
-    g.restore(); g.font = `900 26px 'Noto Serif KR'`;
-  }
-
-  for (const [rx, ry] of ROSES) if (unc(rx, ry) < .45 && near(rx, ry, 160)) rose(g, rx, ry, 96);
-  if (near(0, -660, 220)) {
-    g.save(); g.translate(0, -660);
+  for (const [rx, ry] of ROSES) if (near(rx, ry, 160)) rose(g, rx, ry, rx === 0 && ry === 0 ? 60 : 84);
+  if (near(0, -560, 220)) {
+    g.save(); g.translate(0, -560);
     g.strokeStyle = `rgba(${INK},.8)`; g.lineWidth = 1.4; g.strokeRect(-150, -42, 300, 84);
     g.lineWidth = .6; g.strokeRect(-142, -34, 284, 68);
+    g.fillStyle = 'rgba(236,222,190,.85)'; g.fillRect(-141, -33, 282, 66);
     g.fillStyle = `rgba(${INK},.95)`; g.font = `900 30px 'Noto Serif KR'`; spaced(g, '알려진 세계', 0, -4, 8);
     g.font = `500 11px 'Noto Serif KR'`; g.fillStyle = `rgba(${INK},.6)`; spaced(g, 'TERRA COGNITA · MMXXVI', 0, 22, 4);
     g.restore();
+  }
+  g.restore();
+
+  // 바깥 눈금 띠: 세 겹 원, 5°마다 칠한 칸, 10°마다 숫자
+  if (Math.hypot(Math.max(Math.abs(x0 + TILE / 2) - TILE / 2, 0), Math.max(Math.abs(y0 + TILE / 2) - TILE / 2, 0)) < RM + 10) {
+    g.strokeStyle = `rgba(${INK},.85)`;
+    [[RM - 2, 2.2], [RM - 26, .8], [RM - 44, .8], [RI, 1.4]].forEach(([r, w]) => { g.lineWidth = w; g.beginPath(); g.arc(0, 0, r, 0, 6.283); g.stroke(); });
+    g.fillStyle = `rgba(${INK},.8)`;
+    for (let k = 0; k < 72; k += 2) { g.beginPath(); g.arc(0, 0, RM - 26, k / 72 * 6.283, (k + 1) / 72 * 6.283); g.arc(0, 0, RM - 44, (k + 1) / 72 * 6.283, k / 72 * 6.283, true); g.fill(); }
+    g.font = `500 13px 'Noto Serif KR'`;
+    for (let k = 0; k < 36; k++) {
+      const a = k / 36 * 6.283 - Math.PI / 2, x = Math.cos(a) * (RM - 14), y = Math.sin(a) * (RM - 14);
+      if (!near(x, y, 30)) continue;
+      g.save(); g.translate(x, y); g.rotate(a + Math.PI / 2); g.fillText(String(k * 10), 0, 0); g.restore();
+    }
   }
   return c;
 }
@@ -217,10 +232,20 @@ function resize() {
 
 function coordText(t) {
   const uu = unc(cam.x, cam.y);
-  if (uu > .97) return '여기는 지도 밖입니다';
+  if (outside(cam.x, cam.y) > 0) return '여기는 지도 밖입니다';
   const dm = (v, a, b) => { const d = Math.abs(v), D = Math.floor(d), M = Math.floor((d - D) * 60); return `${v >= 0 ? a : b} ${D}° ${String(M).padStart(2, '0')}′`; };
   const raw = `${dm(37.55 - cam.y * .0008, '북위', '남위')}   ${dm(126.98 + cam.x * .001, '동경', '서경')}`, slot = Math.floor(t * 3);
   return [...raw].map((c, i) => /\d/.test(c) && hash(i, slot, 50) < uu * 1.15 ? '?' : c).join('');
+}
+
+function curved(text, cx, cy, r, mid, sp, bottom) {
+  const ch = [...text], ws = ch.map(c => ctx.measureText(c).width + sp), tot = ws.reduce((a, b) => a + b, 0) - sp;
+  let cum = 0;
+  ch.forEach((c, i) => {
+    const off = (cum + (ws[i] - sp) / 2) / r, a = bottom ? mid + tot / r / 2 - off : mid - tot / r / 2 + off;
+    ctx.save(); ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.rotate(bottom ? a - Math.PI / 2 : a + Math.PI / 2);
+    ctx.fillText(c, 0, 0); ctx.restore(); cum += ws[i];
+  });
 }
 
 function frame(now) {
@@ -231,15 +256,48 @@ function frame(now) {
   } else if (!drag) {
     cam.x += vel.x * dt * 60; cam.y += vel.y * dt * 60;
     vel.x *= Math.pow(.92, dt * 60); vel.y *= Math.pow(.92, dt * 60);
+    const o = outside(cam.x, cam.y);
+    if (o > 2300) { const k = (o - 2300) / (o + RM) * Math.min(1, dt * 3); cam.x -= cam.x * k; cam.y -= cam.y * k; }
   }
   const ox = W / 2 - cam.x, oy = H / 2 - cam.y;
-  document.body.style.backgroundPosition = `${ox.toFixed(1)}px ${oy.toFixed(1)}px`;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
+  // 지도 밖: 어둠 속을 떠도는 이름 잃은 글자들
+  const LC = 210;
+  for (let cy = Math.floor((cam.y - H / 2) / LC) - 1; cy <= Math.floor((cam.y + H / 2) / LC) + 1; cy++)
+    for (let cx = Math.floor((cam.x - W / 2) / LC) - 1; cx <= Math.floor((cam.x + W / 2) / LC) + 1; cx++) {
+      const px = (cx + hash(cx, cy, 41)) * LC, py = (cy + hash(cx, cy, 42)) * LC, d = outside(px, py), h = hash(cx, cy, 40);
+      if (d < 140 || h > .3) continue;
+      const ch = h < .07 ? '지도밖'[hash(cx, cy, 43) * 3 | 0] : String.fromCharCode(0xAC00 + (hash(cx, cy, 44) * 11172 | 0));
+      const sz = 14 + 50 * hash(cx, cy, 45) ** 2;
+      ctx.font = `${h < .07 ? 900 : 500} ${sz}px 'Noto Serif KR'`;
+      ctx.fillStyle = `rgba(226,200,140,${clamp((d - 140) / 500) * (.22 + .18 * Math.sin(t * .6 + h * 90))})`;
+      ctx.save(); ctx.translate(px + ox + Math.sin(t * .25 + h * 50) * 14, py + oy + Math.cos(t * .21 + h * 70) * 10);
+      ctx.rotate(Math.sin(t * .15 + h * 30) * .3); ctx.fillText(ch, 0, 0); ctx.restore();
+    }
+
+  // 원 뒤에서 몸을 감고 엿보는 용들
+  DRAGONS.forEach(([n, deg, dist, rot, flip], k) => {
+    const im = BIG[n]; if (!im) return;
+    const a = deg * Math.PI / 180, w = 1350 - (k % 3) * 120, h = w * im.height / im.width;
+    const x = Math.cos(a) * dist + Math.sin(t * .11 + k) * 40 + ox, y = Math.sin(a) * dist + Math.cos(t * .13 + k * 2) * 30 + oy;
+    if (x + w / 2 < 0 || x - w / 2 > W || y + h / 2 < 0 || y - h / 2 > H) return;
+    ctx.save(); ctx.translate(x, y); ctx.rotate(rot + Math.sin(t * .09 + k) * .035); ctx.scale(flip, 1);
+    ctx.drawImage(im, -w / 2, -h / 2, w, h); ctx.restore();
+  });
+
+  // 원형 지도 한 장
+  ctx.save(); ctx.beginPath(); ctx.arc(ox, oy, RM, 0, 6.283);
+  ctx.shadowColor = 'rgba(0,0,0,.75)'; ctx.shadowBlur = 70;
+  if (PAPER) PAPER.setTransform(new DOMMatrix([1, 0, 0, 1, ox, oy]));
+  ctx.fillStyle = PAPER || '#e3d2ad'; ctx.fill(); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.arc(ox, oy, RM, 0, 6.283); ctx.clip();
   const tx0 = Math.floor((cam.x - W / 2) / TILE), tx1 = Math.floor((cam.x + W / 2) / TILE);
   const ty0 = Math.floor((cam.y - H / 2) / TILE), ty1 = Math.floor((cam.y + H / 2) / TILE);
   const todo = [];
   for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+    if (Math.hypot(Math.max(Math.abs((tx + .5) * TILE) - TILE / 2, 0), Math.max(Math.abs((ty + .5) * TILE) - TILE / 2, 0)) > RM) continue;
     const k = tx + ',' + ty, c = tiles.get(k);
     if (c) { tiles.delete(k); tiles.set(k, c); ctx.drawImage(c, tx * TILE + ox, ty * TILE + oy, TILE, TILE); }
     else todo.push([Math.hypot((tx + .5) * TILE - cam.x, (ty + .5) * TILE - cam.y), tx, ty]);
@@ -249,23 +307,17 @@ function frame(now) {
     ctx.drawImage(c, tx * TILE + ox, ty * TILE + oy, TILE, TILE);
   });
   while (tiles.size > 140) tiles.delete(tiles.keys().next().value);
+  const burn = ctx.createRadialGradient(ox, oy, RM * .8, ox, oy, RM);
+  burn.addColorStop(0, 'rgba(90,55,20,0)'); burn.addColorStop(1, 'rgba(90,55,20,.3)');
+  ctx.fillStyle = burn; ctx.fillRect(0, 0, W, H);
+  ctx.restore();
 
-  // 지도 밖: 빈 종이 위로 이름 잃은 글자들이 떠다닌다
-  const LC = 210;
-  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (let cy = Math.floor((cam.y - H / 2) / LC) - 1; cy <= Math.floor((cam.y + H / 2) / LC) + 1; cy++)
-    for (let cx = Math.floor((cam.x - W / 2) / LC) - 1; cx <= Math.floor((cam.x + W / 2) / LC) + 1; cx++) {
-      const px = (cx + hash(cx, cy, 41)) * LC, py = (cy + hash(cx, cy, 42)) * LC, uu = unc(px, py), h = hash(cx, cy, 40);
-      if (uu < .72 || h > .3) continue;
-      const ch = h < .07 ? '지도밖'[hash(cx, cy, 43) * 3 | 0] : String.fromCharCode(0xAC00 + (hash(cx, cy, 44) * 11172 | 0));
-      const sz = 14 + 50 * hash(cx, cy, 45) ** 2;
-      const a = clamp((uu - .72) / .2) * (.35 + .25 * Math.sin(t * .6 + h * 90));
-      ctx.font = `${h < .07 ? 900 : 500} ${sz}px 'Noto Serif KR'`;
-      ctx.fillStyle = `rgba(${INK},${a})`;
-      ctx.save(); ctx.translate(px + ox + Math.sin(t * .25 + h * 50) * 14, py + oy + Math.cos(t * .21 + h * 70) * 10);
-      ctx.rotate(Math.sin(t * .15 + h * 30) * .3); ctx.fillText(ch, 0, 0); ctx.restore();
-    }
+  ctx.fillStyle = 'rgba(232,206,146,.92)';
+  ctx.font = `900 40px 'Noto Serif KR'`; curved('여기서부터는 용이 산다', ox, oy, RM + 58, -Math.PI / 2, 14);
+  ctx.font = `500 26px 'Noto Serif KR'`; curved('HIC  SVNT  DRACONES', ox, oy, RM + 56, Math.PI / 2, 16, true);
 
+  const o = outside(cam.x, cam.y);
+  document.body.classList.toggle('out', o > 0);
   $('coord').textContent = coordText(t);
   $('home').classList.toggle('on', Math.hypot(cam.x, cam.y) > 900);
   requestAnimationFrame(frame);
