@@ -232,6 +232,7 @@ function render() {
     Object.assign(camera, { left: -G.W / 2, right: G.W / 2, top: G.H / 2, bottom: -G.H / 2 }); camera.updateProjectionMatrix();
   }
   const R = G.R, t = G.t;
+  camera.position.set(-(G.cx - G.W / 2), G.cy - G.H / 2, 8000);
   EMQ = G.Q || 0;
   if (EMQ < .003) { renderer.clear(); return; }
   occluder.scale.setScalar(R * .995);

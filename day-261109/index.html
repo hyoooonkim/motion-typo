@@ -31,7 +31,7 @@
 <div class="vig"></div>
 <div class="ui title">여기서부터는 용이 산다<span>hic sunt dracones</span></div>
 <button id="home">알려진 세계로 돌아가기</button>
-<div id="zoom"><button id="zin" aria-label="확대">+</button><span id="zoomv">100%</span><button id="zout" aria-label="축소">−</button></div>
+<div id="zoom"><button id="snd" aria-label="소리">♪</button><button id="zin" aria-label="확대">+</button><span id="zoomv">100%</span><button id="zout" aria-label="축소">−</button></div>
 <div class="ui" id="hint">끌어서 지구를 돌려보세요 · 핀치나 +/−로 확대</div>
 <div class="ui" id="coord"></div>
 <a class="back" href="../index.html">←</a>
@@ -252,6 +252,58 @@ function coordText(t) {
   return [...raw].map((c, i) => /\d/.test(c) && hash(i, slot, 50) < u * 1.15 ? '?' : c).join('');
 }
 
+/* ───── 소리와 떨림: 돌릴수록 다른 세계로 넘어가는 느낌 ───── */
+let AC = null, SND = null, muted = false, shake = 0, lastTurn = 0;
+function startSound() {
+  if (AC) { if (AC.state === 'suspended' && !muted) AC.resume(); return; }
+  AC = new (window.AudioContext || window.webkitAudioContext)();
+  const sr = AC.sampleRate, mk = (fn) => { const b = AC.createBuffer(1, sr * 4, sr), d = b.getChannelData(0); let l = 0; for (let i = 0; i < d.length; i++) d[i] = fn(Math.random() * 2 - 1, v => l = v, l); return b; };
+  const white = mk(w => w * .5), brown = mk((w, set, l) => set((l + .02 * w) / 1.02) * 3.5);
+  const src = (b) => { const s = AC.createBufferSource(); s.buffer = b; s.loop = true; s.start(0, Math.random() * 3); return s; };
+  const gain = v => { const g = AC.createGain(); g.gain.value = v; return g; };
+  const filt = (type, f, q = .7) => { const n = AC.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; return n; };
+  const comp = AC.createDynamicsCompressor(), master = gain(.9); master.connect(comp); comp.connect(AC.destination);
+  const rumbleF = filt('lowpass', 140), rumble = gain(0); src(brown).connect(rumbleF); rumbleF.connect(rumble); rumble.connect(master);
+  const drone = gain(0);
+  [38, 57.2, 76.6].forEach((f, i) => { const o = AC.createOscillator(); o.frequency.value = f; o.start(); const g = gain(i ? .35 : 1); o.connect(g); g.connect(drone); });
+  drone.connect(master);
+  const windF = filt('bandpass', 500, .8), wind = gain(0); src(white).connect(windF); windF.connect(wind); wind.connect(master);
+  // 낯선 화음: 살짝 어긋난 톱니파 다섯 개
+  const padF = filt('lowpass', 500, 2), pad = gain(0);
+  [110, 164.8, 207.7, 220.9, 329.6].forEach(f => { const o = AC.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.detune.value = (Math.random() - .5) * 18; o.start(); const g = gain(.12); o.connect(g); g.connect(padF); });
+  padF.connect(pad); pad.connect(master);
+  SND = { master, rumble, rumbleF, drone, wind, windF, pad, padF, white, brown, gain, filt };
+}
+// 한 바퀴를 채울 때마다 깊게 '둥—' 울린다
+function boom(n) {
+  shake = Math.min(1, .45 + n * .15);
+  if (navigator.vibrate) navigator.vibrate(n >= 3 ? [120, 60, 220] : [70 + n * 20]);
+  if (!AC || muted) return;
+  const { master, gain, filt, brown } = SND, now = AC.currentTime, big = n >= 3 ? 1.6 : 1;
+  const o = AC.createOscillator(), g = gain(0);
+  o.frequency.setValueAtTime(95, now); o.frequency.exponentialRampToValueAtTime(32, now + 2.8);
+  g.gain.setValueAtTime(0, now); g.gain.linearRampToValueAtTime(.7 * big, now + .03); g.gain.exponentialRampToValueAtTime(.001, now + 3.4 * big);
+  o.connect(g); g.connect(master); o.start(now); o.stop(now + 3.6 * big);
+  const s = AC.createBufferSource(), f = filt('lowpass', 260), g2 = gain(0); s.buffer = brown;
+  g2.gain.setValueAtTime(.9 * big, now); g2.gain.exponentialRampToValueAtTime(.001, now + 2.2 * big);
+  s.connect(f); f.connect(g2); g2.connect(master); s.start(now); s.stop(now + 2.4 * big);
+  if (n >= 3) [523.3, 784, 1046.5].forEach((fr, i) => {
+    const b = AC.createOscillator(), bg = gain(0); b.frequency.value = fr * (1 + i * .003);
+    bg.gain.setValueAtTime(0, now + .05); bg.gain.linearRampToValueAtTime(.06, now + .1); bg.gain.exponentialRampToValueAtTime(.001, now + 5);
+    b.connect(bg); bg.connect(master); b.start(now); b.stop(now + 5.2);
+  });
+}
+function soundFrame(P, speed) {
+  const turns = Math.floor(spun / 360);
+  if (turns > lastTurn) { lastTurn = turns; if (turns <= 7) boom(turns); }
+  if (!AC || muted) return;
+  const { rumble, rumbleF, drone, wind, windF, pad, padF } = SND, now = AC.currentTime, set = (p, v) => p.setTargetAtTime(v, now, .25);
+  set(rumble.gain, .04 + .45 * Math.pow(P, 1.5) + .25 * Q); set(rumbleF.frequency, 110 + 260 * P);
+  set(drone.gain, .015 + .22 * P + .15 * Q);
+  set(wind.gain, clamp(speed / 6) * .3 * (.4 + .6 * P)); set(windF.frequency, 350 + clamp(speed / 6) * 1400);
+  set(pad.gain, .22 * Q); set(padF.frequency, 300 + 900 * Q + 200 * Math.sin(now * .3));
+}
+
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000), t = now / 1000; last = now;
   if (homing) {
@@ -265,13 +317,23 @@ function frame(now) {
   }
   Q += (clamp((spun - REVEAL_FROM) / REVEAL_SPAN) - Q) * Math.min(1, dt * 1.5);
   // 용이 드러날수록 지구가 조금 물러나 용이 날 자리를 내준다
-  const R = BASE * z * (1 - .24 * Q), cx = W / 2, cy = H / 2;
+  // 세 바퀴까지 긴장이 쌓인다(P), 바퀴를 채울 때마다 크게 흔들린다(shake)
+  const P = clamp(spun / REVEAL_FROM), speed = Math.hypot(spin[0], spin[1]);
+  soundFrame(P, speed);
+  shake *= Math.pow(.25, dt);
+  const amp = P * P * 1.8 + Q * 1.2 + shake * 16, sx = (Math.sin(t * 61) + Math.sin(t * 37.3)) * .5 * amp, sy = (Math.cos(t * 53) + Math.sin(t * 29.7)) * .5 * amp;
+  const R = BASE * z * (1 - .24 * Q), cx = W / 2 + sx, cy = H / 2 + sy;
   proj.scale(R).translate([cx, cy]).rotate([rot[0], rot[1], 0]);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-
-
-
+  // 다른 세계의 기운: 지구 뒤로 붉은 빛이 번지고 바깥이 깊어진다
+  const glow = .12 * P + .3 * Q + .25 * shake;
+  if (glow > .01) {
+    const g = ctx.createRadialGradient(cx, cy, R * .9, cx, cy, R * (2.2 + .4 * Math.sin(t * .7)));
+    g.addColorStop(0, `rgba(200,90,30,${glow})`); g.addColorStop(.45, `rgba(120,30,15,${glow * .45})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+  document.body.style.background = `rgb(${12 + 16 * Q | 0},${11 + 2 * Q | 0},${10 + 2 * Q | 0})`;
   drawGlobe(R, cx, cy, t);
   window.GLOBE = { R, cx, cy, t, W, H, DPR, Q };
   $('coord').textContent = coordText(t);
@@ -286,6 +348,7 @@ const pts = new Map();
 let pinch = null;
 const turn = (dx, dy) => { const k = 57.3 / (BASE * z); rot[0] += dx * k; rot[1] = clamp(rot[1] - dy * k, -88, 88); spun += Math.hypot(dx, dy) * k; };
 cv.addEventListener('pointerdown', e => {
+  if (!muted) startSound();
   pts.set(e.pointerId, { x: e.clientX, y: e.clientY }); cv.setPointerCapture(e.pointerId);
   homing = false; spin = [0, 0]; idle = 0;
   if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a.x - b.x, a.y - b.y); drag = null; }
@@ -322,6 +385,10 @@ addEventListener('keydown', e => {
   if (e.key === '+' || e.key === '=') zoomBy(1.25);
   if (e.key === '-' || e.key === '_') zoomBy(.8);
 });
+$('snd').onclick = () => {
+  muted = !muted; $('snd').style.opacity = muted ? .35 : 1;
+  if (muted) AC?.suspend(); else { startSound(); AC.resume(); }
+};
 $('zin').onclick = () => zoomBy(1.4);
 $('zout').onclick = () => zoomBy(1 / 1.4);
 $('home').onclick = () => { homing = true; spin = [0, 0]; idle = 0; };
