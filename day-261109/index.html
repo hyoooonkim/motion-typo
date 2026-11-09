@@ -353,24 +353,31 @@ function frame(now) {
   if (PAPER) PAPER.setTransform(new DOMMatrix());
   ctx.fillStyle = PAPER || '#e3d2ad'; ctx.fill(); ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.arc(0, 0, RM, 0, 6.283); ctx.clip();
-  const lv = clamp(Math.round(Math.log2(z * DPR / Math.min(2, DPR))), -2, 2), ts = TILE / 2 ** lv;
+  const lv = clamp(Math.ceil(Math.log2(z * DPR / Math.min(2, DPR)) - .08), -2, 3), ts = TILE / 2 ** lv;
   const todo = [];
   for (let ty = Math.floor(vy0 / ts); ty <= Math.floor(vy1 / ts); ty++) for (let tx = Math.floor(vx0 / ts); tx <= Math.floor(vx1 / ts); tx++) {
     if (Math.hypot(Math.max(Math.abs((tx + .5) * ts) - ts / 2, 0), Math.max(Math.abs((ty + .5) * ts) - ts / 2, 0)) > RM) continue;
     const k = lv + ':' + tx + ',' + ty, c = tiles.get(k);
     if (c) { tiles.delete(k); tiles.set(k, c); ctx.drawImage(c, tx * ts, ty * ts, ts, ts); continue; }
     todo.push([Math.hypot((tx + .5) * ts - cam.x, (ty + .5) * ts - cam.y), tx, ty]);
-    // 새 배율 타일이 나오기 전엔 한 단계 거친 타일의 일부를 늘려 메운다
-    const p = tiles.get((lv - 1) + ':' + Math.floor(tx / 2) + ',' + Math.floor(ty / 2));
-    if (p) { const hw = p.width / 2; ctx.drawImage(p, (tx - Math.floor(tx / 2) * 2) * hw, (ty - Math.floor(ty / 2) * 2) * hw, hw, hw, tx * ts, ty * ts, ts, ts); }
+    // 새 배율 타일이 나오기 전엔 이미 있는 가까운 배율 타일로 빈틈을 메운다
+    let filled = false;
+    for (let up = 1; up <= 4 && !filled; up++) {
+      const f = 2 ** up, px = Math.floor(tx / f), py = Math.floor(ty / f), p = tiles.get((lv - up) + ':' + px + ',' + py);
+      if (p) { const q = p.width / f; ctx.drawImage(p, (tx - px * f) * q, (ty - py * f) * q, q, q, tx * ts, ty * ts, ts, ts); filled = true; }
+    }
+    if (!filled) for (let dy = 0; dy < 2; dy++) for (let dx = 0; dx < 2; dx++) {
+      const ch = tiles.get((lv + 1) + ':' + (tx * 2 + dx) + ',' + (ty * 2 + dy));
+      if (ch) ctx.drawImage(ch, tx * ts + dx * ts / 2, ty * ts + dy * ts / 2, ts / 2, ts / 2);
+    }
   }
   const t0 = performance.now();
   for (const [, tx, ty] of todo.sort((a, b) => a[0] - b[0])) {
     const c = renderTile(tx, ty, lv); tiles.set(lv + ':' + tx + ',' + ty, c);
     ctx.drawImage(c, tx * ts, ty * ts, ts, ts);
-    if (performance.now() - t0 > 12) break;
+    if (performance.now() - t0 > 14) break;
   }
-  while (tiles.size > 220) tiles.delete(tiles.keys().next().value);
+  while (tiles.size > 260) tiles.delete(tiles.keys().next().value);
   const burn = ctx.createRadialGradient(0, 0, RM * .8, 0, 0, RM);
   burn.addColorStop(0, 'rgba(90,55,20,0)'); burn.addColorStop(1, 'rgba(90,55,20,.3)');
   ctx.fillStyle = burn; ctx.fillRect(vx0, vy0, vw, vh);
