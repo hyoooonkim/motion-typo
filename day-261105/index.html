@@ -99,7 +99,7 @@ function build() {
     const px = o.getImageData(0, 0, W, H).data, A = (x, y) => x < 0 || y < 0 || x >= W || y >= H ? 0 : px[((y | 0) * W + (x | 0)) * 4 + 3];
     const P = [], add = (x, y, w, h, t = 0) => P.push([x, y, w, h, t]);
     if (s.style === 'bars') {
-      const C = s.FS / 23;
+      const C = s.FS / 42;
       for (let y = C / 2; y < H; y += C) {
         let run = 0;
         for (let x = C / 2; x < W + C; x += C) {
@@ -250,7 +250,7 @@ function draw(s, t, dt) {
     for (let k = Math.floor(want * dt + Math.random()); k > 0; k--) {
       const x = Math.random() * W, y = -Math.random() * H * .3, ys = s.surf[x | 0];
       s.drops.push({ x, y, v: H * (1.5 + Math.random() * .7), len: FS * (.05 + Math.random() * .08), a: .25 + Math.random() * .45,
-        stop: ys.find(q => q > y + FS * .02) ?? H + 40 });
+        stop: ys.length && Math.random() > .6 ? ys[Math.random() * ys.length | 0] : ys[0] ?? H + 40 });
     }
     ctx.globalAlpha = 1;
     s.drops = s.drops.filter(d => {
@@ -273,18 +273,18 @@ function draw(s, t, dt) {
     for (const w of s.wet) { ctx.globalAlpha = w.life * .6; ctx.fillRect(OX + w.x - 1.5, w.y - .8, 3, 1.6); }
   } else if (s.key === 'wave') {
     // 평소엔 물살 줄로 흩어져 흐르다가, 파도가 높아질 때만 글자로 모였다 흩어진다
-    const sw = swell(t), on = clamp((m - .08) / .92), span = W * 1.3, L = 11;
+    const sw = swell(t), on = clamp((m - .08) / .92), span = W * 1.3, L = 26;
     for (let i = 0; i < n; i++) {
       const lane = r[i] * L | 0, v = C * (1.2 + (lane % 3) * .8) * (.4 + .6 * on);
       const sx = ((f[i] * span + t * v) % span + span) % span - W * .15;
-      const sy = H * .2 + lane / (L - 1) * H * .6 + Math.sin(sx / (FS * .45) - t * 1.3 + lane * .8) * C * (1 + on);
+      const sy = H * .2 + lane / (L - 1) * H * .6 + Math.sin(sx / (FS * .22) - t * 1.6 + lane * .8) * C * .5 * (1 + on) + Math.sin(sx / (FS * .09) + t * 2.4 + ph[i]) * C * .15;
       const d = (hx[i] - W / 2) / W * .3;
       const g0 = clamp((sw - .5 + d) / .32) * on, g = g0 * g0 * (3 - 2 * g0);
       const p = t * 1.7 - hx[i] / (FS * .7);
       const x = sx + (hx[i] + Math.sin(p) * C * .6 * (1 - g) - sx) * g;
       const y = sy + (hy[i] + Math.cos(p * 1.2) * C * .3 * (1 - g) - sy) * g;
       const glint = .55 + .3 * Math.sin(t * 2.2 + ph[i] * 5);
-      put(s, i, x, y, 1.35 - .35 * g, .5 + .5 * g, glint + (1 - glint) * g);
+      put(s, i, x, y, 1.1 - .1 * g, .4 + .6 * g, glint + (1 - glint) * g);
     }
   } else if (s.key === 'fire') {
     for (let i = 0; i < n; i++) {
