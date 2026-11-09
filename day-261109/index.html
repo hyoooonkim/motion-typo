@@ -11,6 +11,7 @@
   html, body { height: 100%; overflow: hidden; background: #0c0b0a; font-family: 'Noto Serif KR', serif; --fg: #e6d6b3; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   canvas.drag { cursor: grabbing; }
+  #dragon { pointer-events: none; }
   .vig { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 85% 85% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5) 100%); }
   .ui { position: fixed; font-size: 12px; letter-spacing: .08em; pointer-events: none; color: var(--fg); }
   .title { left: 18px; top: 16px; font-weight: 900; }
@@ -26,6 +27,7 @@
 </head>
 <body>
 <canvas id="cv"></canvas>
+<canvas id="dragon"></canvas>
 <div class="vig"></div>
 <div class="ui title">여기서부터는 용이 산다<span>hic sunt dracones</span></div>
 <button id="home">알려진 세계로 돌아가기</button>
@@ -34,6 +36,7 @@
 <div class="ui" id="coord"></div>
 <a class="back" href="../index.html">←</a>
 
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/" } }</script>
 <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/topojson-client@3.1.0/dist/topojson-client.min.js"></script>
 <script>
@@ -99,28 +102,15 @@ async function loadWorld() {
   PHRASE = d3.geoCircle().center(HOME).radius(118).precision(36)().coordinates[0].slice(0, -1);
 }
 
-const BIG = {}, FACE = { 'd1-eastern': -1, 'd2-western': 1, 'd3-leviathan': -1 };
-['d1-eastern', 'd2-western', 'd3-leviathan'].forEach(n => { const im = new Image(); im.onload = () => BIG[n] = im; im.src = `${n}.webp`; });
+
 let PAPER = null;
 { const im = new Image(); im.onload = () => { PAPER = ctx.createPattern(im, 'repeat'); delete LAYERS.base; }; im.src = 'paper.webp'; }
-// [그림, 시작 각도, 지구 반지름 대비 거리, 크기, 좌우 뒤집기]
-const DRAGONS = [['d1-eastern', 195, 1.42, 1, 1], ['d2-western', -30, 1.5, 1.05, 1], ['d3-leviathan', 95, 1.48, 1.1, -1],
-  ['d2-western', 245, 1.4, .85, -1], ['d1-eastern', 330, 1.4, .85, -1], ['d3-leviathan', 145, 1.38, .85, 1]];
 
 function spaced(text, x, y, sp) {
   const ch = [...text], ws = ch.map(c => ctx.measureText(c).width), tot = ws.reduce((a, b) => a + b, 0) + sp * (ch.length - 1);
   let cx = x - tot / 2;
   ch.forEach((c, i) => { ctx.fillText(c, cx + ws[i] / 2, y); cx += ws[i] + sp; });
   return tot;
-}
-function curved(text, cx, cy, r, mid, sp, bottom) {
-  const ch = [...text], ws = ch.map(c => ctx.measureText(c).width + sp), tot = ws.reduce((a, b) => a + b, 0) - sp;
-  let cum = 0;
-  ch.forEach((c, i) => {
-    const off = (cum + (ws[i] - sp) / 2) / r, a = bottom ? mid + tot / r / 2 - off : mid - tot / r / 2 + off;
-    ctx.save(); ctx.translate(cx + Math.cos(a) * r, cy + Math.sin(a) * r); ctx.rotate(bottom ? a - Math.PI / 2 : a + Math.PI / 2);
-    ctx.fillText(c, 0, 0); ctx.restore(); cum += ws[i];
-  });
 }
 function resize() {
   DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
@@ -159,14 +149,6 @@ function paintRing(g, R, cx, cy) {
   ctx.strokeStyle = 'rgba(214,184,120,.85)'; ctx.fillStyle = 'rgba(214,184,120,.85)';
   [[R + 6, 1.4], [R + 22, .8], [R + 34, .8], [R + 48, 1.6]].forEach(([r, w]) => { ctx.lineWidth = w; ctx.beginPath(); ctx.arc(cx, cy, r, 0, 6.283); ctx.stroke(); });
   for (let k = 0; k < 72; k += 2) { ctx.beginPath(); ctx.arc(cx, cy, R + 22, k / 72 * 6.283, (k + 1) / 72 * 6.283); ctx.arc(cx, cy, R + 34, (k + 1) / 72 * 6.283, k / 72 * 6.283, true); ctx.fill(); }
-  ctx.font = `500 11px 'Noto Serif KR'`;
-  for (let k = 0; k < 36; k++) {
-    const a = k / 36 * 6.283 - Math.PI / 2;
-    ctx.save(); ctx.translate(cx + Math.cos(a) * (R + 14), cy + Math.sin(a) * (R + 14)); ctx.rotate(a + Math.PI / 2); ctx.fillText(String(k * 10), 0, 0); ctx.restore();
-  }
-  ctx.fillStyle = 'rgba(232,206,146,.92)';
-  ctx.font = `900 ${clamp(R * .05, 18, 44)}px 'Noto Serif KR'`; curved('여기서부터는 용이 산다', cx, cy, R + 80, -Math.PI / 2, clamp(R * .016, 6, 14));
-  ctx.font = `500 ${clamp(R * .032, 13, 26)}px 'Noto Serif KR'`; curved('HIC  SVNT  DRACONES', cx, cy, R + 78, Math.PI / 2, clamp(R * .018, 6, 16), true);
   ctx = keep;
 }
 
@@ -235,20 +217,6 @@ function drawGlobe(R, cx, cy, t) {
   if (R < diag) { const ring = layer('ring', R, .22, paintRing); if (ring) put(ring, R, cx, cy); else paintRing(ctx, R, cx, cy); }
 }
 
-let LETTERS = null;
-function paintLetters() {
-  const c = document.createElement('canvas'); c.width = Math.round((W + 80) * DPR); c.height = Math.round((H + 80) * DPR);
-  const g = c.getContext('2d'); g.scale(DPR, DPR); g.textAlign = 'center'; g.textBaseline = 'middle';
-  const LC = 160;
-  for (let gy = 0; gy <= Math.ceil((H + 80) / LC); gy++) for (let gx = 0; gx <= Math.ceil((W + 80) / LC); gx++) {
-    const h = hash(gx, gy, 40); if (h > .3) continue;
-    const ch = h < .07 ? '지도밖'[hash(gx, gy, 43) * 3 | 0] : String.fromCharCode(0xAC00 + (hash(gx, gy, 44) * 11172 | 0));
-    g.font = `${h < .07 ? 900 : 500} ${12 + 40 * hash(gx, gy, 45) ** 2}px 'Noto Serif KR'`;
-    g.fillStyle = `rgba(226,200,140,${.14 + .2 * hash(gx, gy, 46)})`;
-    g.save(); g.translate((gx + hash(gx, gy, 41)) * LC, (gy + hash(gx, gy, 42)) * LC); g.rotate((hash(gx, gy, 47) - .5) * .6); g.fillText(ch, 0, 0); g.restore();
-  }
-  return c;
-}
 
 function coordText(t) {
   const [lon, lat] = proj.invert([W / 2, H / 2]), u = unc(lon, lat);
@@ -274,33 +242,10 @@ function frame(now) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
 
-  // 지도 밖: 어둠 속을 떠도는 이름 잃은 글자들(미리 그린 판을 통째로 천천히 흔든다)
-  if (!LETTERS || LETTERS.width !== Math.round((W + 80) * DPR)) LETTERS = paintLetters();
-  ctx.globalAlpha = .8 + .2 * Math.sin(t * .5);
-  ctx.drawImage(LETTERS, -40 + Math.sin(t * .13) * 18, -40 + Math.cos(t * .11) * 14, W + 80, H + 80);
-  ctx.globalAlpha = 1;
 
-  // 지구 둘레를 헤엄치며 도는 용들
-  DRAGONS.forEach(([n, deg, dist, size, flip], k) => {
-    const im = BIG[n]; if (!im) return;
-    const a = (deg + t * 1.6) * Math.PI / 180, w = R * 1.05 * size, h = w * im.height / im.width;
-    const x = cx + Math.cos(a) * R * dist, y = cy + Math.sin(a) * R * dist;
-    if (x + w * .6 < 0 || x - w * .6 > W || y + h * .6 < 0 || y - h * .6 > H) return;
-    const tanX = -Math.sin(a), tanY = Math.cos(a), sx = clamp(tanX * 3, -1, 1) * FACE[n] * flip;
-    ctx.save(); ctx.translate(x, y); ctx.rotate(clamp(tanY * Math.sign(tanX || 1), -1, 1) * .22); ctx.scale(Math.abs(sx) < .12 ? .12 * Math.sign(sx || 1) : sx, 1);
-    const N = 60, sw = im.width / N, cw = w / N, wing = n === 'd2-western';
-    for (let i = 0; i < N; i++) {
-      const nx = (i + .5) / N * 2 - 1;
-      const dy = wing
-        ? -Math.sin(t * 2.4 + k) * h * .09 * Math.pow(Math.abs(nx), 1.6) + Math.sin(t * 2.4 + k + 1.2) * h * .015
-        : Math.sin(nx * Math.PI * 2.2 - t * 1.7 - k) * h * .045 * (.4 + .6 * Math.abs(nx));
-      const sy = wing ? 1 + Math.sin(t * 2.4 + k) * .04 * Math.abs(nx) : 1;
-      ctx.drawImage(im, i * sw, 0, sw + .5, im.height, -w / 2 + i * cw, -h / 2 * sy + dy, cw + .6, h * sy);
-    }
-    ctx.restore();
-  });
 
   drawGlobe(R, cx, cy, t);
+  window.GLOBE = { R, cx, cy, t, W, H, DPR };
   $('coord').textContent = coordText(t);
   $('zoomv').textContent = `${Math.round(z * 100)}%`;
   $('home').classList.toggle('on', d3.geoDistance(proj.invert([cx, cy]), HOME) > .5 || Math.abs(z - 1) > .05);
@@ -355,8 +300,9 @@ $('home').onclick = () => { homing = true; spin = [0, 0]; idle = 0; };
 addEventListener('resize', resize);
 resize();
 requestAnimationFrame(frame);
-Promise.all([document.fonts.load(`900 20px 'Noto Serif KR'`, '여기서부터는용이산다'), document.fonts.load(`500 20px 'Noto Serif KR'`, '바다')]).catch(() => {}).then(() => { LETTERS = null; for (const k in LAYERS) delete LAYERS[k]; });
+Promise.all([document.fonts.load(`900 20px 'Noto Serif KR'`, '여기서부터는용이산다'), document.fonts.load(`500 20px 'Noto Serif KR'`, '바다')]).catch(() => {}).then(() => { for (const k in LAYERS) delete LAYERS[k]; });
 loadWorld().catch(e => console.warn('세계 지도 데이터를 불러오지 못했어요', e));
 </script>
+<script type="module" src="dragon.js"></script>
 </body>
 </html>
