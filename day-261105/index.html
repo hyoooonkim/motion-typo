@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Day 261105 — 백색소음</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@900&family=Noto+Sans+KR:wght@900&family=Nanum+Pen+Script&display=block">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@900&family=Noto+Sans+KR:wght@900&display=block">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100%; overflow: hidden; background: #0d1210; color: #e9e6e0; font-family: 'Noto Serif KR', serif; }
@@ -35,20 +35,19 @@
 <a class="back" href="../index.html">←</a>
 
 <script>
-const SERIF = "900 {}px 'Noto Serif KR', serif", SANS = "900 {}px 'Noto Sans KR', sans-serif", PEN = "400 {}px 'Nanum Pen Script', cursive";
+const SERIF = "900 {}px 'Noto Serif KR', serif", SANS = "900 {}px 'Noto Sans KR', sans-serif";
 const SOUNDS = [
-  { key: 'rain', word: '비', en: 'RAIN', vol: .55, style: 'grain', font: SERIF, color: '#b3cbff' },
+  { key: 'rain', word: '비', en: 'RAIN', vol: .55, style: 'rain', font: SERIF, color: '#b3cbff' },
   { key: 'wave', word: '파도', en: 'WAVE', vol: .75, style: 'bars', font: SERIF, color: '#f1ef93', skew: .2 },
   { key: 'fire', word: '장작', en: 'FIREWOOD', vol: .9, style: 'pixels', font: SERIF, color: '#d9d4cd' },
   { key: 'fan', word: '선풍기', en: 'FAN', vol: .5, style: 'cloud', font: SANS, color: '#8f7cf2' },
-  { key: 'cafe', word: '카페', en: 'CAFE', vol: .65, style: 'stars', font: PEN, color: '#f6d9d4' },
 ];
-const BG = ['01-rain', '02-wave', '03-fire', '04-fan', '05-cafe'];
+const BG = ['01-rain', '02-wave', '03-fire', '04-fan'];
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
 const $ = id => document.getElementById(id);
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
 let W = 0, H = 0, DPR = 1, cur = 0, pos = 0, playing = false, vol = .7;
-let embers = [], ripples = [];
+let embers = [];
 SOUNDS.forEach(s => { s.level = 0; s.lv = 0; s.m = 0; });
 
 const track = $('track');
@@ -70,7 +69,7 @@ function build() {
   o.textAlign = 'center'; o.textBaseline = 'middle';
   SOUNDS.forEach(s => {
     const chars = [...s.word], len = chars.length;
-    const fit = { cloud: [.5, .8], stars: [.78, 1.05] }[s.style] || [.62, .86];
+    const fit = { cloud: [.5, .8] }[s.style] || [.62, .86];
     s.FS = Math.min(H * fit[0], W * fit[1] / (len * 1.02));
     s.C = s.FS / 19;
     s.css = s.font.replace('{}', s.FS.toFixed(1));
@@ -114,20 +113,25 @@ function build() {
         }
       }
     } else {
-      const g = { grain: Math.max(2, s.FS / 120), pixels: Math.max(4, s.FS / 40), cloud: Math.max(2, s.FS / 95), stars: s.FS / 48 }[s.style];
+      const g = { pixels: Math.max(4, s.FS / 40), cloud: Math.max(2, s.FS / 95), rain: Math.max(3, s.FS / 70) }[s.style];
       for (let y = g / 2; y < H; y += g) for (let x = g / 2; x < W; x += g) {
         const a = A(x, y) / 255, j = () => (Math.random() - .5) * g * .6;
-        if (s.style === 'grain' && a > .43) add(x + j(), y + j(), g * .72, g * .72);
+        if (s.style === 'rain') { if (a > .43 && [[g, 0], [-g, 0], [0, g], [0, -g]].some(([u, v]) => A(x + u, y + v) <= 110)) add(x, y, g * .55, g * .55); }
         else if (s.style === 'pixels' && a > .43 && Math.random() < .88) add(x, y, g * .94, g * .94);
         else if (s.style === 'cloud') {
           const b = halo[((y | 0) * W + (x | 0)) * 4 + 3] / 255;
           if (a > .43 ? Math.random() < .62 : Math.random() < b * b * .8) add(x + j(), y + j(), g * .8, g * .8, a > .43 ? 0 : 1);
         }
-        else if (s.style === 'stars' && a > .43 && Math.random() < .45) {
-          const q = Math.random();
-          add(x + j(), y + j(), g * 1.8, g * 1.8, q < .1 ? 2 : q < .35 ? 1 : 0);
-        }
       }
+    }
+    if (s.style === 'rain') {
+      s.surf = [];
+      for (let x = 0; x < W; x++) {
+        const ys = [];
+        for (let y = 2; y < H; y += 2) if (A(x, y) > 110 && A(x, y - 2) <= 110) ys.push(y);
+        s.surf.push(ys);
+      }
+      s.drops = []; s.spl = [];
     }
     const n = P.length;
     Object.assign(s, { n, hx: new Float32Array(n), hy: new Float32Array(n), w: new Float32Array(n), h: new Float32Array(n),
@@ -167,7 +171,7 @@ function startAudio() {
   const comp = AC.createDynamicsCompressor(), master = gain(.9);
   chain(master, comp, AC.destination);
   SOUNDS.forEach(s => { s.out = gain(0); s.out.connect(master); s.p = {}; });
-  const [rain, wave, fire, fan, cafe] = SOUNDS;
+  const [rain, wave, fire, fan] = SOUNDS;
 
   chain(loop('pink'), filt('highpass', 450), filt('lowpass', 9000), gain(1.1), rain.out);
   chain(loop('white'), filt('bandpass', 6500, .5), gain(.18), rain.out);
@@ -185,27 +189,14 @@ function startAudio() {
   const hum = AC.createOscillator(); hum.frequency.value = 100; hum.start();
   chain(hum, gain(.012), fan.out);
 
-  cafe.p.b1 = gain(.5); cafe.p.b2 = gain(.3);
-  chain(loop('pink'), filt('bandpass', 450, .8), cafe.p.b1, cafe.out);
-  chain(loop('pink'), filt('bandpass', 1500, 1.3), cafe.p.b2, cafe.out);
 }
 
-function burst(out, f, q, dur, amp) {
-  const t = AC.currentTime, s = AC.createBufferSource(), g = gain(0);
+function burst(out, f, q, dur, amp, delay = 0) {
+  const t = AC.currentTime + delay, s = AC.createBufferSource(), g = gain(0);
   s.buffer = NZ.white; s.start(t, Math.random() * 5, dur + .05);
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(amp, t + .0015);
   g.gain.exponentialRampToValueAtTime(.0001, t + dur);
   chain(s, filt('bandpass', f, q), g, out);
-}
-function clink(out) {
-  const t = AC.currentTime, f = 2100 + Math.random() * 1800, g = gain(0);
-  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.07, t + .002);
-  g.gain.exponentialRampToValueAtTime(.0001, t + .7);
-  [1, 2.76].forEach((m, i) => {
-    const o = AC.createOscillator(); o.frequency.value = f * m; o.start(t); o.stop(t + .75);
-    chain(o, gain(i ? .35 : 1), g);
-  });
-  g.connect(out);
 }
 
 
@@ -214,64 +205,67 @@ let last = performance.now();
 const clock = () => AC ? AC.currentTime : performance.now() / 1000;
 
 function events(dt) {
-  const [rain, , fire, , cafe] = SOUNDS;
-  if (fire.m > .05 && Math.random() < (1.5 + 9 * fire.m) * dt) {
-    const k = Math.random() * fire.n | 0, n = 2 + Math.random() * 6 * fire.m | 0;
+  const fire = SOUNDS[2];
+  if (fire.m > .15 && Math.random() < (.5 + 1.6 * fire.m) * dt) {
+    const k = Math.random() * fire.n | 0, n = 1 + Math.random() * 3 * fire.m | 0;
     for (let j = 0; j < n; j++) embers.push({ x: fire.hx[k], y: fire.hy[k], life: 1,
-      vx: (Math.random() - .5) * fire.FS * 1.6, vy: -fire.FS * (.8 + Math.random() * 1.8) });
-    if (AC) burst(fire.out, 900 + Math.random() * 3200, .9, .015 + Math.random() * .045, .6 + Math.random() * .8);
-  }
-  if (AC && rain.lv > .02 && Math.random() < 40 * rain.m * dt)
-    burst(rain.out, 2500 + Math.random() * 5000, 2, .004 + Math.random() * .01, .25);
-  if (cafe.m > .05 && Math.random() < (.2 + .5 * cafe.m) * dt) {
-    const k = Math.random() * cafe.n | 0;
-    ripples.push({ x: cafe.hx[k], y: cafe.hy[k], t0: clock() });
-    if (AC) clink(cafe.out);
+      vx: (Math.random() - .5) * fire.FS * .5, vy: -fire.FS * (.3 + Math.random() * .5) });
+    if (AC) {
+      const pops = Math.random() < .55 ? 2 : 1;
+      for (let j = 0; j < pops; j++) burst(fire.out, 700 + Math.random() * 2200, .9, .02 + Math.random() * .05, .5 + Math.random() * .7, j * (.08 + Math.random() * .1));
+    }
   }
 }
 
 function audioParams(t) {
   if (!AC) return;
   const now = AC.currentTime, set = (p, v) => p.setTargetAtTime(v, now, .06);
-  const [, wave, fire, fan, cafe] = SOUNDS, sw = swell(t);
+  const [, wave, fire, fan] = SOUNDS, sw = swell(t);
   SOUNDS.forEach(s => set(s.out.gain, Math.pow(s.lv, 1.6) * s.vol));
   set(wave.p.lp.frequency, 250 + 1500 * sw); set(wave.p.g.gain, .2 + .95 * sw); set(wave.p.foam.gain, .14 * sw * sw * sw);
-  set(fire.p.roar.gain, .55 + .25 * Math.sin(t * 2.3) * Math.sin(t * 5.1));
+  set(fire.p.roar.gain, .55 + .2 * Math.sin(t * .7) * Math.sin(t * 1.3));
   set(fan.p.lp.frequency, 650 + 550 * (.5 + .5 * swing(t)));
-  set(cafe.p.b1.gain, .4 + .2 * Math.sin(t * .9) + .1 * Math.sin(t * 2.7));
-  set(cafe.p.b2.gain, .25 + .15 * Math.sin(t * 1.3 + 1) + .08 * Math.sin(t * 3.4));
 }
 
 let OX = 0;
-function star(x, y, R) {
-  const k = R * .16;
-  ctx.beginPath();
-  ctx.moveTo(x, y - R); ctx.lineTo(x + k, y - k); ctx.lineTo(x + R, y); ctx.lineTo(x + k, y + k);
-  ctx.lineTo(x, y + R); ctx.lineTo(x - k, y + k); ctx.lineTo(x - R, y); ctx.lineTo(x - k, y - k);
-  ctx.fill();
-}
 function put(s, i, x, y, sx = 1, sy = 1, a = 1) {
   if (a <= .01) return;
   const w = s.w[i] * sx, h = s.h[i] * sy;
   if (w <= .3 || h <= .3) return;
   ctx.globalAlpha = a; x += OX;
   if (s.style === 'bars') { ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, Math.min(w, h) * .42); ctx.fill(); }
-  else if (s.style !== 'stars') ctx.fillRect(x - w / 2, y - h / 2, w, h);
-  else if (s.t[i] === 2) star(x, y, w * .9);
-  else if (s.t[i] === 1) { ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(x, y, w * .2, 0, 6.283); ctx.stroke(); }
-  else ctx.fillRect(x - w * .1, y - w * .1, w * .2, w * .2);
+  else ctx.fillRect(x - w / 2, y - h / 2, w, h);
 }
 
 function draw(s, t, dt) {
   const { n, hx, hy, r, ph, f, C, FS } = s, m = s.m;
   if (s.key === 'rain') {
+    const want = m > .12 ? 320 * m : 0;
+    for (let k = Math.floor(want * dt + Math.random()); k > 0; k--) {
+      const x = Math.random() * W, y = -Math.random() * H * .3, ys = s.surf[x | 0];
+      s.drops.push({ x, y, v: H * (1.5 + Math.random() * .7), len: FS * (.05 + Math.random() * .08), a: .25 + Math.random() * .45,
+        stop: ys.find(q => q > y + FS * .02) ?? H + 40 });
+    }
+    ctx.globalAlpha = 1;
+    s.drops = s.drops.filter(d => {
+      d.y += d.v * dt;
+      if (d.y < d.stop) { ctx.globalAlpha = d.a; ctx.fillRect(OX + d.x - .6, d.y - d.len, 1.2, d.len); return true; }
+      if (d.stop < H) {
+        for (let j = 2 + Math.random() * 4 | 0; j > 0; j--) s.spl.push({ x: d.x, y: d.stop, life: 1,
+          vx: (Math.random() - .5) * FS * .7, vy: -FS * (.25 + Math.random() * .55) });
+        for (let i = 0; i < n; i++) if (Math.abs(hx[i] - d.x) < C * .9 && Math.abs(hy[i] - d.stop) < C * 1.2) f[i] = 1;
+        if (AC && Math.random() < .1) burst(s.out, 2500 + Math.random() * 5000, 2, .004 + Math.random() * .01, .3);
+      }
+      return false;
+    });
+    s.spl = s.spl.filter(p => (p.life -= dt * 2.6) > 0);
+    for (const p of s.spl) {
+      p.vy += FS * 2.6 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      ctx.globalAlpha = p.life * .85; ctx.fillRect(OX + p.x - .8, p.y - .8, 1.6, 1.6);
+    }
     for (let i = 0; i < n; i++) {
-      if (r[i] < m * .55) {
-        f[i] += dt * (.35 + ph[i] * .08) * (.6 + m);
-        if (f[i] > 1) f[i] -= 1;
-        const e = f[i] * f[i];
-        put(s, i, hx[i] + Math.sin(ph[i] * 9) * C * .4 * e, hy[i] + e * FS * .95, .7, 1 + e * 5 * m, 1 - f[i] * .9);
-      } else { f[i] = Math.random() * .2; put(s, i, hx[i], hy[i]); }
+      f[i] = Math.max(0, f[i] - dt * .7);
+      put(s, i, hx[i], hy[i], 1, 1, .16 + .84 * f[i]);
     }
   } else if (s.key === 'wave') {
     const sw = swell(t), amp = m * C * 2.4 * (.3 + .7 * sw), push = m * C * 2 * (sw - .5);
@@ -283,13 +277,13 @@ function draw(s, t, dt) {
     }
   } else if (s.key === 'fire') {
     for (let i = 0; i < n; i++) {
-      if (r[i] < m * .45) {
-        f[i] += dt * (.45 + ph[i] * .1);
+      if (r[i] < m * .22) {
+        f[i] += dt * (.12 + ph[i] * .03);
         if (f[i] > 1) f[i] -= 1;
         const q = f[i], k = 1 - q * .6;
-        put(s, i, hx[i] + Math.round(Math.sin(t * 5 + ph[i] * 4 + q * 8) * 1.6 * q) * s.w[i], hy[i] - Math.round(q * FS * .8 / s.h[i]) * s.h[i], k, k, 1 - q * q);
+        put(s, i, hx[i] + Math.round(Math.sin(t * 1.6 + ph[i] * 4 + q * 5) * 1.6 * q) * s.w[i], hy[i] - Math.round(q * FS * .8 / s.h[i]) * s.h[i], k, k, 1 - q * q);
       } else {
-        const blink = r[i] > .96 && Math.sin(t * 7 + ph[i] * 20) > .6 * (1 - m) + .3;
+        const blink = r[i] > .96 && Math.sin(t * 2 + ph[i] * 20) > .6 * (1 - m) + .3;
         put(s, i, hx[i], hy[i], 1, 1, blink ? .25 : 1);
       }
     }
@@ -304,24 +298,6 @@ function draw(s, t, dt) {
         put(s, i, x + dir * f[i] * FS * 1.1, y + Math.sin(f[i] * 6 + ph[i]) * C * .8, 1 + f[i] * 2, 1, (1 - f[i]) * .8);
       } else put(s, i, x, y, 1, 1, s.t[i] ? .7 : 1);
     }
-  } else {
-    const live = ripples.filter(p => t - p.t0 < 2.2), j = C * .22 * m;
-    ctx.save(); ctx.globalAlpha = .55; ctx.lineWidth = 1; ctx.setLineDash([2, 6]); ctx.lineDashOffset = -t * 6 * m;
-    ctx.font = s.css; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.strokeText(s.word, OX + W / 2, H / 2 - FS * .04); ctx.restore();
-    for (let i = 0; i < n; i++) {
-      let x = hx[i] + (Math.sin(t * 2.3 + ph[i] * 7) + Math.sin(t * 3.9 + ph[i] * 3)) * j;
-      let y = hy[i] + (Math.cos(t * 2.9 + ph[i] * 5) + Math.sin(t * 4.3 + ph[i] * 2)) * j;
-      let glow = 0;
-      for (const p of live) {
-        const dx = hx[i] - p.x, dy = hy[i] - p.y, d = Math.hypot(dx, dy) || 1, age = t - p.t0;
-        const k = Math.exp(-(((d - age * FS * 1.2) / (C * 1.6)) ** 2)) * Math.exp(-age * 1.6);
-        x += dx / d * k * C * 1.4 * m; y += dy / d * k * C * 1.4 * m; glow += k;
-      }
-      const tw = s.t[i] === 2 ? .65 + .35 * Math.sin(t * (2 + r[i] * 3) + ph[i]) + glow * .8 : 1 + glow;
-      put(s, i, x, y, tw, tw, clamp(.55 + .45 * Math.sin(t * 1.7 + ph[i] * 3) * m + glow));
-    }
-    ripples = live;
   }
 }
 
@@ -342,9 +318,9 @@ function frame(now) {
   audioParams(t);
   SOUNDS.forEach((s, i) => { OX = (i - pos) * W; if (Math.abs(OX) < W * 1.1) { ctx.fillStyle = ctx.strokeStyle = s.color; draw(s, t, dt); } });
   OX = (2 - pos) * W; ctx.fillStyle = SOUNDS[2].color;
-  embers = embers.filter(e => (e.life -= dt * 1.3) > 0);
+  embers = embers.filter(e => (e.life -= dt * .55) > 0);
   for (const e of embers) {
-    e.vy += SOUNDS[2].FS * 2.2 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
+    e.vy += SOUNDS[2].FS * .35 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
     const c = SOUNDS[2].C * .7 * e.life;
     ctx.globalAlpha = e.life; ctx.fillRect(OX + e.x - c / 2, e.y - c / 2, c, c);
   }
