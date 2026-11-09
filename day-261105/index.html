@@ -246,7 +246,7 @@ function put(s, i, x, y, sx = 1, sy = 1, a = 1) {
 function draw(s, t, dt) {
   const { n, hx, hy, r, ph, f, C, FS } = s, m = s.m;
   if (s.key === 'rain') {
-    const want = m > .12 ? 320 * m : 0;
+    const want = m > .12 ? 1100 * m : 0;
     for (let k = Math.floor(want * dt + Math.random()); k > 0; k--) {
       const x = Math.random() * W, y = -Math.random() * H * .3, ys = s.surf[x | 0];
       s.drops.push({ x, y, v: H * (1.5 + Math.random() * .7), len: FS * (.05 + Math.random() * .08), a: .25 + Math.random() * .45,
@@ -257,10 +257,10 @@ function draw(s, t, dt) {
       d.y += d.v * dt;
       if (d.y < d.stop) { ctx.globalAlpha = d.a; ctx.fillRect(OX + d.x - .6, d.y - d.len, 1.2, d.len); return true; }
       if (d.stop < H) {
-        for (let j = 2 + Math.random() * 4 | 0; j > 0; j--) s.spl.push({ x: d.x, y: d.stop, life: 1,
+        for (let j = 1 + Math.random() * 3 | 0; j > 0; j--) s.spl.push({ x: d.x, y: d.stop, life: 1,
           vx: (Math.random() - .5) * FS * .7, vy: -FS * (.25 + Math.random() * .55) });
         s.wet.push({ x: d.x, y: d.stop, life: 1 });
-        if (AC && Math.random() < .1) burst(s.out, 2500 + Math.random() * 5000, 2, .004 + Math.random() * .01, .3);
+        if (AC && Math.random() < .03) burst(s.out, 2500 + Math.random() * 5000, 2, .004 + Math.random() * .01, .3);
       }
       return false;
     });
@@ -269,8 +269,8 @@ function draw(s, t, dt) {
       p.vy += FS * 2.6 * dt; p.x += p.vx * dt; p.y += p.vy * dt;
       ctx.globalAlpha = p.life * .85; ctx.fillRect(OX + p.x - .8, p.y - .8, 1.6, 1.6);
     }
-    s.wet = s.wet.filter(w => (w.life -= dt * .9) > 0);
-    for (const w of s.wet) { ctx.globalAlpha = w.life * w.life * .8; ctx.fillRect(OX + w.x - 1.5, w.y - .8, 3, 1.6); }
+    s.wet = s.wet.filter(w => (w.life -= dt * .4) > 0);
+    for (const w of s.wet) { ctx.globalAlpha = w.life * .6; ctx.fillRect(OX + w.x - 1.5, w.y - .8, 3, 1.6); }
   } else if (s.key === 'wave') {
     const sw = swell(t), amp = m * C * 2.4 * (.3 + .7 * sw), push = m * C * 2 * (sw - .5);
     for (let i = 0; i < n; i++) {
