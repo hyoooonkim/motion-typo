@@ -11,7 +11,7 @@
   html, body { height: 100%; overflow: hidden; background: #0c0b0a; font-family: 'Noto Serif KR', serif; --fg: #e6d6b3; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: grab; }
   canvas.drag { cursor: grabbing; }
-  #dragon { pointer-events: none; }
+  #dragon, #fog { pointer-events: none; }
   .vig { position: fixed; inset: 0; pointer-events: none; background: radial-gradient(ellipse 85% 85% at 50% 50%, rgba(0,0,0,0) 55%, rgba(0,0,0,.5) 100%); }
   .ui { position: fixed; font-size: 12px; letter-spacing: .08em; pointer-events: none; color: var(--fg); }
   .title { left: 18px; top: 16px; font-weight: 900; }
@@ -26,6 +26,7 @@
 </style>
 </head>
 <body>
+<canvas id="fog"></canvas>
 <canvas id="cv"></canvas>
 <canvas id="dragon"></canvas>
 <div class="vig"></div>
@@ -304,6 +305,43 @@ function soundFrame(P, speed) {
   set(pad.gain, .22 * Q); set(padF.frequency, 300 + 900 * Q + 200 * Math.sin(now * .3));
 }
 
+/* ───── 배경 연기: 노이즈를 겹겹이 비틀어 말려 오르는 구름 ───── */
+const FOG = (() => {
+  const c = $('fog'), gl = c.getContext('webgl', { premultipliedAlpha: true, alpha: true });
+  if (!gl) return null;
+  const vs = 'attribute vec2 p; void main(){ gl_Position = vec4(p, 0., 1.); }';
+  const fs = `precision highp float;
+uniform vec2 res; uniform float t, I, warm, gr;
+float h(vec2 p){ return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float n(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+float fbm(vec2 p){ float v = 0., a = .5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6); for (int i = 0; i < 6; i++) { v += a * n(p); p = m * p; a *= .5; } return v; }
+void main(){
+  vec2 uv = (gl_FragCoord.xy - .5 * res) / res.y;
+  vec2 p = uv * 1.7 + vec2(0., -t * .035);
+  vec2 q = vec2(fbm(p + vec2(0., t * .05)), fbm(p + vec2(5.2, 1.3) - t * .04));
+  vec2 r = vec2(fbm(p + 3.6 * q + vec2(1.7, 9.2) + t * .06), fbm(p + 3.6 * q + vec2(8.3, 2.8) - t * .05));
+  float f = fbm(p + 3.2 * r);
+  float smoke = smoothstep(.3, .78, f) * 1.1 + .6 * pow(max(f - .5, 0.), 1.2);
+  float d = length(uv), mask = smoothstep(gr * .8, gr * 1.9, d) * (.6 + .4 * smoothstep(.45, -.5, uv.y)) + .14;
+  vec3 col = mix(vec3(.42, .47, .58), vec3(.96, .96, 1.), smoothstep(.55, 1., f));
+  col = mix(col, vec3(1., .55, .28), warm * (1. - smoothstep(gr, gr * 2.6, d)) * .7);
+  float a = clamp(smoke * mask * I, 0., 1.);
+  gl_FragColor = vec4(col * a, a);
+}`;
+  const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
+  const pr = gl.createProgram(); gl.attachShader(pr, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(pr); gl.useProgram(pr);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  const U = Object.fromEntries(['res', 't', 'I', 'warm', 'gr'].map(k => [k, gl.getUniformLocation(pr, k)]));
+  return (t, intensity, warm, globeR) => {
+    const w = Math.round(W * .5), h = Math.round(H * .5);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; gl.viewport(0, 0, w, h); }
+    gl.uniform2f(U.res, w, h); gl.uniform1f(U.t, t); gl.uniform1f(U.I, intensity); gl.uniform1f(U.warm, warm); gl.uniform1f(U.gr, globeR / H);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+  };
+})();
+
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000), t = now / 1000; last = now;
   if (homing) {
@@ -334,6 +372,7 @@ function frame(now) {
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   }
   document.body.style.background = `rgb(${12 + 16 * Q | 0},${11 + 2 * Q | 0},${10 + 2 * Q | 0})`;
+  FOG?.(t, .62 + .3 * P + .35 * Q + .25 * shake, Q, R);
   drawGlobe(R, cx, cy, t);
   window.GLOBE = { R, cx, cy, t, W, H, DPR, Q };
   $('coord').textContent = coordText(t);
