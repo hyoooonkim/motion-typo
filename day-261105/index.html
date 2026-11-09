@@ -3,76 +3,130 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Day 261105 — 백색소음 믹서</title>
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+<title>Day 261105 — 백색소음</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@900&family=Noto+Sans+KR:wght@900&family=Nanum+Pen+Script&display=block">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; overflow: hidden; background: #fff; font-family: 'Pretendard Variable', sans-serif; }
+  html, body { height: 100%; overflow: hidden; background: #0d1210; color: #e9e6e0; font-family: 'Noto Serif KR', serif; }
+  #track { position: fixed; top: 0; left: 0; height: 100%; display: flex; will-change: transform; }
+  .bg { flex: 0 0 100vw; height: 100%; background: #0d1210 center / cover no-repeat; position: relative; }
+  .bg::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 70% 70% at 50% 50%, rgba(13,18,16,0) 30%, rgba(13,18,16,.75) 80%, #0d1210 100%); }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; touch-action: none; }
-  .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: #bbb; text-decoration: none; }
-  .title { position: fixed; left: 16px; top: 14px; font-size: 12px; font-weight: 600; color: #111; letter-spacing: -.01em; }
-  .title span { color: #aaa; font-weight: 400; margin-left: 6px; }
-  #hint { position: fixed; left: 0; right: 0; bottom: 14px; text-align: center; font-size: 12px; color: #999; pointer-events: none; transition: opacity .6s; }
-  #share { position: fixed; right: 14px; bottom: 10px; font: 11px 'Pretendard Variable', sans-serif; color: #999; background: none; border: 0; cursor: pointer; }
-  #share:hover { color: #111; }
+  .ui { position: fixed; font: 500 11px/1 ui-monospace, Menlo, monospace; letter-spacing: .08em; color: rgba(233,230,224,.7); pointer-events: none; }
+  .title { left: 18px; top: 18px; }
+  #vol { right: 18px; top: 18px; }
+  #label { left: 0; right: 0; bottom: 46px; text-align: center; font-size: 12px; letter-spacing: .3em; }
+  #dots { left: 0; right: 0; bottom: 26px; display: flex; justify-content: center; gap: 8px; pointer-events: auto; }
+  #dots i { width: 6px; height: 6px; border-radius: 3px; background: rgba(233,230,224,.3); cursor: pointer; transition: width .3s, background .3s; }
+  #dots i.on { width: 18px; background: #e9e6e0; }
+  #hint { left: 0; right: 0; top: 50%; text-align: center; margin-top: 38vh; transition: opacity .6s; }
+  .back { position: fixed; left: 14px; bottom: 10px; font: 11px sans-serif; color: rgba(233,230,224,.45); text-decoration: none; }
 </style>
 </head>
 <body>
+<div id="track"></div>
 <canvas id="cv"></canvas>
-<div class="title">백색소음 믹서<span>white noise mixer</span></div>
-<div id="hint">단어를 누르면 소리가 켜져요 · 위아래로 끌면 볼륨</div>
-<button id="share">이 조합 링크 복사</button>
+<div class="ui title">WHITE NOISE · 백색소음</div>
+<div class="ui" id="vol"></div>
+<div class="ui" id="label"></div>
+<div class="ui" id="dots"></div>
+<div class="ui" id="hint">탭해서 재생 · 좌우로 넘기기 · 휠로 볼륨</div>
 <a class="back" href="../index.html">←</a>
 
 <script>
+const SERIF = "900 {}px 'Noto Serif KR', serif", SANS = "900 {}px 'Noto Sans KR', sans-serif", PEN = "400 {}px 'Nanum Pen Script', cursive";
 const SOUNDS = [
-  { key: 'rain', word: '비', vol: .55 },
-  { key: 'wave', word: '파도', vol: .75 },
-  { key: 'fire', word: '장작', vol: .9 },
-  { key: 'fan', word: '선풍기', vol: .5 },
-  { key: 'cafe', word: '카페', vol: .65 },
+  { key: 'rain', word: '비', en: 'RAIN', vol: .55, style: 'grain', font: SERIF, color: '#b3cbff' },
+  { key: 'wave', word: '파도', en: 'WAVE', vol: .75, style: 'bars', font: SERIF, color: '#f1ef93', skew: .2 },
+  { key: 'fire', word: '장작', en: 'FIREWOOD', vol: .9, style: 'pixels', font: SERIF, color: '#d9d4cd' },
+  { key: 'fan', word: '선풍기', en: 'FAN', vol: .5, style: 'cloud', font: SANS, color: '#8f7cf2' },
+  { key: 'cafe', word: '카페', en: 'CAFE', vol: .65, style: 'stars', font: PEN, color: '#f6d9d4' },
 ];
+const BG = ['01-rain', '02-wave', '03-fire', '04-fan', '05-cafe'];
 const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
-const hint = document.getElementById('hint');
+const $ = id => document.getElementById(id);
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v));
-let W = 0, H = 0, DPR = 1, FS = 100, G = 4;
+let W = 0, H = 0, DPR = 1, cur = 0, pos = 0, playing = false, vol = .7;
 let embers = [], ripples = [];
+SOUNDS.forEach(s => { s.level = 0; s.lv = 0; s.m = 0; });
 
-const fromHash = location.hash.slice(1).split('-').map(Number);
-SOUNDS.forEach((s, i) => { s.level = clamp((fromHash[i] || 0) / 100); s.lv = 0; });
+const track = $('track');
+BG.forEach(n => { const d = document.createElement('div'); d.className = 'bg'; d.style.backgroundImage = `url(bg/${n}.webp)`; track.appendChild(d); });
+SOUNDS.forEach((s, i) => { const d = document.createElement('i'); d.onclick = () => go(i); $('dots').appendChild(d); });
 
-// 장작·파도·선풍기의 주기는 소리와 화면이 같은 시계를 쓴다
 const swell = t => Math.pow(.5 - .5 * Math.cos(t * Math.PI * 2 / 9), 1.4);
 const swing = t => Math.sin(t * Math.PI * 2 / 8);
 
+
+// 장마다 다른 방식으로 글자를 입자로 바꾼다: 그레인 · 둥근 막대 · 픽셀 · 그레인 구름 · 별자리
 function build() {
   DPR = Math.min(2, devicePixelRatio || 1);
   W = innerWidth; H = innerHeight;
   cv.width = W * DPR; cv.height = H * DPR;
-  FS = Math.min(H / 6.4, W * .86 / 3.05);
-  G = Math.max(2.5, FS / 40);
   const off = document.createElement('canvas');
   off.width = W; off.height = H;
   const o = off.getContext('2d', { willReadFrequently: true });
-  o.font = `900 ${FS}px 'Pretendard Variable', sans-serif`;
   o.textAlign = 'center'; o.textBaseline = 'middle';
-  SOUNDS.forEach((s, i) => {
-    const y = H / 2 + (i - 2) * FS * 1.16, w = o.measureText(s.word).width;
-    s.box = { x: W / 2 - w / 2, y: y - FS * .52, w, h: FS * 1.04, cx: W / 2, cy: y };
+  SOUNDS.forEach(s => {
+    const chars = [...s.word], len = chars.length;
+    const fit = { cloud: [.5, .8], stars: [.78, 1.05] }[s.style] || [.62, .86];
+    s.FS = Math.min(H * fit[0], W * fit[1] / (len * 1.02));
+    s.C = s.FS / 19;
+    s.css = s.font.replace('{}', s.FS.toFixed(1));
+    o.font = s.css;
     o.clearRect(0, 0, W, H);
-    o.fillText(s.word, W / 2, y);
-    const x0 = Math.max(0, Math.floor(s.box.x)), y0 = Math.max(0, Math.floor(s.box.y));
-    const bw = Math.min(W - x0, Math.ceil(w) + 2), bh = Math.min(H - y0, Math.ceil(s.box.h) + 2);
-    const px = o.getImageData(x0, y0, bw, bh).data, pts = [];
-    for (let y = 0; y < bh; y += G) for (let x = 0; x < bw; x += G)
-      if (px[((y | 0) * bw + (x | 0)) * 4 + 3] > 128) pts.push(x0 + x + (Math.random() - .5) * G * .5, y0 + y + (Math.random() - .5) * G * .5);
-    const n = pts.length / 2;
-    s.n = n; s.hx = new Float32Array(n); s.hy = new Float32Array(n);
-    s.r = new Float32Array(n); s.ph = new Float32Array(n); s.f = new Float32Array(n);
-    for (let k = 0; k < n; k++) {
-      s.hx[k] = pts[k * 2]; s.hy[k] = pts[k * 2 + 1];
-      s.r[k] = Math.random(); s.ph[k] = Math.random() * 6.283; s.f[k] = Math.random();
+    const ink = () => {
+      if (s.style === 'cloud') {
+        let x = W / 2 - o.measureText(s.word).width / 2;
+        s.chars = chars.map((c, i) => {
+          const w = o.measureText(c).width, p = { c, x: x + w / 2, y: H / 2 + (i % 2 ? 1 : -1) * s.FS * .14, a: (Math.random() - .5) * .12 };
+          x += w + s.FS * .08; return p;
+        });
+        const sh = (s.chars.at(-1).x - s.chars[0].x) / 2 - (W / 2 - s.chars[0].x);
+        s.chars.forEach(p => { p.x -= sh; o.fillText(p.c, p.x, p.y); });
+      } else o.fillText(s.word, W / 2, H / 2 - s.FS * .04);
+    };
+    if (s.skew) o.setTransform(1, 0, -s.skew, 1, s.skew * H / 2, 0);
+    if (s.style === 'cloud') { o.filter = `blur(${(s.FS * .16).toFixed(0)}px)`; ink(); ink(); o.filter = 'none'; }
+    else ink();
+    o.setTransform(1, 0, 0, 1, 0, 0);
+    const px = o.getImageData(0, 0, W, H).data, A = (x, y) => x < 0 || y < 0 || x >= W || y >= H ? 0 : px[((y | 0) * W + (x | 0)) * 4 + 3];
+    const P = [], add = (x, y, w, h, t = 0) => P.push([x, y, w, h, t]);
+    if (s.style === 'bars') {
+      const C = s.FS / 23;
+      for (let y = C / 2; y < H; y += C) {
+        let run = 0;
+        for (let x = C / 2; x < W + C; x += C) {
+          if (A(x, y) > 110) { run++; continue; }
+          let x0 = x - run * C;
+          while (run > 0) {
+            const k = Math.min(run, 1 + (Math.random() * 4.2 | 0));
+            add(x0 + (k - 1) * C / 2, y, k * C - C * .2, C * .78);
+            x0 += k * C; run -= k;
+          }
+        }
+      }
+    } else {
+      const g = { grain: Math.max(2, s.FS / 120), pixels: Math.max(4, s.FS / 40), cloud: Math.max(2, s.FS / 75), stars: s.FS / 48 }[s.style];
+      for (let y = g / 2; y < H; y += g) for (let x = g / 2; x < W; x += g) {
+        const a = A(x, y) / 255, j = () => (Math.random() - .5) * g * .6;
+        if (s.style === 'grain' && a > .43) add(x + j(), y + j(), g * .72, g * .72);
+        else if (s.style === 'pixels' && a > .43 && Math.random() < .88) add(x, y, g * .94, g * .94);
+        else if (s.style === 'cloud' && Math.random() < a * a * .9) add(x + j() * 2, y + j() * 2, g * .8, g * .8);
+        else if (s.style === 'stars' && a > .43 && Math.random() < .45) {
+          const q = Math.random();
+          add(x + j(), y + j(), g * 1.8, g * 1.8, q < .1 ? 2 : q < .35 ? 1 : 0);
+        }
+      }
     }
+    const n = P.length;
+    Object.assign(s, { n, hx: new Float32Array(n), hy: new Float32Array(n), w: new Float32Array(n), h: new Float32Array(n),
+      t: new Uint8Array(n), r: new Float32Array(n), ph: new Float32Array(n), f: new Float32Array(n) });
+    P.forEach((p, k) => {
+      [s.hx[k], s.hy[k], s.w[k], s.h[k], s.t[k]] = p;
+      s.r[k] = Math.random(); s.ph[k] = Math.random() * 6.283; s.f[k] = Math.random();
+    });
   });
 }
 
@@ -145,22 +199,22 @@ function clink(out) {
   g.connect(out);
 }
 
+
 /* ───── 화면 ───── */
 let last = performance.now();
 const clock = () => AC ? AC.currentTime : performance.now() / 1000;
 
 function events(dt) {
   const [rain, , fire, , cafe] = SOUNDS;
-  if (fire.lv > .02 && Math.random() < (1.5 + 9 * fire.lv) * dt) {
-    const k = Math.random() * fire.n | 0, n = 2 + Math.random() * 7 * fire.lv | 0;
-    for (let i = 0; i < n; i++) embers.push({
-      x: fire.hx[k], y: fire.hy[k], vx: (Math.random() - .5) * FS * 2.2, vy: -FS * (1 + Math.random() * 2.4), life: 1,
-    });
+  if (fire.m > .05 && Math.random() < (1.5 + 9 * fire.m) * dt) {
+    const k = Math.random() * fire.n | 0, n = 2 + Math.random() * 6 * fire.m | 0;
+    for (let j = 0; j < n; j++) embers.push({ x: fire.hx[k], y: fire.hy[k], life: 1,
+      vx: (Math.random() - .5) * fire.FS * 1.6, vy: -fire.FS * (.8 + Math.random() * 1.8) });
     if (AC) burst(fire.out, 900 + Math.random() * 3200, .9, .015 + Math.random() * .045, .6 + Math.random() * .8);
   }
-  if (AC && rain.lv > .02 && Math.random() < 30 * rain.lv * dt)
+  if (AC && rain.lv > .02 && Math.random() < 40 * rain.m * dt)
     burst(rain.out, 2500 + Math.random() * 5000, 2, .004 + Math.random() * .01, .25);
-  if (cafe.lv > .02 && Math.random() < (.15 + .5 * cafe.lv) * dt) {
+  if (cafe.m > .05 && Math.random() < (.2 + .5 * cafe.m) * dt) {
     const k = Math.random() * cafe.n | 0;
     ripples.push({ x: cafe.hx[k], y: cafe.hy[k], t0: clock() });
     if (AC) clink(cafe.out);
@@ -179,137 +233,170 @@ function audioParams(t) {
   set(cafe.p.b2.gain, .25 + .15 * Math.sin(t * 1.3 + 1) + .08 * Math.sin(t * 3.4));
 }
 
-function draw(s, t, dt) {
-  const { n, hx, hy, r, ph, f } = s, lv = s.lv, sz = G * .46;
-  const c = Math.round(218 - 201 * clamp(lv * 2.2));
-  ctx.fillStyle = `rgb(${c},${c},${c})`;
-  const dot = (x, y, a = 1, w = sz, h = sz) => { ctx.globalAlpha = a; ctx.fillRect(x - w / 2, y - h / 2, w, h); };
+let OX = 0;
+function star(x, y, R) {
+  const k = R * .16;
+  ctx.beginPath();
+  ctx.moveTo(x, y - R); ctx.lineTo(x + k, y - k); ctx.lineTo(x + R, y); ctx.lineTo(x + k, y + k);
+  ctx.lineTo(x, y + R); ctx.lineTo(x - k, y + k); ctx.lineTo(x - R, y); ctx.lineTo(x - k, y - k);
+  ctx.fill();
+}
+function put(s, i, x, y, sx = 1, sy = 1, a = 1) {
+  if (a <= .01) return;
+  const w = s.w[i] * sx, h = s.h[i] * sy;
+  if (w <= .3 || h <= .3) return;
+  ctx.globalAlpha = a; x += OX;
+  if (s.style === 'bars') { ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, Math.min(w, h) * .42); ctx.fill(); }
+  else if (s.style !== 'stars') ctx.fillRect(x - w / 2, y - h / 2, w, h);
+  else if (s.t[i] === 2) star(x, y, w * .9);
+  else if (s.t[i] === 1) { ctx.lineWidth = 1.1; ctx.beginPath(); ctx.arc(x, y, w * .2, 0, 6.283); ctx.stroke(); }
+  else ctx.fillRect(x - w * .1, y - w * .1, w * .2, w * .2);
+}
 
+function draw(s, t, dt) {
+  const { n, hx, hy, r, ph, f, C, FS } = s, m = s.m;
   if (s.key === 'rain') {
     for (let i = 0; i < n; i++) {
-      if (r[i] < lv) {
-        f[i] += dt * (.5 + ph[i] * .12) * (.6 + lv);
+      if (r[i] < m * .55) {
+        f[i] += dt * (.35 + ph[i] * .08) * (.6 + m);
         if (f[i] > 1) f[i] -= 1;
         const e = f[i] * f[i];
-        dot(hx[i], hy[i] + e * FS * 1.5, 1 - f[i] * .9, sz * .8, sz * (1 + e * 9 * lv));
-      } else { f[i] = Math.random(); dot(hx[i], hy[i]); }
+        put(s, i, hx[i] + Math.sin(ph[i] * 9) * C * .4 * e, hy[i] + e * FS * .95, .7, 1 + e * 5 * m, 1 - f[i] * .9);
+      } else { f[i] = Math.random() * .2; put(s, i, hx[i], hy[i]); }
     }
   } else if (s.key === 'wave') {
-    const sw = swell(t), amp = lv * FS * .2 * (.3 + .7 * sw), push = lv * FS * .18 * (sw - .5);
+    const sw = swell(t), amp = m * C * 2.4 * (.3 + .7 * sw), push = m * C * 2 * (sw - .5);
     for (let i = 0; i < n; i++) {
-      const p = t * 1.7 - hx[i] / (FS * .8) + hy[i] / (FS * 1.6);
-      let x = hx[i] + amp * Math.sin(p) + push, y = hy[i] + amp * .45 * Math.cos(p * 1.2 + ph[i] * .2);
-      if (r[i] < sw * sw * sw * lv * .35) { x += Math.cos(ph[i] + t * 3) * G * 4; y -= Math.abs(Math.sin(ph[i] * 3 + t * 2)) * G * 6 * sw; }
-      dot(x, y);
+      const p = t * 1.7 - hx[i] / (FS * .7) + hy[i] / (FS * 1.4);
+      let x = hx[i] + amp * Math.sin(p) + push, y = hy[i] + amp * .4 * Math.cos(p * 1.2 + ph[i] * .2);
+      if (r[i] < sw * sw * sw * m * .3) { x += Math.cos(ph[i] + t * 3) * C * 1.5; y -= Math.abs(Math.sin(ph[i] * 3 + t * 2)) * C * 3 * sw; }
+      put(s, i, x, y);
     }
   } else if (s.key === 'fire') {
     for (let i = 0; i < n; i++) {
-      if (r[i] < lv * .6) {
-        f[i] += dt * (.6 + ph[i] * .15);
+      if (r[i] < m * .45) {
+        f[i] += dt * (.45 + ph[i] * .1);
         if (f[i] > 1) f[i] -= 1;
-        const q = f[i];
-        dot(hx[i] + Math.sin(t * 7 + ph[i] * 4 + q * 9) * G * 2.2 * q, hy[i] - q * FS * 1.1, 1 - q, sz * (1 - q * .6), sz * (1 - q * .6));
+        const q = f[i], k = 1 - q * .6;
+        put(s, i, hx[i] + Math.round(Math.sin(t * 5 + ph[i] * 4 + q * 8) * 1.6 * q) * s.w[i], hy[i] - Math.round(q * FS * .8 / s.h[i]) * s.h[i], k, k, 1 - q * q);
       } else {
-        const fl = lv * G * .5;
-        dot(hx[i] + Math.sin(t * 13 + ph[i] * 9) * fl, hy[i] + Math.cos(t * 11 + ph[i] * 7) * fl);
+        const blink = r[i] > .96 && Math.sin(t * 7 + ph[i] * 20) > .6 * (1 - m) + .3;
+        put(s, i, hx[i], hy[i], 1, 1, blink ? .25 : 1);
       }
     }
   } else if (s.key === 'fan') {
-    const sv = swing(t), dir = Math.sign(Math.cos(t * Math.PI * 2 / 8)) || 1, rr = G * 1.7 * lv;
+    const sv = swing(t), dir = Math.sign(Math.cos(t * Math.PI * 2 / 8)) || 1, rr = C * .5 * m, sh = sv * C * 2.6 * m;
     for (let i = 0; i < n; i++) {
-      const a = t * 26 + ph[i];
-      let x = hx[i] + sv * FS * .22 * lv + Math.cos(a) * rr, y = hy[i] + Math.sin(a) * rr;
-      if (r[i] < lv * .22) {
-        f[i] += dt * (.7 + ph[i] * .1);
+      const a = t * 24 + ph[i];
+      const x = hx[i] + sh * (.6 + r[i] * .8) + Math.cos(a) * rr, y = hy[i] + Math.sin(a) * rr;
+      if (r[i] < m * .3) {
+        f[i] += dt * (.6 + ph[i] * .1);
         if (f[i] > 1) f[i] -= 1;
-        dot(x + dir * f[i] * FS * 1.4, y + Math.sin(f[i] * 6 + ph[i]) * G * 2, 1 - f[i], sz * (1 + f[i] * 5), sz * .7);
-      } else dot(x, y, .85);
+        put(s, i, x + dir * f[i] * FS * 1.1, y + Math.sin(f[i] * 6 + ph[i]) * C * .8, 1 + f[i] * 2, 1, (1 - f[i]) * .8);
+      } else put(s, i, x, y, 1, 1, .8);
     }
+    ctx.globalAlpha = 1; ctx.font = s.css; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    s.chars.forEach((p, k) => {
+      ctx.save();
+      ctx.translate(OX + p.x + sh * .5 + Math.sin(t * 3 + k) * C * .2 * m, p.y + Math.cos(t * 2.4 + k * 2) * C * .2 * m);
+      ctx.rotate(p.a + sv * .05 * m); ctx.fillText(p.c, 0, 0); ctx.restore();
+    });
   } else {
-    const live = ripples.filter(p => t - p.t0 < 2.2), j = G * 1.1 * lv;
+    const live = ripples.filter(p => t - p.t0 < 2.2), j = C * .22 * m;
+    ctx.save(); ctx.globalAlpha = .55; ctx.lineWidth = 1; ctx.setLineDash([2, 6]); ctx.lineDashOffset = -t * 6 * m;
+    ctx.font = s.css; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.strokeText(s.word, OX + W / 2, H / 2 - FS * .04); ctx.restore();
     for (let i = 0; i < n; i++) {
       let x = hx[i] + (Math.sin(t * 2.3 + ph[i] * 7) + Math.sin(t * 3.9 + ph[i] * 3)) * j;
       let y = hy[i] + (Math.cos(t * 2.9 + ph[i] * 5) + Math.sin(t * 4.3 + ph[i] * 2)) * j;
+      let glow = 0;
       for (const p of live) {
         const dx = hx[i] - p.x, dy = hy[i] - p.y, d = Math.hypot(dx, dy) || 1, age = t - p.t0;
-        const k = Math.exp(-(((d - age * FS * 1.6) / (G * 5)) ** 2)) * Math.exp(-age * 1.6) * FS * .14 * lv;
-        x += dx / d * k; y += dy / d * k;
+        const k = Math.exp(-(((d - age * FS * 1.2) / (C * 1.6)) ** 2)) * Math.exp(-age * 1.6);
+        x += dx / d * k * C * 1.4 * m; y += dy / d * k * C * 1.4 * m; glow += k;
       }
-      dot(x, y);
+      const tw = s.t[i] === 2 ? .65 + .35 * Math.sin(t * (2 + r[i] * 3) + ph[i]) + glow * .8 : 1 + glow;
+      put(s, i, x, y, tw, tw, clamp(.55 + .45 * Math.sin(t * 1.7 + ph[i] * 3) * m + glow));
     }
     ripples = live;
-  }
-  ctx.globalAlpha = 1;
-  if (s.level > 0 || s === hover) {
-    ctx.fillStyle = '#aaa'; ctx.font = `500 11px 'Pretendard Variable', sans-serif`;
-    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.fillText(Math.round(s.level * 100), s.box.x + s.box.w + FS * .14, s.box.cy - FS * .32);
   }
 }
 
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
   const t = clock();
-  SOUNDS.forEach(s => s.lv += (s.level - s.lv) * Math.min(1, dt * 4));
+  pos += (cur - pos) * Math.min(1, dt * (drag ? 0 : 7));
+  track.style.transform = `translateX(${-pos * W}px)`;
+  SOUNDS.forEach((s, i) => {
+    const near = clamp(1 - Math.abs(i - pos) * 1.3);
+    s.level = playing ? vol * near : 0;
+    s.lv += (s.level - s.lv) * Math.min(1, dt * 4);
+    s.m += ((playing ? near : 0) * .92 + .08 - s.m) * Math.min(1, dt * 3);
+  });
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.clearRect(0, 0, W, H);
   events(dt);
   audioParams(t);
-  SOUNDS.forEach(s => draw(s, t, dt));
-  ctx.fillStyle = '#111';
-  embers = embers.filter(e => (e.life -= dt * 1.4) > 0);
+  SOUNDS.forEach((s, i) => { OX = (i - pos) * W; if (Math.abs(OX) < W * 1.1) { ctx.fillStyle = ctx.strokeStyle = s.color; draw(s, t, dt); } });
+  OX = (2 - pos) * W; ctx.fillStyle = SOUNDS[2].color;
+  embers = embers.filter(e => (e.life -= dt * 1.3) > 0);
   for (const e of embers) {
-    e.vy += FS * 3 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
-    ctx.globalAlpha = e.life; ctx.fillRect(e.x - G * .3, e.y - G * .3, G * .6, G * .6);
+    e.vy += SOUNDS[2].FS * 2.2 * dt; e.x += e.vx * dt; e.y += e.vy * dt;
+    const c = SOUNDS[2].C * .7 * e.life;
+    ctx.globalAlpha = e.life; ctx.fillRect(OX + e.x - c / 2, e.y - c / 2, c, c);
   }
   ctx.globalAlpha = 1;
   requestAnimationFrame(frame);
 }
 
-/* ───── 조작 ───── */
-let drag = null, hover = null;
-const pick = (x, y) => SOUNDS.find(s => x > s.box.x - FS * .3 && x < s.box.x + s.box.w + FS * .3 && y > s.box.y && y < s.box.y + s.box.h);
-const saveHash = () => history.replaceState(null, '', '#' + SOUNDS.map(s => Math.round(s.level * 100)).join('-'));
+/* ───── 슬라이드 · 조작 ───── */
+let drag = null, wheelX = 0;
+function go(i) { cur = clamp(i, 0, SOUNDS.length - 1); ui(); }
+function ui() {
+  const s = SOUNDS[cur];
+  $('label').textContent = `${String(cur + 1).padStart(2, '0')}  ${s.en}  ${playing ? '▶' : '❚❚'}`;
+  $('vol').textContent = `VOL ${Math.round(vol * 100)}`;
+  [...$('dots').children].forEach((d, i) => d.classList.toggle('on', i === cur));
+}
+function toggle() {
+  startAudio(); playing = !playing; $('hint').style.opacity = 0; ui();
+}
 
 cv.addEventListener('pointerdown', e => {
-  startAudio(); hint.style.opacity = 0;
-  const s = pick(e.clientX, e.clientY);
-  if (!s) return;
-  drag = { s, y: e.clientY, l: s.level, moved: false };
+  drag = { x: e.clientX, p: pos, moved: false };
   cv.setPointerCapture(e.pointerId);
 });
 cv.addEventListener('pointermove', e => {
-  if (drag) {
-    const dy = drag.y - e.clientY;
-    if (Math.abs(dy) > 4) drag.moved = true;
-    if (drag.moved) drag.s.level = clamp(drag.l + dy / (FS * 2));
-  } else {
-    hover = pick(e.clientX, e.clientY) || null;
-    cv.style.cursor = hover ? 'ns-resize' : 'default';
-  }
-});
-cv.addEventListener('pointerup', () => {
   if (!drag) return;
-  if (!drag.moved) drag.s.level = drag.s.level > 0 ? 0 : .6;
-  drag = null; saveHash();
+  const dx = e.clientX - drag.x;
+  if (Math.abs(dx) > 6) drag.moved = true;
+  if (drag.moved) pos = clamp(drag.p - dx / W, -.15, SOUNDS.length - .85);
+});
+cv.addEventListener('pointerup', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.x, base = Math.round(drag.p);
+  if (!drag.moved) toggle();
+  else go(Math.abs(dx) > W * .12 ? base + (dx < 0 ? 1 : -1) : Math.round(pos));
+  drag = null;
 });
 cv.addEventListener('wheel', e => {
-  const s = pick(e.clientX, e.clientY);
-  if (!s) return;
-  e.preventDefault(); startAudio(); hint.style.opacity = 0;
-  s.level = clamp(s.level - e.deltaY / 600); saveHash();
+  e.preventDefault();
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
+    wheelX += e.deltaX;
+    if (Math.abs(wheelX) > 80) { go(cur + Math.sign(wheelX)); wheelX = -Math.sign(wheelX) * 400; }
+    clearTimeout(cv.wt); cv.wt = setTimeout(() => wheelX = 0, 180);
+  } else { vol = clamp(vol - e.deltaY / 800); ui(); }
 }, { passive: false });
+addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') go(cur + 1);
+  else if (e.key === 'ArrowLeft') go(cur - 1);
+  else if (e.key === ' ') { e.preventDefault(); toggle(); }
+});
 
-document.getElementById('share').onclick = async e => {
-  saveHash();
-  try { await navigator.clipboard.writeText(location.href); e.target.textContent = '복사했어요'; }
-  catch { e.target.textContent = location.hash; }
-  setTimeout(() => e.target.textContent = '이 조합 링크 복사', 1600);
-};
-
-if (SOUNDS.some(s => s.level > 0)) hint.textContent = '아무 곳이나 누르면 이 조합이 재생돼요';
+ui();
 addEventListener('resize', build);
-document.fonts.load(`900 100px 'Pretendard Variable'`).catch(() => {}).then(() => { build(); requestAnimationFrame(frame); });
+Promise.all(SOUNDS.map(s => document.fonts.load(s.font.replace('{}', 100), s.word).catch(() => {})))
+  .then(() => { build(); requestAnimationFrame(frame); });
 </script>
 </body>
 </html>
