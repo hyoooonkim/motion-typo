@@ -57,7 +57,7 @@ function scaleMaps() {
 }
 function clamp01(v) { return Math.max(0, Math.min(1, v)); }
 const [MAP, NRM, RGH] = scaleMaps();
-const bronze = new THREE.MeshStandardMaterial({ map: MAP, normalMap: NRM, normalScale: new THREE.Vector2(1.6, 1.6), roughnessMap: RGH, metalness: .72, roughness: 1, envMapIntensity: 1.1 });
+const bronze = new THREE.MeshStandardMaterial({ map: MAP, normalMap: NRM, normalScale: new THREE.Vector2(1.6, 1.6), roughnessMap: RGH, metalness: .72, roughness: 1, envMapIntensity: 1.1, side: THREE.DoubleSide });
 const goldFin = new THREE.MeshStandardMaterial({ color: 0xd9b46a, metalness: .8, roughness: .3, side: THREE.DoubleSide });
 const darkGold = new THREE.MeshStandardMaterial({ color: 0x9c7a3c, metalness: .75, roughness: .4, side: THREE.DoubleSide });
 const ivory = new THREE.MeshStandardMaterial({ color: 0xeadbb4, metalness: .25, roughness: .4 });
@@ -117,7 +117,8 @@ body.setAttribute('position', new THREE.BufferAttribute(bpos, 3));
 body.setAttribute('uv', new THREE.BufferAttribute(buv, 2));
 body.setIndex(bidx);
 scene.add(new THREE.Mesh(body, bronze));
-const thick = s => s < .05 ? .62 + .38 * s / .05 : s < .45 ? 1 : 1 - .8 * Math.pow((s - .45) / .55, 1.4);
+// 목에서 굵어지고, 꼬리 끝까지 바늘처럼 좁아져 닫힌다
+const thick = s => s < .05 ? .62 + .38 * s / .05 : s < .45 ? 1 : Math.max(.015, 1 - Math.pow((s - .45) / .55, 1.15));
 const SP = Array.from({ length: SEG + 1 }, () => ({ p: new THREE.Vector3(), t: new THREE.Vector3(), n: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 }));
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 // 떠오름: Q(0→1)에 따라 머리부터 지구 안에서 바깥으로 솟는다
@@ -274,7 +275,7 @@ function render() {
 
   const qe = SP[SEG];
   basis.makeBasis(X.crossVectors(qe.n, qe.t), qe.n, qe.t); tail.quaternion.setFromRotationMatrix(basis);
-  tail.position.copy(qe.p).multiplyScalar(R); tail.scale.setScalar(.2 * R);
+  tail.position.copy(SP[SEG - 6].p).multiplyScalar(R); tail.scale.setScalar(.16 * R);
 
   const q0 = SP[0], hs = q0.r * R * 1.45;
   F.copy(q0.t).multiplyScalar(-1); U.copy(q0.n).addScaledVector(F, -q0.n.dot(F)).normalize(); X.crossVectors(U, F);
