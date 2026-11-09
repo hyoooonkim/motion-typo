@@ -11,7 +11,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20000);
 camera.position.set(0, 0, 8000);
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;
-const sun = new THREE.DirectionalLight(0xfff0d0, 2.4); sun.position.set(-1, 1.1, 1.3); scene.add(sun);
+const sun = new THREE.DirectionalLight(0xfff0d0, 2.8); sun.position.set(-1, 1.1, 1.3); scene.add(sun);
 const rim = new THREE.DirectionalLight(0xffc070, 1.2); rim.position.set(1.2, -.4, -1); scene.add(rim);
 scene.add(new THREE.HemisphereLight(0xfff3dd, 0x2a1a0a, .5));
 
@@ -43,7 +43,7 @@ function scaleTexture() {
   return [t, b];
 }
 const [SCALE, BUMP] = scaleTexture();
-const gold = new THREE.MeshStandardMaterial({ color: 0xd2ae66, map: SCALE, bumpMap: BUMP, bumpScale: 3, metalness: .6, roughness: .38 });
+const gold = new THREE.MeshStandardMaterial({ color: 0xd2ae66, map: SCALE, bumpMap: BUMP, bumpScale: 4, metalness: .62, roughness: .34 });
 const goldPlain = new THREE.MeshStandardMaterial({ color: 0xc9a258, metalness: .65, roughness: .35 });
 const horn = new THREE.MeshStandardMaterial({ color: 0xe9d6a6, metalness: .3, roughness: .45 });
 const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffb347, emissive: 0xff7a1a, emissiveIntensity: 1.4, roughness: .2 });
@@ -52,17 +52,17 @@ const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffb347, emissive: 0xff7
 const TILT = new THREE.Matrix4().makeRotationX(.42).multiply(new THREE.Matrix4().makeRotationZ(-.28));
 function pathAt(th, out) {
   const lat = .5 * Math.sin(2 * th + .4) + .12 * Math.sin(5 * th);
-  const r = 1.13 + .03 * Math.sin(3 * th);
+  const r = 1.2 + .035 * Math.sin(3 * th);
   out.set(r * Math.cos(lat) * Math.cos(th), r * Math.sin(lat), r * Math.cos(lat) * Math.sin(th));
   return out.applyMatrix4(TILT);
 }
 
 // 몸통: 고리(RAD 칸) × 마디(SEG 칸) 관. 매 프레임 꼭짓점을 다시 놓는다
-const SEG = 260, RAD = 20, LEN = 5.6;
+const SEG = 320, RAD = 24, LEN = 7.4;
 const body = new THREE.BufferGeometry();
 const bpos = new Float32Array((SEG + 1) * (RAD + 1) * 3), buv = new Float32Array((SEG + 1) * (RAD + 1) * 2), bidx = [];
 for (let i = 0; i <= SEG; i++) for (let j = 0; j <= RAD; j++) {
-  const k = i * (RAD + 1) + j; buv[k * 2] = i / SEG * 70; buv[k * 2 + 1] = j / RAD;
+  const k = i * (RAD + 1) + j; buv[k * 2] = i / SEG * 64; buv[k * 2 + 1] = j / RAD;
   if (i < SEG && j < RAD) { const a = k, b = k + RAD + 1; bidx.push(a, b, a + 1, b, b + 1, a + 1); }
 }
 body.setAttribute('position', new THREE.BufferAttribute(bpos, 3));
@@ -70,7 +70,7 @@ body.setAttribute('uv', new THREE.BufferAttribute(buv, 2));
 body.setIndex(bidx);
 const bodyMesh = new THREE.Mesh(body, gold); scene.add(bodyMesh);
 // 몸 굵기: 목에서 굵어지고 꼬리로 가늘어진다
-const thick = s => s < .06 ? .55 + .45 * s / .06 : s < .38 ? 1 : 1 - .88 * Math.pow((s - .38) / .62, 1.25);
+const thick = s => s < .05 ? .62 + .38 * s / .05 : s < .45 ? 1 : 1 - .8 * Math.pow((s - .45) / .55, 1.4);
 
 const SP = Array.from({ length: SEG + 1 }, () => ({ p: new THREE.Vector3(), t: new THREE.Vector3(), n: new THREE.Vector3(), b: new THREE.Vector3(), r: 0 }));
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
@@ -81,9 +81,9 @@ function layBody(head, t, Rw) {
     // 바깥(지구 반대) 방향을 등으로 삼는다
     q.n.copy(q.p).addScaledVector(q.t, -q.p.dot(q.t)).normalize();
     q.b.crossVectors(q.t, q.n).normalize();
-    const wave = Math.sin(s * 26 - t * 2.6) * .018 * (.3 + s);
+    const wave = Math.sin(s * 22 - t * 2.2) * .022 * (.3 + s);
     q.p.addScaledVector(q.b, wave).addScaledVector(q.n, Math.sin(s * 17 - t * 1.9) * .01);
-    q.r = .062 * thick(s);
+    q.r = .112 * thick(s);
   }
   for (let i = 0; i <= SEG; i++) {
     const q = SP[i];
@@ -100,7 +100,7 @@ function layBody(head, t, Rw) {
 
 // 등지느러미 가시와 옆구리 지느러미
 const coneG = new THREE.ConeGeometry(1, 1, 6); coneG.translate(0, .5, 0);
-const FINS = 78, FRILLS = 64;
+const FINS = 96, FRILLS = 72;
 const fins = new THREE.InstancedMesh(coneG, goldPlain, FINS), frills = new THREE.InstancedMesh(coneG, goldPlain, FRILLS);
 scene.add(fins, frills);
 const UP = new THREE.Vector3(0, 1, 0), dummy = new THREE.Object3D(), dir = new THREE.Vector3();
@@ -165,7 +165,7 @@ function render() {
   layBody(t * .1, t, R);
 
   for (let k = 0; k < FINS; k++) {
-    const s = .05 + k / FINS * .87, q = at(s), h = q.r * (1.3 + .5 * Math.sin(k * 1.7)) * R;
+    const s = .05 + k / FINS * .87, q = at(s), h = q.r * (1.05 + .45 * Math.sin(k * 1.7)) * R;
     spike(fins, k, A.copy(q.p).addScaledVector(q.n, q.r * .8).multiplyScalar(R), B.copy(q.n).addScaledVector(q.t, .9), h, q.r * .2 * R);
   }
   for (let k = 0; k < FRILLS; k++) {
@@ -185,7 +185,7 @@ function render() {
   }));
   claws.instanceMatrix.needsUpdate = true;
 
-  const q0 = SP[0], hs = q0.r * R * 1.25;
+  const q0 = SP[0], hs = q0.r * R * 1.45;
   F.copy(q0.t).multiplyScalar(-1); U.copy(q0.n).addScaledVector(F, -q0.n.dot(F)).normalize(); X.crossVectors(U, F);
   basis.makeBasis(X, U, F); head.quaternion.setFromRotationMatrix(basis);
   head.position.copy(q0.p).multiplyScalar(R).addScaledVector(F, hs * .9).addScaledVector(U, hs * .15);

@@ -106,12 +106,6 @@ async function loadWorld() {
 let PAPER = null;
 { const im = new Image(); im.onload = () => { PAPER = ctx.createPattern(im, 'repeat'); delete LAYERS.base; }; im.src = 'paper.webp'; }
 
-function spaced(text, x, y, sp) {
-  const ch = [...text], ws = ch.map(c => ctx.measureText(c).width), tot = ws.reduce((a, b) => a + b, 0) + sp * (ch.length - 1);
-  let cx = x - tot / 2;
-  ch.forEach((c, i) => { ctx.fillText(c, cx + ws[i] / 2, y); cx += ws[i] + sp; });
-  return tot;
-}
 function resize() {
   DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
   cv.width = W * DPR; cv.height = H * DPR; BASE = Math.min(W, H) * .36;
@@ -175,40 +169,61 @@ function drawGlobe(R, cx, cy, t) {
   }
   ctx.setLineDash([]);
 
-  // 지명: 앞면에 있는 것만, 가장자리로 갈수록 옅게, 겹치면 뒤 순위는 뺀다
+  // 지명: 지구 표면에 인쇄된 것처럼, 글자마다 그 자리의 위선 방향과 구의 기울기를 따른다
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   const boxes = [], fs = clamp(Math.pow(z, .45), 1, 2.4), hit = b => boxes.some(o => !(b[2] < o[0] || o[2] < b[0] || b[3] < o[1] || o[3] < b[1]));
+  const K = fs / (R * Math.PI / 180);
+  const frameAt = (lon, lat) => {
+    const c = Math.max(Math.cos(lat / DEG), .05), p0 = proj([lon, lat]), pe = proj([lon + .4, lat]), up = lat < 89 ? .4 : -.4, pn = proj([lon, lat + up]);
+    return [p0, (pe[0] - p0[0]) / (.4 * c), (pe[1] - p0[1]) / (.4 * c), (pn[0] - p0[0]) / up, (pn[1] - p0[1]) / up, c];
+  };
+  // 한 줄을 위선을 따라 글자별로 놓는다. align: -1 오른쪽 끝, 0 가운데, 1 왼쪽 끝
+  function surface(txt, lon, lat, sz, sp, skew, align, fade) {
+    const ch = [...txt], ws = ch.map(c => ctx.measureText(c).width), tot = ws.reduce((a, b) => a + b, 0) + sp * (ch.length - 1);
+    let cum = align === 0 ? -tot / 2 : align < 0 ? -tot : 0;
+    const c0 = Math.max(Math.cos(lat / DEG), .05);
+    ch.forEach((c, i) => {
+      const lo = lon + (cum + ws[i] / 2) * K / c0; cum += ws[i] + sp;
+      const d = d3.geoDistance([lo, lat], center); if (d > 1.52) return;
+      const [p0, ex, ey, nx, ny] = frameAt(lo, lat), a = ex * K, b = ey * K, cc = -nx * K, dd = -ny * K;
+      ctx.globalAlpha = fade * clamp((1.52 - d) / .3);
+      ctx.setTransform(DPR * a, DPR * b, DPR * (cc + a * skew), DPR * (dd + b * skew), DPR * p0[0], DPR * p0[1]);
+      ctx.fillText(c, 0, 0);
+    });
+    ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 1;
+  }
   for (const L of LABELS) {
-    const d = d3.geoDistance(L.p, center); if (d > 1.45) continue;
-    const [x, y] = proj(L.p); if (x < -100 || y < -40 || x > W + 100 || y > H + 40) continue;
-    const sz = L.sz * fs, sp = (L.k === 1 ? 6 : L.k === 0 ? 3 : 0) * fs;
-    ctx.font = `${L.k === 0 ? 900 : 500} ${sz}px 'Noto Serif KR'`;
-    if (!L.w) L.w = ctx.measureText(L.txt).width / sz;
-    const w = L.w * sz + sp * [...L.txt].length, b = L.k === 2 ? (L.side < 0 ? [x - w - 8, y - sz * .7, x + 3, y + sz * .7] : [x - 3, y - sz * .7, x + w + 8, y + sz * .7]) : [x - w / 2, y - sz * .7, x + w / 2, y + sz * .7];
+    const d = d3.geoDistance(L.p, center); if (d > 1.5) continue;
+    const [x, y] = proj(L.p); if (x < -150 || y < -60 || x > W + 150 || y > H + 60) continue;
+    const sp = L.k === 1 ? 6 : L.k === 0 ? 3 : 0;
+    ctx.font = `${L.k === 0 ? 900 : 500} ${L.sz}px 'Noto Serif KR'`;
+    if (!L.w) L.w = ctx.measureText(L.txt).width / L.sz;
+    // 겹침 검사용 상자: 가장자리일수록 옆으로 눌린 폭
+    const squash = Math.max(.15, Math.cos(d)), w = (L.w * L.sz + sp * [...L.txt].length) * fs * squash, h = L.sz * fs * .7;
+    const b = L.k === 2 ? (L.side < 0 ? [x - w - 8, y - h, x + 3, y + h] : [x - 3, y - h, x + w + 8, y + h]) : [x - w / 2, y - h, x + w / 2, y + h];
     if (hit(b)) continue; boxes.push(b);
-    const a = clamp((1.45 - d) / .3) * (.18 + .8 * (1 - L.u));
-    ctx.fillStyle = `rgba(${INK},${a})`;
+    const a = (.18 + .8 * (1 - L.u)) * (L.k === 3 ? .7 : 1);
+    ctx.fillStyle = `rgba(${INK},1)`;
+    const [lon, lat] = L.p;
     if (L.k === 2) {
-      ctx.beginPath(); ctx.arc(x, y, 2.2 * fs, 0, 6.283); ctx.fill();
-      ctx.textAlign = L.side < 0 ? 'right' : 'left'; ctx.fillText(L.txt, x + L.side * 6 * fs, y - 1); ctx.textAlign = 'center';
-    } else {
-      ctx.save(); ctx.translate(x, y); if (L.k) ctx.transform(1, 0, -.2, 1, 0, 0);
-      if (L.k === 3) ctx.fillStyle = `rgba(${INK},${a * .7})`;
-      spaced(L.txt, 0, 0, sp); ctx.restore();
-    }
+      const [p0, ex, ey, nx, ny] = frameAt(lon, lat);
+      ctx.globalAlpha = a * clamp((1.52 - d) / .3);
+      ctx.setTransform(DPR * ex * K, DPR * ey * K, -DPR * nx * K, -DPR * ny * K, DPR * p0[0], DPR * p0[1]);
+      ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 6.283); ctx.fill();
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 1;
+      surface(' ' + L.txt, lon + L.side * 4 * K / Math.max(Math.cos(lat / DEG), .05), lat, L.sz, 0, 0, L.side, a);
+    } else surface(L.txt, lon, lat, L.sz, sp, L.k ? -.2 : 0, 0, a);
   }
   // 지구 반대편: 물음표와 '여기서부터는 용이 산다'
   for (const q of UNKNOWN) {
-    const d = d3.geoDistance(q.p, center); if (d > 1.4) continue;
-    const [x, y] = proj(q.p);
-    ctx.font = `500 ${(12 + q.s * 16) * fs}px 'Noto Serif KR'`; ctx.fillStyle = `rgba(${INK},${clamp((1.4 - d) / .3) * (.2 + .25 * Math.sin(t * .8 + q.s * 40))})`;
-    ctx.fillText('?', x, y);
+    const d = d3.geoDistance(q.p, center); if (d > 1.5) continue;
+    ctx.font = `500 ${12 + q.s * 16}px 'Noto Serif KR'`; ctx.fillStyle = `rgba(${INK},1)`;
+    surface('?', q.p[0], q.p[1], 0, 0, 0, 0, .2 + .25 * Math.sin(t * .8 + q.s * 40));
   }
-  ctx.font = `900 ${20 * fs}px 'Noto Serif KR'`;
+  ctx.font = `900 20px 'Noto Serif KR'`; ctx.fillStyle = `rgba(${INK},1)`;
   for (const p of PHRASE) {
-    const d = d3.geoDistance(p, center); if (d > 1.3) continue;
-    const [x, y] = proj(p); ctx.fillStyle = `rgba(${INK},${clamp((1.3 - d) / .3) * .8})`;
-    spaced('여기서부터는 용이 산다', x, y, 4 * fs);
+    if (d3.geoDistance(p, center) > 1.5) continue;
+    surface('여기서부터는 용이 산다', p[0], p[1], 20, 4, 0, 0, .8);
   }
   if (R < Math.hypot(W, H) * .8) { const shade = layer('shade', R, .02, paintShade); if (shade) put(shade, R, cx, cy); else paintShade(ctx, R, cx, cy); }
   ctx.restore();
