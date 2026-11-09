@@ -338,7 +338,7 @@ function frame(now) {
   window.GLOBE = { R, cx, cy, t, W, H, DPR, Q };
   $('coord').textContent = coordText(t);
   $('zoomv').textContent = `${Math.round(z * 100)}%`;
-  $('home').classList.toggle('on', d3.geoDistance(proj.invert([cx, cy]), HOME) > .5 || Math.abs(z - 1) > .05);
+  $('home').classList.toggle('on', d3.geoDistance(proj.invert([cx, cy]), HOME) > .5 || Math.abs(z - 1) > .05 || spun > 30);
   requestAnimationFrame(frame);
 }
 
@@ -391,7 +391,7 @@ $('snd').onclick = () => {
 };
 $('zin').onclick = () => zoomBy(1.4);
 $('zout').onclick = () => zoomBy(1 / 1.4);
-$('home').onclick = () => { homing = true; spin = [0, 0]; idle = 0; };
+$('home').onclick = () => { homing = true; spin = [0, 0]; idle = 0; spun = 0; lastTurn = 0; shake = 0; };
 addEventListener('resize', resize);
 resize();
 requestAnimationFrame(frame);

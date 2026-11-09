@@ -8,8 +8,9 @@ renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 renderer.toneMappingExposure = 1.1;
 const scene = new THREE.Scene();
-const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 20000);
-camera.position.set(0, 0, 8000);
+// 원근 카메라: 지구본 깊이(z=0)에서 화면 1px = 1단위가 되도록 거리를 맞춘다. 화면 쪽으로 오면 커진다
+const FOV = 50, camera = new THREE.PerspectiveCamera(FOV, 1, 1, 100000);
+let CAMD = 1000;
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;
 const key = new THREE.DirectionalLight(0xfff0d6, 3.2); key.position.set(-1, 1.2, 1.4); scene.add(key);
 const rim = new THREE.DirectionalLight(0xffb060, 2.2); rim.position.set(1.4, -.3, -1.2); scene.add(rim);
@@ -98,7 +99,10 @@ function pathAt(th, out) {
   // 지구 가까이 스쳤다가(1.2) 멀리 크게 휘돌아 나간다(1.9)
   const r = 1.55 + .3 * Math.sin(2 * th + 1.1) + .06 * Math.sin(5 * th + .5);
   out.set(r * Math.cos(lat) * Math.cos(th), r * Math.sin(lat), r * Math.cos(lat) * Math.sin(th));
-  return out.applyMatrix4(TILT);
+  out.applyMatrix4(TILT);
+  // 한 구간은 화면 쪽으로 크게 튀어나온다
+  out.z += 1.7 * Math.pow(Math.max(0, Math.sin(th + .6)), 2);
+  return out;
 }
 
 // 몸통: 고리(RAD 칸) × 마디(SEG 칸) 관. 매 프레임 꼭짓점을 다시 놓는다
@@ -229,13 +233,13 @@ function render() {
   const sz = `${G.W}x${G.H}@${G.DPR}`;
   if (sz !== size) {
     size = sz; renderer.setPixelRatio(G.DPR); renderer.setSize(G.W, G.H, false);
-    Object.assign(camera, { left: -G.W / 2, right: G.W / 2, top: G.H / 2, bottom: -G.H / 2 }); camera.updateProjectionMatrix();
+    camera.aspect = G.W / G.H; CAMD = G.H / 2 / Math.tan(FOV / 2 * Math.PI / 180); camera.far = CAMD * 20; camera.updateProjectionMatrix();
   }
   const R = G.R, t = G.t;
-  camera.position.set(-(G.cx - G.W / 2), G.cy - G.H / 2, 8000);
+  camera.position.set(-(G.cx - G.W / 2), G.cy - G.H / 2, CAMD);
   EMQ = G.Q || 0;
   if (EMQ < .003) { renderer.clear(); return; }
-  occluder.scale.setScalar(R * .995);
+  occluder.scale.setScalar(R * CAMD / Math.hypot(CAMD, R) * .995);
   layBody(t * .1, t, R);
 
   for (let k = 0; k < FINS; k++) {
