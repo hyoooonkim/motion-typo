@@ -126,6 +126,7 @@ const SP = Array.from({ length: SEG + 1 }, () => ({ p: new THREE.Vector3(), t: n
 const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 // 떠오름: Q(0→1)에 따라 머리부터 지구 안에서 바깥으로 솟는다
 let EMQ = 0;
+const HP = new THREE.Vector3(), HN = new THREE.Vector3(), HT = new THREE.Vector3(), HU = new THREE.Vector3(), HV = new THREE.Vector3();
 const rise = s => { const x = Math.max(0, Math.min(1, EMQ * 1.7 - s * .7)); return .55 + .45 * x * x * (3 - 2 * x); };
 function layBody(head, t, Rw) {
   for (let i = 0; i <= SEG; i++) {
@@ -249,13 +250,22 @@ function render() {
   if (EMQ < .003) { window.HOLES = []; renderer.clear(); return; }
   occluder.scale.setScalar(R * CAMD / Math.hypot(CAMD, R) * .995);
   layBody(t * .1, t, R);
-  // 몸이 지구 표면을 지나는 자리: 단면과 표면이 겹치는 만큼 구멍(지구 쪽 2D 캔버스가 그린다)
-  const holes = [];
-  for (let i = 0; i <= SEG; i += 3) {
-    const q = SP[i], L = q.p.length(), d = L - 1, rr = q.r * 1.08;
-    if (Math.abs(d) >= rr) continue;
-    const z = q.p.z / L; if (z < .02) continue;
-    holes.push({ x: q.p.x / L, y: q.p.y / L, z, r: Math.sqrt(rr * rr - d * d) * 1.2 });
+  // 몸이 지구 표면을 지나는 자리: 중심선이 반지름 1을 통과하는 점에서, 관을 구로 자른 단면(몸이 기운 쪽으로 길쭉한 타원)을
+  // 용과 같은 카메라로 화면에 투영해 넘긴다(지구 쪽 2D 캔버스가 그 자리에 구멍을 그린다)
+  const holes = [], scr = v => { v.project(camera); return [(v.x + 1) / 2 * G.W, (1 - v.y) / 2 * G.H]; };
+  camera.updateMatrixWorld();
+  for (let i = 0; i < SEG; i++) {
+    const a = SP[i], b = SP[i + 1], L0 = a.p.length(), L1 = b.p.length();
+    if ((L0 - 1) * (L1 - 1) > 0) continue;
+    const f = (1 - L0) / (L1 - L0 || 1e-6), r = (a.r + (b.r - a.r) * f) * 1.06;
+    HP.lerpVectors(a.p, b.p, f); HN.copy(HP).normalize();
+    if (HN.z < .03) continue;
+    HT.subVectors(b.p, a.p).normalize();
+    const c = Math.abs(HT.dot(HN));
+    HU.copy(HT).addScaledVector(HN, -HT.dot(HN)); if (HU.lengthSq() < 1e-6) HU.set(0, 1, 0).cross(HN); HU.normalize();
+    HV.crossVectors(HN, HU);
+    const o = scr(A.copy(HP).multiplyScalar(R)), u = scr(B.copy(HP).addScaledVector(HU, r / Math.max(c, .3)).multiplyScalar(R)), v = scr(F.copy(HP).addScaledVector(HV, r).multiplyScalar(R));
+    holes.push([o[0], o[1], u[0] - o[0], u[1] - o[1], v[0] - o[0], v[1] - o[1]]);
   }
   window.HOLES = holes;
 
@@ -297,5 +307,5 @@ function render() {
   jaw.rotation.x = .32 + .2 * Math.sin(t * 1.3);
   renderer.render(scene, camera);
 }
-function loop() { requestAnimationFrame(loop); render(); }
-loop();
+// 지구본 쪽 프레임이 같은 순간의 위치로 불러 준다(구멍과 몸이 한 프레임도 어긋나지 않게)
+window.renderDragon = render;
