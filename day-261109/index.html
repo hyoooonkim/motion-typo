@@ -264,7 +264,8 @@ function frame(now) {
     idle += dt; if (idle > 4) rot[0] += dt * 2.2 * clamp((idle - 4) / 2);
   }
   Q += (clamp((spun - REVEAL_FROM) / REVEAL_SPAN) - Q) * Math.min(1, dt * 1.5);
-  const R = BASE * z, cx = W / 2, cy = H / 2;
+  // 용이 드러날수록 지구가 조금 물러나 용이 날 자리를 내준다
+  const R = BASE * z * (1 - .24 * Q), cx = W / 2, cy = H / 2;
   proj.scale(R).translate([cx, cy]).rotate([rot[0], rot[1], 0]);
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';

@@ -94,8 +94,9 @@ const BLADE = bladeGeo();
 // 지구를 비스듬히 두 번 오르내리며 감는 닫힌 길. 반지름 1 기준(지구 반지름 1)
 const TILT = new THREE.Matrix4().makeRotationX(.42).multiply(new THREE.Matrix4().makeRotationZ(-.28));
 function pathAt(th, out) {
-  const lat = .5 * Math.sin(2 * th + .4) + .12 * Math.sin(5 * th);
-  const r = 1.2 + .035 * Math.sin(3 * th);
+  const lat = .62 * Math.sin(2 * th + .4) + .14 * Math.sin(5 * th);
+  // 지구 가까이 스쳤다가(1.2) 멀리 크게 휘돌아 나간다(1.9)
+  const r = 1.55 + .3 * Math.sin(2 * th + 1.1) + .06 * Math.sin(5 * th + .5);
   out.set(r * Math.cos(lat) * Math.cos(th), r * Math.sin(lat), r * Math.cos(lat) * Math.sin(th));
   return out.applyMatrix4(TILT);
 }
@@ -105,7 +106,7 @@ const SEG = 320, RAD = 28, LEN = 7.4;
 const body = new THREE.BufferGeometry();
 const bpos = new Float32Array((SEG + 1) * (RAD + 1) * 3), buv = new Float32Array((SEG + 1) * (RAD + 1) * 2), bidx = [];
 for (let i = 0; i <= SEG; i++) for (let j = 0; j <= RAD; j++) {
-  const k = i * (RAD + 1) + j; buv[k * 2] = i / SEG * 26; buv[k * 2 + 1] = j / RAD;
+  const k = i * (RAD + 1) + j; buv[k * 2] = i / SEG * 32; buv[k * 2 + 1] = j / RAD;
   if (i < SEG && j < RAD) { const a = k, b = k + RAD + 1; bidx.push(a, b, a + 1, b, b + 1, a + 1); }
 }
 body.setAttribute('position', new THREE.BufferAttribute(bpos, 3));
@@ -125,7 +126,7 @@ function layBody(head, t, Rw) {
     q.n.copy(q.p).addScaledVector(q.t, -q.p.dot(q.t)).normalize();
     q.b.crossVectors(q.t, q.n).normalize();
     q.p.addScaledVector(q.b, Math.sin(s * 22 - t * 2.2) * .022 * (.3 + s)).addScaledVector(q.n, Math.sin(s * 17 - t * 1.9) * .01);
-    q.r = .112 * thick(s);
+    q.r = .128 * thick(s);
   }
   for (let i = 0; i <= SEG; i++) {
     const q = SP[i];
