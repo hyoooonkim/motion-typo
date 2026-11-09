@@ -65,18 +65,19 @@ const eyeMat = new THREE.MeshStandardMaterial({ color: 0xffb347, emissive: 0xff6
 const tongueMat = new THREE.MeshStandardMaterial({ color: 0x9a2e22, roughness: .5, metalness: .1 });
 
 // 굵기가 점점 줄어드는 관(뿔·수염·갈기·꼬리 술)
-function taper(pts, r0, r1, segs = 28, rad = 7) {
+function taper(pts, r0, r1, segs = 28, rad = 7, uRep = 0) {
   const curve = new THREE.CatmullRomCurve3(pts.map(p => p.isVector3 ? p : new THREE.Vector3(...p)));
-  const fr = curve.computeFrenetFrames(segs, false), pos = [], idx = [], P = new THREE.Vector3();
+  const fr = curve.computeFrenetFrames(segs, false), pos = [], uv = [], idx = [], P = new THREE.Vector3();
   for (let i = 0; i <= segs; i++) {
-    const u = i / segs, r = r0 + (r1 - r0) * Math.pow(u, .8); curve.getPointAt(u, P);
+    const u = i / segs, r = typeof r0 === 'function' ? r0(u) : r0 + (r1 - r0) * Math.pow(u, .8); curve.getPointAt(u, P);
     for (let j = 0; j <= rad; j++) {
       const a = j / rad * Math.PI * 2, n = fr.normals[i], b = fr.binormals[i];
+      uv.push(u * uRep, j / rad);
       pos.push(P.x + (n.x * Math.cos(a) + b.x * Math.sin(a)) * r, P.y + (n.y * Math.cos(a) + b.y * Math.sin(a)) * r, P.z + (n.z * Math.cos(a) + b.z * Math.sin(a)) * r);
       if (i < segs && j < rad) { const k = i * (rad + 1) + j; idx.push(k, k + rad + 1, k + 1, k + rad + 1, k + rad + 2, k + 1); }
     }
   }
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setIndex(idx); g.computeVertexNormals();
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
   return g;
 }
 // 뒤로 휘는 칼날 지느러미: 밑변이 x(꼬리 방향), 높이가 y
@@ -148,18 +149,33 @@ function blade(mesh, idx, pos, x, y, len, hgt) {
   mesh.setMatrixAt(idx, M);
 }
 
-// 다리 네 개와 발톱
-const cylG = new THREE.CylinderGeometry(1, .78, 1, 12); cylG.translate(0, .5, 0);
-const UP = new THREE.Vector3(0, 1, 0), dir = new THREE.Vector3();
-const legs = Array.from({ length: 8 }, () => { const m = new THREE.Mesh(cylG, skin); scene.add(m); return m; });
-const clawG = new THREE.ConeGeometry(1, 1, 7); clawG.translate(0, .5, 0);
-const claws = new THREE.InstancedMesh(clawG, ivory, 16); scene.add(claws);
-const dummy = new THREE.Object3D(), A = new THREE.Vector3(), B = new THREE.Vector3(), C = new THREE.Vector3(), F = new THREE.Vector3(), U = new THREE.Vector3(), X = new THREE.Vector3();
-function limb(m, a, b, w) { m.position.copy(a); m.quaternion.setFromUnitVectors(UP, dir.subVectors(b, a).normalize()); m.scale.set(w, a.distanceTo(b), w); }
-function spike(mesh, idx, base, d, h, w) {
-  dummy.position.copy(base); dummy.quaternion.setFromUnitVectors(UP, dir.copy(d).normalize()); dummy.scale.set(w, h, w);
-  dummy.updateMatrix(); mesh.setMatrixAt(idx, dummy.matrix);
+// 다리: 관절마다 그룹을 두고 각도만 바꾼다 (단위: 다리 크기 1, 아래 -y, 앞 +z)
+const A = new THREE.Vector3(), B = new THREE.Vector3(), F = new THREE.Vector3(), U = new THREE.Vector3(), X = new THREE.Vector3();
+const sph = (mat, sx, sy, sz, x, y, z, parent) => { const m = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 18), mat); m.scale.set(sx, sy, sz); m.position.set(x, y, z); parent.add(m); return m; };
+function makeLeg() {
+  const root = new THREE.Group(); scene.add(root);
+  sph(bronze, .5, .46, .56, 0, -.05, 0, root);
+  root.add(new THREE.Mesh(taper([[0, 0, 0], [.1, -.55, .2], [.05, -1.0, .24], [0, -1.32, .2]], u => .46 - .16 * u + .07 * Math.sin(Math.PI * u), 0, 24, 14, 3), bronze));
+  const elbow = new THREE.Group(); elbow.position.set(0, -1.32, .2); root.add(elbow);
+  sph(skin, .3, .3, .32, 0, 0, 0, elbow);
+  elbow.add(new THREE.Mesh(taper([[0, 0, 0], [0, -.5, -.08], [0, -1.08, -.1]], u => .3 - .13 * u + .05 * Math.sin(Math.PI * u * 1.3), 0, 20, 12, 2.5), bronze));
+  const wrist = new THREE.Group(); wrist.position.set(0, -1.08, -.1); elbow.add(wrist);
+  sph(skin, .2, .19, .22, 0, 0, 0, wrist);
+  sph(bronze, .36, .15, .42, 0, -.1, .2, wrist);
+  const toes = [];
+  for (const x of [-.22, 0, .22]) {
+    const k = new THREE.Group(); k.position.set(x, -.12, .45); wrist.add(k); toes.push(k);
+    k.add(new THREE.Mesh(taper([[0, 0, 0], [x * .3, -.02, .22], [x * .4, -.07, .42]], .09, .065, 12, 8), skin));
+    sph(skin, .075, .07, .08, x * .4, -.07, .42, k);
+    k.add(new THREE.Mesh(taper([[x * .4, -.07, .42], [x * .46, -.06, .6], [x * .46, -.2, .78], [x * .42, -.38, .8]], .065, .004, 16, 7), ivory));
+  }
+  const back = new THREE.Group(); back.position.set(0, -.1, -.08); wrist.add(back);
+  back.add(new THREE.Mesh(taper([[0, 0, 0], [0, -.04, -.22], [0, -.08, -.32]], .08, .06, 10, 8), skin));
+  back.add(new THREE.Mesh(taper([[0, -.08, -.32], [0, -.12, -.48], [0, -.28, -.55]], .06, .004, 12, 7), ivory));
+  return { root, elbow, wrist, toes };
 }
+const LEGS = [0, 1, 2, 3].map(makeLeg);
+const qa = new THREE.Quaternion(), eul = new THREE.Euler(), basis = new THREE.Matrix4();
 
 // 꼬리 끝 불꽃 술 (단위: 꼬리 술 길이 1, 꼬리 방향 +z)
 const tail = new THREE.Group(); scene.add(tail);
@@ -203,7 +219,6 @@ for (const sx of [-1, 1]) for (let k = 0; k < 8; k++) {
   const lo = new THREE.Mesh(tooth(fang ? .45 : .22), ivory); lo.rotation.x = Math.PI; lo.position.set(sx * (.4 - k * .03), .02, z - .1); jaw.add(lo);
 }
 
-const basis = new THREE.Matrix4();
 let size = '';
 function render() {
   const G = window.GLOBE; if (!G) return;
@@ -227,15 +242,20 @@ function render() {
   fins.instanceMatrix.needsUpdate = frills.instanceMatrix.needsUpdate = true;
 
   [.15, .5].forEach((s, pair) => [-1, 1].forEach((side, j) => {
-    const q = at(s + j * .015), r = q.r * R, step = Math.sin(t * 2.2 + pair * 2 + j * Math.PI) * .35, i = pair * 2 + j;
-    A.copy(q.p).multiplyScalar(R).addScaledVector(q.b, side * r * .75).addScaledVector(q.n, -r * .15);
-    B.copy(A).addScaledVector(q.b, side * r * 1.5).addScaledVector(q.n, -r * 1.1).addScaledVector(q.t, -r * (.4 + step));
-    C.copy(B).addScaledVector(q.n, -r * 1.5).addScaledVector(q.b, side * r * .3).addScaledVector(q.t, r * (.5 - step));
-    limb(legs[i * 2], A, B, r * .38); limb(legs[i * 2 + 1], B, C, r * .28);
-    for (let c = 0; c < 4; c++) spike(claws, i * 4 + c, C, F.copy(q.t).multiplyScalar(-1 + c * .2).addScaledVector(q.b, side * (c - 1.5) * .5).addScaledVector(q.n, -.9), r * .8, r * .11);
+    const q = at(s + j * .015), r = q.r * R, i = pair * 2 + j, L = LEGS[i], ph = t * 2.2 + pair * 2 + j * Math.PI;
+    A.copy(q.p).multiplyScalar(R).addScaledVector(q.b, side * r * .72).addScaledVector(q.n, -r * .2);
+    // 다리가 뻗는 방향: 지구 쪽으로 내려가며 옆으로 벌어진다. 앞(+z)은 머리 쪽
+    U.copy(q.n).multiplyScalar(.7).addScaledVector(q.b, -side * .7).normalize();
+    F.copy(q.t).multiplyScalar(-1).addScaledVector(U, q.t.dot(U)).normalize(); X.crossVectors(U, F);
+    basis.makeBasis(X, U, F); L.root.quaternion.setFromRotationMatrix(basis).multiply(qa.setFromEuler(eul.set(Math.sin(ph) * .5, 0, side * .15)));
+    L.root.position.copy(A); L.root.scale.setScalar(r * 1.05);
+    L.elbow.rotation.x = -.7 - .4 * Math.sin(ph + 1.2);
+    L.wrist.rotation.x = .75 + .3 * Math.sin(ph + 2);
+    L.toes.forEach((k, c) => { k.rotation.x = .2 + .35 * Math.max(0, Math.sin(ph + 2.6)); k.rotation.y = (c - 1) * .25; });
+    L.root.updateMatrixWorld(true); L.elbow.getWorldPosition(B);
     for (let c = 0; c < 6; c++) blade(tufts, i * 6 + c, B, q.t, U.copy(q.b).multiplyScalar(side).addScaledVector(q.n, (c - 2.5) * .35), r * .45, r * (.9 + c % 3 * .25));
   }));
-  claws.instanceMatrix.needsUpdate = tufts.instanceMatrix.needsUpdate = true;
+  tufts.instanceMatrix.needsUpdate = true;
 
   const qe = SP[SEG];
   basis.makeBasis(X.crossVectors(qe.n, qe.t), qe.n, qe.t); tail.quaternion.setFromRotationMatrix(basis);
