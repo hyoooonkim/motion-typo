@@ -6,10 +6,12 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { LineSegments2 } from 'three/addons/lines/LineSegments2.js';
 import { LineSegmentsGeometry } from 'three/addons/lines/LineSegmentsGeometry.js';
 import { LineMaterial } from 'three/addons/lines/LineMaterial.js';
+import * as fx from './fx.js';
 
 const clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k, rnd = (a, b) => a + Math.random() * (b - a);
 const CELLS = 6, TIP = new THREE.Vector3(0, 4.45, 0);
 
+fx.setupFx(document.getElementById('fx'));
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(2, devicePixelRatio || 1));
 renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.toneMappingExposure = 1.1;
@@ -150,43 +152,14 @@ function resize() {
   renderer.setSize(W, H); composer.setSize(W, H); RES.set(W, H);
   camera.aspect = W / H;
   camera.fov = Math.max(42, 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(17)) / camera.aspect) * 180 / Math.PI);
-  camera.updateProjectionMatrix();
+  camera.updateProjectionMatrix(); fx.resizeFx(W, H);
 }
 addEventListener('resize', resize); resize();
 
-let bolts = [], flash = 0, hit = 0, target = 0, charge = 0, full = 0, crawl = 0, nextAmb = 3, T = 0, ph = 0, shake = 0;
+let flash = 0, hit = 0, target = 0, charge = 0, full = 0, crawl = 0, nextAmb = 3, T = 0, ph = 0, shake = 0;
 const FP = new THREE.Vector3();
 const lineMat = (color, width, op) => new LineMaterial({ color, linewidth: width, transparent: true, opacity: op, blending: THREE.AdditiveBlending, depthWrite: false, resolution: RES });
-function boltSegs(a, b, gens) {
-  let seg = [[a.clone(), b.clone(), 0]];
-  for (let g = 0; g < gens; g++) {
-    const nx = [];
-    seg.forEach(([p, q, br]) => {
-      const d = q.clone().sub(p), l = d.length(), dir = d.clone().divideScalar(l || 1);
-      const off = new THREE.Vector3(rnd(-1, 1), rnd(-1, 1), rnd(-1, 1)); off.sub(dir.clone().multiplyScalar(off.dot(dir))).normalize().multiplyScalar(rnd(-1, 1) * l * .22);
-      const m = p.clone().add(q).multiplyScalar(.5).add(off);
-      nx.push([p, m, br], [m, q, br]);
-      if (g < 5 && br < 2 && Math.random() < (br ? .12 : .32)) {
-        const bd = dir.clone().add(new THREE.Vector3(rnd(-.9, .9), rnd(-.3, .2), rnd(-.9, .9))).normalize();
-        nx.push([m, m.clone().add(bd.multiplyScalar(l * rnd(.6, 1.3))), br + 1]);
-      }
-    });
-    seg = nx;
-  }
-  return [0, 1, 2].map(b => seg.filter(s => s[2] === b).flatMap(([p, q]) => [p.x, p.y, p.z, q.x, q.y, q.z]));
-}
-function makeBolt(a, b, power, gens = 7) {
-  const lv = boltSegs(a, b, gens), meshes = [];
-  [[0, '#6f8cff', 16, .12], [0, '#ffffff', 3.2, 1], [1, '#cfdcff', 1.8, .8], [2, '#b8c8ff', 1.1, .6]].forEach(([k, c, w, op]) => {
-    if (!lv[k].length) return;
-    const g = new LineSegmentsGeometry(); g.setPositions(lv[k]);
-    const m = new LineSegments2(g, lineMat(c, w * Math.max(.6, PX), op)); m.userData.op = op; m.frustumCulled = false;
-    scene.add(m); meshes.push(m);
-  });
-  bolts.push({ meshes, t: 0, power, pulses: [0, rnd(.07, .12), rnd(.18, .3)].slice(0, power > .8 ? 3 : 2) });
-  FP.copy(a).lerp(b, .25);
-}
-const boltI = b => b.pulses.reduce((s, p) => s + (b.t >= p ? Math.exp(-(b.t - p) * 14) : 0), 0) + (b.t < .9 ? .15 * (1 - b.t / .9) : 0);
+const tmp2 = new THREE.Vector3(), scr = v => { tmp2.copy(v).project(camera); return [(tmp2.x + 1) / 2 * W, (1 - tmp2.y) / 2 * H]; };
 
 const SPN = 500, spPos = new Float32Array(SPN * 3).fill(-999), spVel = new Float32Array(SPN * 3), spLife = new Float32Array(SPN);
 const spGeo = new THREE.BufferGeometry(); spGeo.setAttribute('position', new THREE.BufferAttribute(spPos, 3));
@@ -231,37 +204,35 @@ const cloudPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 21);
 function strike(cx, cy) {
   ndc.set(cx / W * 2 - 1, -(cy / H) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  tmp.copy(TIP).project(camera);
-  const sx = (tmp.x + 1) / 2 * W, sy = (1 - tmp.y) / 2 * H;
+  const [sx, sy] = scr(TIP);
   const onBattery = Math.hypot(cx - sx, cy - sy) < Math.max(22, 34 * PX) || ray.intersectObject(battery, true).length > 0;
   if (onBattery) {
-    const top = new THREE.Vector3(TIP.x + rnd(-6, 6), 21, rnd(-8, 1));
-    makeBolt(top, TIP.clone(), 1);
-    flash = 1.3; hit = 1; hitLight.position.copy(TIP).add(new THREE.Vector3(0, .3, .6)); shake = .5;
-    burst(TIP, 70, 6);
+    const from = target < CELLS ? fx.strikeText(target) : fx.textPoint();
+    fx.bolt(() => from, () => scr(TIP), { color: '#3fe6ff', power: 1, width: 8.5, delay: .14 });
+    FP.set(TIP.x, 14, 0); flash = 1.2;
+    setTimeout(() => { hit = 1; hitLight.position.copy(TIP).add(new THREE.Vector3(0, .3, .6)); shake = .5; burst(TIP, 70, 6); }, 140);
     if (target < CELLS) target++; else for (let k = 0; k < 4; k++) burst(new THREE.Vector3(TIP.x + rnd(-.6, .6), rnd(.6, 2.6), rnd(-.6, .6)), 30, 4);
-    crawl = 1; thunder(1, camera.position.distanceTo(TIP)); zap(target);
+    crawl = 1.1; thunder(1, camera.position.distanceTo(TIP)); zap(target);
     if (target === CELLS && !full) { full = .001; setTimeout(fullChord, 520); }
     document.getElementById('hint').style.opacity = 0;
     return;
   }
   const hits = ray.intersectObjects([city, ground], false);
   if (hits.length) {
-    const p = hits[0].point;
-    makeBolt(new THREE.Vector3(p.x + rnd(-6, 6), 21, p.z + rnd(-6, 6)), p.clone(), .75);
-    flash = 1; hit = .7; hitLight.position.copy(p).add(new THREE.Vector3(0, .5, 0)); shake = .25;
+    const p = hits[0].point.clone(), x0 = scr(p)[0] + rnd(-.15, .15) * W;
+    fx.bolt(() => [x0, -20], () => scr(p), { color: '#4f86ff', power: .85, width: 6.5 });
+    FP.copy(p).add(new THREE.Vector3(0, 10, 0)); flash = 1; hit = .7; hitLight.position.copy(p).add(new THREE.Vector3(0, .5, 0)); shake = .25;
     burst(p, 40, 4); thunder(.85, camera.position.distanceTo(p));
-  } else if (ray.ray.intersectPlane(cloudPlane, tmp)) {
-    const p = tmp.clone(); p.y = 22;
-    makeBolt(p.clone().add(new THREE.Vector3(rnd(-12, 12), rnd(0, 2), rnd(-12, 12))), p, .5, 6);
-    flash = .7; rumble(.5, camera.position.distanceTo(p) * .012);
+  } else {
+    const x0 = cx + rnd(-90, 90) * PX;
+    fx.bolt(() => [x0, -20], () => [cx, cy], { color: '#86a8ff', power: .55, width: 4, splash: false, branchy: 1.5 });
+    if (ray.ray.intersectPlane(cloudPlane, tmp)) FP.copy(tmp); flash = .7; rumble(.5, .3);
   }
 }
 function ambient() {
-  const p = new THREE.Vector3(rnd(-70, 70), rnd(22, 26), rnd(-110, -15));
-  if (Math.random() < .55) makeBolt(p, p.clone().add(new THREE.Vector3(rnd(-25, 25), rnd(-3, 2), rnd(-10, 10))), .35, 6);
-  else FP.copy(p);
-  flash = Math.max(flash, rnd(.35, .6));
+  const p = new THREE.Vector3(rnd(-70, 70), rnd(22, 26), rnd(-110, -15)), [x, y] = [rnd(.05, .95) * W, rnd(.02, .3) * H];
+  if (Math.random() < .6) fx.bolt(() => [x, y], () => [x + rnd(-.3, .3) * W, y + rnd(.02, .14) * H], { color: '#6f8cff', power: .4, width: 3, splash: false, back: true, gens: 5 });
+  FP.copy(p); flash = Math.max(flash, rnd(.35, .6));
   rumble(rnd(.25, .45), camera.position.distanceTo(p) * .012);
 }
 
@@ -316,7 +287,7 @@ document.getElementById('snd').onclick = e => {
   e.target.textContent = soundOn ? '소리 끄기' : '소리 켜기';
 };
 document.getElementById('reset').onclick = () => {
-  target = charge = full = crawl = 0; aLit.fill(0);
+  target = charge = full = crawl = 0; aLit.fill(0); fx.resetFx();
   document.getElementById('hint').style.opacity = 1;
 };
 
@@ -331,14 +302,6 @@ function step(dt) {
   if (full > 0) full += dt;
   flash *= Math.exp(-dt * 6); hit *= Math.exp(-dt * 7); shake *= Math.exp(-dt * 5);
   if ((nextAmb -= dt) < 0) { ambient(); nextAmb = rnd(4, 9); }
-  bolts = bolts.filter(b => {
-    b.t += dt;
-    const I = boltI(b) * b.power;
-    flash = Math.max(flash, I * .9);
-    b.meshes.forEach(m => { m.material.opacity = m.userData.op * clamp(I); m.material.resolution = RES; });
-    if (b.t > 1.2) { b.meshes.forEach(m => { scene.remove(m); m.geometry.dispose(); m.material.dispose(); }); return false; }
-    return true;
-  });
   flashLight.position.copy(FP); flashLight.intensity = flash * 90;
   hitLight.intensity = hit * 70;
   const fr = charge / CELLS, pulse = full ? .6 + .4 * Math.sin(T * 3) : 0;
@@ -372,6 +335,7 @@ function step(dt) {
   camera.position.set(CAM.x + Math.sin(T * .13) * 1.2 + mouse.x * 2.5 + rnd(-1, 1) * shake * .4, CAM.y + mouse.y * -1.2 + rnd(-1, 1) * shake * .3, CAM.z);
   camera.lookAt(LOOK.x + TIP.x * .12, LOOK.y, LOOK.z);
   composer.render(dt);
+  fx.setFull(full); flash = Math.max(flash, fx.renderFx(dt, flash) * .9);
 }
 
 let last = performance.now();
