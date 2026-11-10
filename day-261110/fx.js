@@ -2,77 +2,7 @@ const rnd = (a, b) => a + Math.random() * (b - a), clamp = (v, a = 0, b = 1) => 
 function seeded(s) { return () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
 
 let cv, ctx, W = 1, H = 1, DPR = 1, S = 1, T = 0;
-let bolts = [], dust = [], strokes = [], order = [], full = 0;
-
-const C = [[[.92, .14], [.55, 0], [.12, .2]], [[.12, .2], [.04, .72]], [[.04, .72], [.42, 1], [.92, .86]]];
-const G = [[[.92, .14], [.55, 0], [.12, .2]], [[.12, .2], [.04, .72]], [[.04, .72], [.42, 1], [.9, .84], [.92, .56]], [[.92, .56], [.48, .56]]];
-const GLYPH = {
-  C, G,
-  H: [[[.1, 0], [.1, 1]], [[.9, 0], [.9, 1]], [[.1, .5], [.9, .5]]],
-  A: [[[.5, 0], [.04, 1]], [[.5, 0], [.96, 1]], [[.22, .64], [.78, .64]]],
-  R: [[[.1, 0], [.1, 1]], [[.1, 0], [.72, .04], [.86, .26], [.62, .48], [.1, .5]], [[.44, .5], [.94, 1]]],
-  I: [[[.5, 0], [.5, 1]], [[.18, 0], [.82, 0]], [[.18, 1], [.82, 1]]],
-  N: [[[.1, 1], [.1, 0]], [[.1, 0], [.9, 1]], [[.9, 1], [.9, 0]]],
-};
-const WORD = 'CHARGING';
-
-function jagStroke(pts, rng) {
-  const out = [];
-  for (let k = 0; k < pts.length - 1; k++) {
-    const [ax, ay] = pts[k], [bx, by] = pts[k + 1], len = Math.hypot(bx - ax, by - ay), n = Math.max(2, Math.round(len / .11));
-    const nx = -(by - ay) / len, ny = (bx - ax) / len;
-    for (let i = k ? 1 : 0; i <= n; i++) {
-      const t = i / n, side = i % 2 ? 1 : -1, edge = i === 0 && k === 0 || i === n && k === pts.length - 2;
-      const o = edge ? 0 : side * (.025 + rng() * .035);
-      out.push({ x: lerp(ax, bx, t) + nx * o, y: lerp(ay, by, t) + ny * o, w: edge ? .25 : .7 + rng() * .6, spike: !edge && rng() < .28 ? (rng() < .5 ? -1 : 1) * (.06 + rng() * .09) : 0 });
-    }
-  }
-  const tipEnd = (a, b) => { const dx = a.x - b.x, dy = a.y - b.y, l = Math.hypot(dx, dy) || 1, ang = Math.atan2(dy, dx) + (rng() - .5) * .9, L = .07 + rng() * .09; return { x: a.x + Math.cos(ang) * L, y: a.y + Math.sin(ang) * L, w: 0, spike: 0 }; };
-  out.unshift(tipEnd(out[0], out[1])); out.push(tipEnd(out[out.length - 1], out[out.length - 2]));
-  return out;
-}
-function buildText() {
-  const rng = seeded(261110);
-  strokes = [];
-  [...WORD].forEach((ch, li) => GLYPH[ch].forEach(p => strokes.push({ li, pts: jagStroke(p, rng), r: 0, at: Infinity, glow: 0 })));
-  order = strokes.map((_, i) => i);
-  for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rng() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
-}
-buildText();
-
-let box = [];
-function layoutText() {
-  const portrait = W < H * .9, per = portrait ? 4 : 8, lw = W * .86 / per * .74, gap = W * .86 / per * .26, lh = lw * 1.32;
-  box = [...WORD].map((_, i) => {
-    const row = portrait ? Math.floor(i / 4) : 0, col = portrait ? i % 4 : i;
-    return { x: W * .07 + gap / 2 + col * (lw + gap), y: H * (portrait ? .075 : .085) + row * (lh + lw * .35), w: lw, h: lh };
-  });
-}
-const sp = (s, p) => { const b = box[s.li]; return [b.x + p.x * b.w, b.y + p.y * b.h]; };
-
-export function setupFx(canvas) { cv = canvas; ctx = cv.getContext('2d'); }
-export function resizeFx(w, h) { W = w; H = h; DPR = Math.min(2, devicePixelRatio || 1); cv.width = W * DPR; cv.height = H * DPR; S = Math.min(W, H) / 800; layoutText(); }
-export function resetFx() { strokes.forEach(s => { s.r = 0; s.at = Infinity; s.glow = 0; }); full = 0; bolts = []; dust = []; }
-export function setFull(v) { full = v; }
-
-const groupOf = k => order.slice(Math.floor(k * order.length / 6), Math.floor((k + 1) * order.length / 6));
-function strokeMid(s) { const p = s.pts[Math.floor(s.pts.length / 2)]; return sp(s, p); }
-export function textPoint(k) {
-  const g = k == null ? [order[Math.floor(Math.random() * order.length)]] : groupOf(k);
-  let best = null;
-  g.forEach(i => strokes[i].pts.forEach(p => { const q = sp(strokes[i], p); if (!best || q[1] > best[1]) best = q; }));
-  return best;
-}
-export function strikeText(k) {
-  const g = groupOf(k);
-  g.forEach((i, j) => {
-    const s = strokes[i], m = strokeMid(s);
-    s.at = T + .05 + j * .07;
-    const x0 = m[0] + rnd(-.12, .12) * W;
-    bolt(() => [x0, -20], () => strokeMid(s), { color: '#8fc4ff', power: .75, width: 4.5, delay: j * .07, splash: false });
-  });
-  return textPoint(k);
-}
+let bolts = [], dust = [], full = 0;
 
 function mainPath(gens, rough) {
   let p = [{ t: 0, o: 0, w: 1 }, { t: 1, o: 0, w: 1 }];
@@ -151,39 +81,6 @@ function drawBolt(b) {
   }
 }
 
-function strokePoly(P, wgt, mul) {
-  ribbon(P, wgt, wgt, mul);
-  P.forEach((p, i) => {
-    if (!p.spike || i === 0 || i === P.length - 1) return;
-    const a = P[i - 1], b = P[i + 1], dx = b.x - a.x, dy = b.y - a.y, l = Math.hypot(dx, dy) || 1, tx = dx / l, ty = dy / l, k = wgt * .45 * mul;
-    ctx.beginPath(); ctx.moveTo(p.x - tx * k, p.y - ty * k); ctx.lineTo(p.x + tx * k, p.y + ty * k);
-    ctx.lineTo(p.x - ty * p.spike - tx * k * .2, p.y + tx * p.spike + ty * k * .2); ctx.closePath(); ctx.fill();
-  });
-}
-function drawText(dt, flash) {
-  const pulse = full ? .5 + .5 * Math.sin(T * 3.2) : 0, glowC = full ? '#ffc861' : '#7cc8ff';
-  strokes.forEach(s => {
-    const b = box[s.li], wgt = b.w * .15, P = s.pts.map(p => { const [x, y] = sp(s, p); return { x, y, w: p.w, spike: p.spike * b.w }; });
-    if (T >= s.at && s.r < 1) { if (s.r === 0) s.glow = 1; s.r = Math.min(1, s.r + dt * 4.5); }
-    s.glow = Math.max(0, s.glow - dt * 1.2);
-    if (s.r < 1 && flash > .05) { ctx.globalAlpha = clamp(flash * .2); ctx.fillStyle = '#c9d8ff'; strokePoly(P, wgt, 1); ctx.globalAlpha = 1; }
-    if (s.r <= 0) return;
-    const Q = P.slice(0, Math.max(2, Math.ceil(P.length * s.r)));
-    ctx.fillStyle = 'rgba(0,0,0,.9)'; strokePoly(Q, wgt, 1.45);
-    ctx.save(); ctx.shadowColor = glowC; ctx.shadowBlur = (10 + s.glow * 40 + pulse * 18) * S;
-    ctx.fillStyle = s.glow > .02 ? `rgb(255,255,255)` : full ? `rgb(255,${244 + pulse * 11},${220 + pulse * 35})` : '#eef3ff';
-    ctx.globalAlpha = clamp(.82 + .18 * Math.sin(T * 13 + s.li * 3) * (Math.random() < .2 ? 1 : 0) + s.glow);
-    strokePoly(Q, wgt, 1); ctx.restore();
-    if (s.r >= 1 && Math.random() < dt * (full ? 4 : 1.4)) {
-      const i = Math.floor(rnd(1, P.length - 2)), p = P[i], q = P[Math.min(P.length - 1, i + 2)];
-      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = glowC; ctx.lineWidth = 1.4 * S + .4; ctx.shadowColor = glowC; ctx.shadowBlur = 12 * S;
-      ctx.beginPath(); ctx.moveTo(p.x, p.y);
-      for (let k = 1; k <= 4; k++) ctx.lineTo(lerp(p.x, q.x, k / 4) + rnd(-1, 1) * wgt * 1.4, lerp(p.y, q.y, k / 4) + rnd(-1, 1) * wgt * 1.4);
-      ctx.stroke(); ctx.restore();
-    }
-  });
-}
-
 export function renderFx(dt, flash) {
   T += dt;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, W, H);
@@ -199,4 +96,175 @@ export function renderFx(dt, flash) {
   });
   ctx.restore();
   return I;
+}
+
+const FONT_URL = 'https://cdn.jsdelivr.net/npm/@fontsource/anton@5.0.8/files/anton-latin-400-normal.woff';
+const WORD = 'CHARGING';
+const probe = document.createElement('canvas').getContext('2d');
+let font = null, letters = [], hitAt = new Array(WORD.length).fill(Infinity), revealed = 0;
+const groups = (() => { const r = seeded(1110), idx = [...WORD].map((_, i) => i); for (let i = idx.length - 1; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [idx[i], idx[j]] = [idx[j], idx[i]]; } let k = 0; return [2, 1, 1, 2, 1, 1].map(n => idx.slice(k, k += n)); })();
+fetch(FONT_URL).then(r => r.arrayBuffer()).then(b => { font = window.opentype.parse(b); buildLetters(); }).catch(e => console.warn('font', e));
+
+export function setupFx(canvas) { cv = canvas; ctx = cv.getContext('2d'); }
+export function resizeFx(w, h) { W = w; H = h; DPR = Math.min(2, devicePixelRatio || 1); cv.width = W * DPR; cv.height = H * DPR; S = Math.min(W, H) / 800; if (font) buildLetters(); }
+export function resetFx() { hitAt.fill(Infinity); revealed = 0; letters.forEach(L => { L.veins = null; }); full = 0; bolts = []; dust = []; }
+export function setFull(v) { full = v; }
+
+function flatten(cmds) {
+  const out = []; let cur = null, px = 0, py = 0;
+  cmds.forEach(c => {
+    if (c.type === 'M') { cur = [[c.x, c.y]]; out.push(cur); }
+    else if (c.type === 'L') cur.push([c.x, c.y]);
+    else if (c.type === 'Q') for (let i = 1; i <= 6; i++) { const t = i / 6, u = 1 - t; cur.push([u * u * px + 2 * u * t * c.x1 + t * t * c.x, u * u * py + 2 * u * t * c.y1 + t * t * c.y]); }
+    else if (c.type === 'C') for (let i = 1; i <= 8; i++) { const t = i / 8, u = 1 - t; cur.push([u * u * u * px + 3 * u * u * t * c.x1 + 3 * u * t * t * c.x2 + t * t * t * c.x, u * u * u * py + 3 * u * u * t * c.y1 + 3 * u * t * t * c.y2 + t * t * t * c.y]); }
+    if (c.type !== 'Z') { px = c.x; py = c.y; }
+  });
+  return out.map(c => { const a = c[0], b = c[c.length - 1]; if (Math.hypot(a[0] - b[0], a[1] - b[1]) < .01) c.pop(); return c; }).filter(c => c.length > 2);
+}
+const toPath = cs => { const p = new Path2D(); cs.forEach(c => { p.moveTo(c[0][0], c[0][1]); c.forEach(q => p.lineTo(q[0], q[1])); p.closePath(); }); return p; };
+
+function bolted(contours, sz, rng) {
+  const base = toPath(contours), inside = (x, y) => probe.isPointInPath(base, x, y, 'nonzero');
+  return contours.map(c => {
+    const n = c.length, out = [];
+    for (let i = 0; i < n; i++) {
+      const a = c[i], b = c[(i + 1) % n], pv = c[(i - 1 + n) % n];
+      let t1x = a[0] - pv[0], t1y = a[1] - pv[1], l1 = Math.hypot(t1x, t1y) || 1; t1x /= l1; t1y /= l1;
+      let t2x = b[0] - a[0], t2y = b[1] - a[1], len = Math.hypot(t2x, t2y) || 1; t2x /= len; t2y /= len;
+      if (Math.acos(clamp(t1x * t2x + t1y * t2y, -1, 1)) > .6) {
+        let bx = t1x - t2x, by = t1y - t2y, bl = Math.hypot(bx, by) || 1; bx /= bl; by /= bl;
+        const L = sz * (.05 + rng() * .14) * (Math.abs(by) > .6 ? 1.6 : 1), tip = [a[0] + bx * L, a[1] + by * L];
+        if (!inside(tip[0], tip[1]) && !inside(a[0] + bx * L * .35, a[1] + by * L * .35)) {
+          const k = sz * .014; out.push([a[0] - t1x * k, a[1] - t1y * k], [a[0] + bx * L * .55 + t1x * k * .8, a[1] + by * L * .55 + t1y * k * .8], tip, [a[0] + t2x * k, a[1] + t2y * k]);
+        } else out.push(a);
+      } else out.push(a);
+      if (len < sz * .02) continue;
+      let nx = t2y, ny = -t2x;
+      const mx = (a[0] + b[0]) / 2, my = (a[1] + b[1]) / 2;
+      if (inside(mx + nx * 1.5, my + ny * 1.5)) { nx = -nx; ny = -ny; }
+      const steps = Math.max(1, Math.floor(len / (sz * .028)));
+      for (let k = 1; k < steps; k++) {
+        const t = k / steps, x = a[0] + (b[0] - a[0]) * t, y = a[1] + (b[1] - a[1]) * t;
+        const z = (k % 2 ? 1 : -1) * sz * (.004 + rng() * .009);
+        out.push([x + nx * z, y + ny * z]);
+        if (len > sz * .1 && k > 1 && k < steps - 1 && rng() < (Math.abs(ny) > .7 ? .12 : .03)) {
+          const Lt = sz * (.12 + rng() * .26) * (ny > .7 ? 1.5 : .9), w = sz * (.016 + rng() * .02);
+          if (inside(x + nx * Lt, y + ny * Lt) || inside(x + nx * Lt * .5, y + ny * Lt * .5)) continue;
+          const side = [];
+          for (let j = 1; j <= 3; j++) { const f = j / 4, off = (j % 2 ? 1 : -1) * w * (1.4 + rng() * 1.6); side.push([x + nx * Lt * f + t2x * off, y + ny * Lt * f + t2y * off, 1 - f]); }
+          out.push([x - t2x * w, y - t2y * w]);
+          side.forEach(([px, py, ww]) => out.push([px - t2x * w * ww * .7, py - t2y * w * ww * .7]));
+          out.push([x + nx * Lt, y + ny * Lt]);
+          for (let j = side.length - 1; j >= 0; j--) { const [px, py, ww] = side[j]; out.push([px + t2x * w * ww * .7, py + t2y * w * ww * .7]); }
+          out.push([x + t2x * w, y + t2y * w]);
+        }
+      }
+    }
+    return out;
+  });
+}
+
+function lichten(ox, oy, sz, bb, roots, rnd01 = Math.random) {
+  const segs = [], stack = roots.map(a => ({ x: ox, y: oy, a, w: 1, d: 0, life: 70 }));
+  while (stack.length && segs.length < 900) {
+    let { x, y, a, w, d, life } = stack.pop();
+    while (life-- > 0) {
+      a += (rnd01() - .5) * 1.1; a = lerp(a, Math.PI / 2, .04);
+      const l = sz * (.014 + rnd01() * .018), nx = x + Math.cos(a) * l, ny = y + Math.sin(a) * l;
+      if (nx < bb[0] - 4 || nx > bb[2] + 4 || ny < bb[1] - 4 || ny > bb[3] + 4) break;
+      segs.push([x, y, nx, ny, w, d]); d += l; x = nx; y = ny;
+      if (rnd01() < .17 && w > .2) stack.push({ x, y, a: a + (.5 + rnd01() * .7) * (rnd01() < .5 ? -1 : 1), w: w * .66, d, life: life * .75 | 0 });
+    }
+  }
+  segs.maxD = segs.reduce((m, s) => Math.max(m, s[5]), 1);
+  return segs;
+}
+
+function makeLetter(cmds, sz, i) {
+  const rng = seeded(4000 + i * 97), cs = bolted(flatten(cmds), sz, rng), path = toPath(cs);
+  const all = cs.flat(), bb = [Math.min(...all.map(p => p[0])), Math.min(...all.map(p => p[1])), Math.max(...all.map(p => p[0])), Math.max(...all.map(p => p[1]))];
+  const pad = sz * .22, ox = bb[0] - pad, oy = bb[1] - pad, cw = bb[2] - bb[0] + pad * 2, ch = bb[3] - bb[1] + pad * 2;
+  const mk = () => { const c = document.createElement('canvas'); c.width = Math.ceil(cw * DPR); c.height = Math.ceil(ch * DPR); const g = c.getContext('2d'); g.scale(DPR, DPR); g.translate(-ox, -oy); return [c, g]; };
+  const [glow, gg] = mk();
+  gg.fillStyle = '#2f7dff'; gg.shadowColor = '#2f7dff'; gg.shadowBlur = sz * .16 * DPR; gg.fill(path); gg.fill(path);
+  gg.shadowColor = '#a6e3ff'; gg.shadowBlur = sz * .04 * DPR; gg.fillStyle = '#a6e3ff'; gg.fill(path);
+  const [img, g] = mk();
+  g.save(); g.translate(sz * .028, sz * .034); g.fillStyle = '#000'; g.fill(path); g.lineJoin = 'miter'; g.miterLimit = 12; g.lineWidth = sz * .03; g.strokeStyle = '#000'; g.stroke(path); g.restore();
+  g.lineJoin = 'miter'; g.miterLimit = 12; g.lineWidth = sz * .042; g.strokeStyle = '#000'; g.stroke(path);
+  const gr = g.createLinearGradient(0, bb[1], 0, bb[3]);
+  gr.addColorStop(0, '#ffffff'); gr.addColorStop(.55, '#eef8ff'); gr.addColorStop(1, '#a9dcff');
+  g.fillStyle = gr; g.fill(path);
+  g.save(); g.clip(path); g.lineCap = 'round';
+  const tex = lichten((bb[0] + bb[2]) / 2, bb[1], sz, bb, [Math.PI / 2, Math.PI / 2 - .9, Math.PI / 2 + .9], rng);
+  tex.forEach(s => { g.strokeStyle = `rgba(50,130,255,${.25 + s[4] * .4})`; g.lineWidth = .6 + s[4] * 1.6; g.beginPath(); g.moveTo(s[0], s[1]); g.lineTo(s[2], s[3]); g.stroke(); });
+  g.restore();
+  const [ghost, hg] = mk();
+  hg.strokeStyle = '#b8ceff'; hg.lineWidth = Math.max(1, sz * .008); hg.stroke(path);
+  const top = all.reduce((m, p) => p[1] < m[1] ? p : m), bottom = all.reduce((m, p) => p[1] > m[1] ? p : m);
+  const edge = cs.flatMap(c => c.filter((_, k) => k % 3 === 0));
+  return { i, sz, path, bb, ox, oy, cw, ch, glow, img, ghost, top, bottom, edge, veins: null };
+}
+
+function buildLetters() {
+  const portrait = W < H * .9, lines = portrait ? ['CHAR', 'GING'] : [WORD];
+  const upm = font.unitsPerEm, cap = (font.tables.os2 && font.tables.os2.sCapHeight || upm * .72) / upm, track = .03;
+  const adv = Math.max(...lines.map(l => font.getAdvanceWidth(l, 1) + track * (l.length - 1)));
+  const sz = Math.min(W * .82 / adv, H * (portrait ? .13 : .23) / cap), gap = sz * cap * 1.5, top = H * (portrait ? .1 : .11);
+  letters = []; let idx = 0;
+  lines.forEach((line, li) => {
+    let x = (W - (font.getAdvanceWidth(line, sz) + track * sz * (line.length - 1))) / 2;
+    const y = top + sz * cap + li * gap;
+    [...line].forEach(chr => { const gl = font.charToGlyph(chr); letters.push(makeLetter(gl.getPath(x, y, sz).commands, sz, idx++)); x += gl.advanceWidth * sz / upm + track * sz; });
+  });
+  groups.slice(0, revealed).flat().forEach(i => { if (hitAt[i] === Infinity) hitAt[i] = -10; });
+}
+
+export function strikeText(k) {
+  revealed = Math.max(revealed, k + 1);
+  if (!letters.length) { groups[k].forEach(i => { hitAt[i] = -10; }); return [W / 2, H * .25]; }
+  let low = null;
+  groups[k].forEach((i, j) => {
+    const L = letters[i], at = [L.top[0], L.top[1]];
+    hitAt[i] = T + .1 + j * .08;
+    L.veins = lichten(at[0], at[1], L.sz, L.bb, [Math.PI / 2, Math.PI / 2 - .7, Math.PI / 2 + .7, Math.PI / 2 + rnd(-.3, .3)]);
+    const x0 = at[0] + rnd(-.08, .08) * W;
+    bolt(() => [x0, -20], () => at, { color: '#8fc4ff', power: .85, width: 5, delay: j * .08, splash: true });
+    if (!low || L.bottom[1] > low[1]) low = L.bottom;
+  });
+  return low;
+}
+export function textPoint() {
+  if (!letters.length) return [W / 2, H * .25];
+  return letters[Math.floor(Math.random() * letters.length)].bottom;
+}
+
+function drawText(dt, flash) {
+  const pulse = full ? .5 + .5 * Math.sin(T * 3.2) : 0;
+  letters.forEach(L => {
+    const age = T - hitAt[L.i], v = clamp(age / .42), f = clamp((age - .32) / .3);
+    if (f < 1 && flash > .04) { ctx.globalAlpha = clamp(flash * .5); ctx.drawImage(L.ghost, L.ox, L.oy, L.cw, L.ch); }
+    if (v > 0 && L.veins && age < 1.8) {
+      const fade = clamp(1 - (age - .7) / 1.1), lim = v * L.veins.maxD;
+      ctx.save(); ctx.clip(L.path); ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+      [['rgba(70,160,255,', 4.5, .55], ['rgba(255,255,255,', 1.4, 1]].forEach(([c, w, a]) => {
+        L.veins.forEach(s => { if (s[5] > lim) return; const front = clamp(1 - (lim - s[5]) / (L.sz * .25)); ctx.strokeStyle = c + clamp((a + front * .5) * fade) + ')'; ctx.lineWidth = (w * s[4] + .4) * S * 1.4; ctx.beginPath(); ctx.moveTo(s[0], s[1]); ctx.lineTo(s[2], s[3]); ctx.stroke(); });
+      });
+      ctx.restore();
+    }
+    if (f <= 0) return;
+    const fl = .8 + .2 * Math.sin(T * 11 + L.i * 2.3) * (Math.random() < .2 ? 1 : .3), wf = Math.exp(-Math.max(0, age - .32) * 3.5);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = clamp(f * (.5 * fl + pulse * .35 + flash * .35 + wf * .8)); ctx.drawImage(L.glow, L.ox, L.oy, L.cw, L.ch);
+    ctx.restore();
+    ctx.globalAlpha = f; ctx.drawImage(L.img, L.ox, L.oy, L.cw, L.ch);
+    if (wf > .03) { ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = wf * .9; ctx.drawImage(L.img, L.ox, L.oy, L.cw, L.ch); ctx.restore(); }
+    ctx.globalAlpha = 1;
+    if (f >= 1 && Math.random() < dt * (full ? 6 : 1.8)) {
+      const k = Math.floor(Math.random() * (L.edge.length - 3)), p = L.edge[k], q = L.edge[k + 3];
+      ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.strokeStyle = '#9fdcff'; ctx.lineWidth = 1.5 * S + .5; ctx.shadowColor = '#4fa8ff'; ctx.shadowBlur = 14 * S;
+      ctx.beginPath(); ctx.moveTo(p[0], p[1]);
+      for (let j = 1; j <= 5; j++) ctx.lineTo(lerp(p[0], q[0], j / 5) + rnd(-1, 1) * L.sz * .05, lerp(p[1], q[1], j / 5) + rnd(-1, 1) * L.sz * .05);
+      ctx.stroke(); ctx.restore();
+    }
+  });
 }
