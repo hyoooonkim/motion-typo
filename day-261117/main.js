@@ -52,13 +52,13 @@ const OVER = {
     const L = lift(t);
     if (L < .01) return -1;
     const { a, b } = SPOON, len = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
-    const a2 = [a[0] + 45 * L, a[1] - 170 * L], b2 = [b[0] + 45 * L, b[1] - 170 * L];
+    const a2 = [a[0] + 16 * L, a[1] - 62 * L], b2 = [b[0] + 16 * L, b[1] - 62 * L];
     if (segD(x, y, a2, b2) < 5) return 225;
     const hx = a2[0] - ux * 24, hy = a2[1] - uy * 24, al = (x - hx) * ux + (y - hy) * uy, pe = (x - hx) * -uy + (y - hy) * ux;
     const e = (al / 30) ** 2 + (pe / 19) ** 2;
     if (e < 1) return e < .5 ? 255 : 215;
     if (L > .6) for (let k = 0; k < 3; k++) {
-      const ph = (t * 1.4 + k / 3) % 1, dx = x - (hx + (k - 1) * 9), dy = y - (hy + 16 + ph * 120 * L);
+      const ph = (t * 1.4 + k / 3) % 1, dx = x - (hx + (k - 1) * 9), dy = y - (hy + 14 + ph * 55 * L);
       if (dx * dx + dy * dy < 20) return 235;
     }
     if (segD(x, y, a, b) < 8) {
