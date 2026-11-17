@@ -15,7 +15,7 @@ const HOT = '#ff6a3d';
 
 let W = 0, H = 0, DPR = 1, cur = 0, G = null, t = 0, last = performance.now();
 let fade = 0, fdir = 1, want = 0;
-const press = { on: false, x: 0, y: 0, R: 0 };
+const press = { on: false, x: 0, y: 0, R: 0, max: 0 };
 const maps = {};
 
 function load(key) {
@@ -93,7 +93,7 @@ function frame(now) {
     fade = clamp(fade + fdir * dt / .3, 0, 1);
     if (fade === 0 && fdir < 0) { enter(want); fdir = 1; } else if (fade === 1) fdir = 0;
   }
-  press.R = press.on ? press.R + dt * (G.ch * 34 + press.R * 1.4) : Math.max(0, press.R - dt * G.maxR * 1.2);
+  press.R = press.on ? Math.min(press.max, press.R + dt * (G.ch * 34 + press.R * 1.4)) : Math.max(0, press.R - dt * Math.max(press.max, 1) * 2.5);
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#161616'; ctx.fillRect(0, 0, W, H);
@@ -126,6 +126,12 @@ function frame(now) {
   if (fade < 1) { ctx.globalAlpha = 1 - fade; ctx.fillStyle = '#161616'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
 }
 
+function reach() {
+  let m = 0;
+  for (const h of G.hole) m = Math.max(m, Math.hypot(h.x - press.x, h.y - press.y));
+  return m + G.ch * 7;
+}
+
 function nearestHole(x, y) {
   let best = null, bd = Infinity;
   for (const h of G.hole) { const d = Math.hypot(h.x - x, h.y - y); if (d < bd) { bd = d; best = h; } }
@@ -136,7 +142,7 @@ cv.addEventListener('pointerdown', e => {
   if (!G) return;
   cv.setPointerCapture(e.pointerId);
   [press.x, press.y] = nearestHole(e.clientX, e.clientY);
-  press.on = true; press.R = Math.max(press.R, 0);
+  press.max = reach(); press.on = true;
   press.sx = e.clientX; press.st = performance.now();
 });
 const up = e => {
@@ -152,7 +158,7 @@ $('next').onclick = () => go(cur + 1);
 addEventListener('keydown', e => {
   if (e.key === 'ArrowRight') go(cur + 1);
   if (e.key === 'ArrowLeft') go(cur - 1);
-  if (e.key === ' ' && !press.on && G) { [press.x, press.y] = G.hc; press.on = true; e.preventDefault(); }
+  if (e.key === ' ' && !press.on && G) { [press.x, press.y] = G.hc; press.max = reach(); press.on = true; e.preventDefault(); }
 });
 addEventListener('keyup', e => { if (e.key === ' ') press.on = false; });
 addEventListener('resize', resize);
