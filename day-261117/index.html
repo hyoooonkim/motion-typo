@@ -5,42 +5,41 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Day 261117 — 번역불가</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+KR:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Noto+Sans+KR:wght@700&family=Noto+Serif+KR:wght@400;700;900&family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&display=swap">
 <style>
   html, body { margin: 0; height: 100%; overflow: hidden; background: #161616; color: #ecebe6; font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; touch-action: none; user-select: none; -webkit-user-select: none; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  #top { position: fixed; left: 20px; right: 20px; top: 16px; display: flex; justify-content: space-between; font-size: 11px; letter-spacing: .08em; text-transform: uppercase; opacity: .7; z-index: 2; }
-  #cap { position: fixed; left: 20px; right: 20px; bottom: 18px; display: grid; grid-template-columns: auto 1fr auto; gap: 8px 28px; align-items: end; z-index: 2; }
-  #word { font: 900 46px/1 'Noto Sans KR', sans-serif; letter-spacing: -.02em; }
-  #roman { font-size: 12px; opacity: .6; margin-top: 8px; }
-  #info { font-size: 12px; line-height: 1.7; max-width: 560px; }
-  #en { font-weight: 600; }
-  #note { opacity: .6; font-family: 'Noto Sans KR', sans-serif; font-size: 12px; }
-  #ex { font-family: 'Noto Sans KR', sans-serif; font-weight: 700; font-size: 15px; color: #ff6a3d; min-height: 24px; opacity: 0; transition: opacity .5s; }
+  #top { position: fixed; left: 20px; right: 20px; top: 14px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; padding-bottom: 7px; border-bottom: 1px solid rgba(236,235,230,.25); font: 400 14px 'Old Standard TT', 'Noto Serif KR', serif; letter-spacing: .12em; text-transform: uppercase; z-index: 2; }
+  #top .r { text-align: right; }
+  .back { color: inherit; text-decoration: none; opacity: .75; }
+  #cap { position: fixed; left: 20px; right: 20px; bottom: 58px; z-index: 2; font: 400 17px/1.5 'Old Standard TT', 'Noto Serif KR', serif; }
+  .entry { margin: 0; max-width: 820px; padding-left: 1.4em; text-indent: -1.4em; }
+  #word { font: 900 30px/1 'Noto Serif KR', serif; letter-spacing: -.01em; margin-right: .15em; }
+  #pron { letter-spacing: .02em; }
+  .br { color: rgba(236,235,230,.6); }
+  .br #hole { font-family: 'Noto Serif KR', serif; font-size: .9em; }
+  #ex { margin: 6px 0 0 1.4em; font: 700 15px/1.5 'Noto Serif KR', serif; color: #ff6a3d; min-height: 23px; opacity: 0; transition: opacity .5s; }
   #ex.on { opacity: 1; }
-  #nav { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
-  #hint { font-family: 'Noto Sans KR', sans-serif; font-size: 11px; opacity: .55; }
-  .btns { display: flex; gap: 6px; align-items: center; }
-  .btns button { background: transparent; color: inherit; border: 1px solid rgba(236,235,230,.3); font: 400 12px 'IBM Plex Mono', monospace; padding: 6px 11px; cursor: pointer; }
-  .btns button:hover { background: rgba(236,235,230,.1); }
-  #idx { font-size: 11px; opacity: .7; margin: 0 6px; }
-  .back { color: inherit; opacity: .8; text-decoration: none; }
+  #foot { position: fixed; left: 20px; right: 20px; bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid rgba(236,235,230,.25); font: 400 13px 'Old Standard TT', 'Noto Serif KR', serif; z-index: 2; }
+  #hint { opacity: .6; }
+  .btns { display: flex; gap: 14px; align-items: baseline; }
+  .btns button { background: none; border: 0; padding: 2px 0; color: inherit; font: italic 400 14px 'Old Standard TT', serif; cursor: pointer; opacity: .8; }
+  .btns button:hover { opacity: 1; text-decoration: underline; }
   @media (max-width: 640px) {
-    #cap { grid-template-columns: 1fr auto; }
-    #info { grid-column: 1 / -1; grid-row: 2; }
-    #word { font-size: 34px; }
-    #nav { grid-column: 2; grid-row: 1; }
+    #top { font-size: 11px; }
+    #cap { font-size: 15px; bottom: 54px; }
+    #word { font-size: 24px; }
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<header id="top"><span>번역불가 — untranslatable</span><a class="back" href="../index.html">← index</a></header>
+<header id="top"><span>번역불가</span><span id="idx"></span><span class="r"><a class="back" href="../index.html">Untranslatable ↩</a></span></header>
 <div id="cap">
-  <div><div id="word"></div><div id="roman"></div></div>
-  <div id="info"><div id="en"></div><div id="note"></div><div id="ex"></div></div>
-  <div id="nav"><div id="hint">빈 곳을 꾹 눌러 보세요</div><div class="btns"><button id="prev" aria-label="이전">←</button><span id="idx"></span><button id="next" aria-label="다음">→</button></div></div>
+  <p class="entry"><b id="word"></b> (<span id="pron"></span>), <i id="pos"></i> <span id="en"></span>. <span class="br">[번역 안 됨: <span id="hole"></span>.]</span></p>
+  <p id="ex"></p>
 </div>
+<footer id="foot"><span id="hint">빈 곳을 꾹 누르면 채워져요</span><span class="btns"><button id="prev">← prev.</button><button id="next">next →</button></span></footer>
 <script type="module" src="main.js"></script>
 </body>
 </html>

@@ -1,9 +1,9 @@
 const SCENES = [
-  { key: 'siwon', word: '시원하다', roman: 'siwonhada · adj.', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], note: '영어 다섯 단어로 다 그려도, 뜨거운 김은 비어 있어요.', ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
-  { key: 'jeong', word: '정', roman: 'jeong · n.', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], note: '두 사람은 그려지는데, 둘 사이는 채워지지 않아요.', ex: '미운 정도 정이다.' },
-  { key: 'nunchi', word: '눈치', roman: 'nunchi · n.', en: ['tact', 'sense', 'awareness', 'social cue', 'reading the room'], note: '사람도 상도 그려지는데, 오가는 시선은 비어 있어요.', ex: '말 안 해도 눈치로 알지.' },
-  { key: 'dapdap', word: '답답하다', roman: 'dapdapada · adj.', en: ['stuffy', 'frustrated', 'suffocating', 'stifled', 'heavy'], note: '좁은 방은 그려지는데, 가슴은 비어 있어요.', ex: '말이 안 통해서 답답해.' },
-  { key: 'aswip', word: '아쉽다', roman: 'aswipda · adj.', en: ['pity', 'regret', 'miss', 'too bad', 'wish'], note: '떠나는 뒷모습은 그려지는데, 흔드는 손은 비어 있어요.', ex: '벌써 가? 아쉽다.' },
+  { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
+  { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '기대앉은 두 사람 사이', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '미운 정도 정이다.' },
+  { key: 'nunchi', word: '눈치', pron: 'nun·chi', pos: 'n.', hole: '상 위로 오가는 시선', en: ['tact', 'sense', 'awareness', 'social cue', 'reading the room'], ex: '말 안 해도 눈치로 알지.' },
+  { key: 'dapdap', word: '답답하다', pron: 'dap·dap·a·da', pos: 'adj.', hole: '손을 얹은 가슴', en: ['stuffy', 'frustrated', 'suffocating', 'stifled', 'heavy'], ex: '말이 안 통해서 답답해.' },
+  { key: 'aswip', word: '아쉽다', pron: 'a·swip·da', pos: 'adj.', hole: '떠나며 흔드는 손', en: ['pity', 'regret', 'miss', 'too bad', 'wish'], ex: '벌써 가? 아쉽다.' },
 ];
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -34,7 +34,7 @@ function load(key) {
 function build() {
   const S = SCENES[cur], m = maps[S.key];
   const capTop = $('cap').getBoundingClientRect().top;
-  const top = 44, bot = capTop - 14, aw = W - 24, ah = Math.max(120, bot - top);
+  const top = 52, bot = capTop - 14, aw = W - 24, ah = Math.max(120, bot - top);
   const k = Math.min(aw / m.w, ah / m.h), iw = m.w * k, ih = m.h * k;
   const ch = clamp(Math.max(ih, iw * .55) / 78, W < 640 ? 5 : 7, 11), cw = ch * .6;
   const cols = Math.floor(iw / cw), rows = Math.floor(ih / ch);
@@ -68,9 +68,9 @@ function build() {
 function enter(i) {
   cur = (i + SCENES.length) % SCENES.length;
   const S = SCENES[cur];
-  $('word').textContent = S.word; $('roman').textContent = S.roman;
-  $('en').textContent = S.en.join(' · '); $('note').textContent = S.note; $('ex').textContent = S.ex; $('ex').classList.remove('on');
-  $('idx').textContent = `${String(cur + 1).padStart(2, '0')} / ${String(SCENES.length).padStart(2, '0')}`;
+  $('word').textContent = S.word; $('pron').textContent = S.pron; $('pos').textContent = S.pos;
+  $('en').textContent = S.en.join('; '); $('hole').textContent = S.hole; $('ex').textContent = S.ex; $('ex').classList.remove('on');
+  $('idx').textContent = `${cur + 1} / ${SCENES.length}`;
   history.replaceState(null, '', '#' + (cur + 1));
   press.R = 0; t = 0;
   build();
