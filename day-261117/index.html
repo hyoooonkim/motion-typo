@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261117 — 번역불가</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,100..900;1,9..144,300..500&family=Fredoka:wght@600;700&family=Noto+Serif+KR:wght@400;700;900&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@700&text=%E6%9C%A8%E6%BC%8F%E3%82%8C%E6%97%A5%E7%A9%8D%E3%82%93%E8%AA%AD&display=swap">
+<style>
+  :root { --bg: #16231a; --ink: #e9dcae; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'Noto Serif KR', serif; transition: background .5s, color .5s; touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #top { position: fixed; left: 18px; right: 18px; top: 16px; display: flex; justify-content: space-between; align-items: baseline; pointer-events: none; z-index: 2; }
+  #top b { font-weight: 900; font-size: 20px; letter-spacing: -.01em; margin-right: 10px; }
+  #top span { font-size: 12px; opacity: .6; }
+  #top em { font: italic 400 15px Fraunces, serif; opacity: .7; }
+  .nav { position: fixed; top: 40%; width: 44px; height: 44px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--ink) 25%, transparent); background: transparent; color: inherit; font: 300 24px Fraunces, serif; line-height: 1; cursor: pointer; z-index: 2; }
+  .nav:hover { background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  #prev { left: 14px; } #next { right: 14px; }
+  #dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(560px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; gap: 9px; pointer-events: none; z-index: 2; }
+  #meta { display: flex; gap: 10px; align-items: baseline; }
+  #roman { font: italic 400 22px Fraunces, serif; }
+  #lang { font-size: 11px; padding: 2px 9px; border: 1px solid color-mix(in srgb, var(--ink) 35%, transparent); border-radius: 10px; }
+  #hint { font-size: 12px; opacity: .55; min-height: 18px; }
+  #meta { min-height: 30px; }
+  #tr { width: 100%; box-sizing: border-box; padding: 13px 18px 14px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 7%, transparent); border: 1px solid color-mix(in srgb, var(--ink) 16%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .row { display: flex; justify-content: space-between; font-size: 11px; opacity: .65; margin-bottom: 6px; }
+  #cnt { opacity: 0; transition: opacity .4s; } #cnt.on { opacity: 1; }
+  #cand { font-weight: 700; font-size: 20px; min-height: 30px; display: inline-block; transition: opacity .3s; }
+  #cand.no { text-decoration: line-through; text-decoration-color: #e5484d; text-decoration-thickness: 2px; opacity: .5; }
+  #cand.no::after { content: '✕'; color: #e5484d; font-size: 13px; margin-left: 8px; vertical-align: 3px; display: inline-block; }
+  #gloss { font-size: 15px; line-height: 1.65; min-height: 50px; margin-top: 2px; }
+  .cur::after { content: ''; display: inline-block; width: 1.5px; height: 1em; background: currentColor; margin-left: 2px; vertical-align: -2px; animation: bl 1s steps(1) infinite; }
+  @keyframes bl { 50% { opacity: 0; } }
+  #dots { display: flex; gap: 6px; pointer-events: auto; padding: 4px; }
+  #dots button { width: 7px; height: 7px; padding: 0; border-radius: 4px; border: 0; background: var(--ink); opacity: .25; cursor: pointer; transition: width .3s, opacity .3s; }
+  #dots button.on { opacity: .9; width: 18px; }
+  .back { position: fixed; left: 16px; bottom: 18px; color: inherit; opacity: .5; text-decoration: none; font: 13px sans-serif; z-index: 3; }
+  @media (max-width: 640px) {
+    #top span { display: none; }
+    .nav { width: 36px; height: 36px; font-size: 20px; top: 12px; }
+    #prev { left: auto; right: 124px; } #next { right: 82px; }
+    #top em { margin-top: 8px; }
+    #gloss { font-size: 14px; }
+    .back { bottom: auto; top: 52px; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<header id="top"><div><b>번역불가</b><span>한 단어로는 옮겨지지 않는 말들</span></div><em id="idx"></em></header>
+<button class="nav" id="prev" aria-label="이전 단어">‹</button><button class="nav" id="next" aria-label="다음 단어">›</button>
+<div id="dock">
+  <div id="meta"><i id="roman"></i><span id="lang"></span></div>
+  <div id="hint"></div>
+  <div id="tr">
+    <div class="row"><span id="lang2"></span><span id="cnt"></span></div>
+    <div id="cand"></div>
+    <div id="gloss"></div>
+  </div>
+  <div id="dots"></div>
+</div>
+<a class="back" href="../index.html">←</a>
+<script type="module" src="main.js"></script>
+</body>
+</html>
