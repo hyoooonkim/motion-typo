@@ -16,16 +16,25 @@ function makeLeaf(f, x, y) {
   const list = sprites[f], spr = list[Math.floor(Math.random() * list.length)];
   return { x, y, vx: 0, vy: 0, a: rnd(0, TAU), va: 0, z: rnd(40, 260), vz: 0, f, spr, s: spr.sc * rnd(.82, 1.15), ph: rnd(0, TAU), k: Math.random(), t: 0, held: false, hx: 0, hy: 0, ci: -1 };
 }
-function scatter() {
-  const N = Math.round(Math.max(900, Math.min(2600, W * H / 520))), sig = Math.min(W, H) * .13;
-  leaves = [];
-  for (let i = 0; i < N; i++) {
+let baseN = 0;
+function spawn(n) {
+  const sig = Math.min(W, H) * .13;
+  for (let i = 0; i < n; i++) {
     let r = Math.random(), f = 0; while (f < 5 && r > MIX[f]) r -= MIX[f++];
     const [zx, zy] = zones[f], uni = Math.random() < .1;
     const x = uni ? rnd(0, W) : zx + gauss() * sig, y = uni ? rnd(0, H) : zy + gauss() * sig * .9;
     leaves.push(makeLeaf(f, Math.max(6, Math.min(W - 6, x)), Math.max(6, Math.min(H - 6, y))));
   }
-  order = leaves.map((_, i) => i); keys = new Float32Array(N);
+  order = leaves.map((_, i) => i); keys = new Float32Array(leaves.length);
+}
+function scatter() {
+  baseN = Math.round(Math.max(900, Math.min(2600, W * H / 520)));
+  leaves = []; spawn(baseN);
+}
+function refill() {
+  const n = Math.min(Math.round(baseN * .25), Math.round(baseN * 2.5) - leaves.length), b = $('refill');
+  if (n <= 0) { b.textContent = '더는 못 담아요'; setTimeout(() => b.textContent = '낙엽 리필', 1200); return; }
+  spawn(n);
 }
 
 function resize() {
@@ -224,6 +233,7 @@ const pick = (grp, attr, fn) => grp.querySelectorAll('button').forEach(b => b.on
 pick($('tools'), 'tool', v => { release(); tool = v; });
 const sb = document.querySelectorAll('[data-shape]');
 sb.forEach(b => b.onclick = () => { sb.forEach(x => x.classList.toggle('on', x === b)); setShape(b.dataset.shape); });
+$('refill').onclick = () => { audioInit(); refill(); };
 $('wind').onclick = () => { audioInit(); const a = rnd(0, TAU); gust = { x: Math.cos(a) * 420, y: Math.sin(a) * 420, t: 1.6 }; };
 $('snd').onclick = () => { mute = !mute; $('snd').textContent = mute ? '소리 켜기' : '소리 끄기'; if (master) master.gain.value = mute ? 0 : 1; };
 $('shot').onclick = () => {

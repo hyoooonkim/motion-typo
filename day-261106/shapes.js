@@ -18,7 +18,6 @@ const spiral = (x, y, r0, r1, turns, w) => c => {
 };
 
 export const SHAPES = {
-  circle: { name: '동그라미', easy: true, parts: [[Y, circle(0, 0, 1)]] },
   heart: { name: '하트', easy: true, parts: [[R, heart(1)]] },
   star: { name: '별', easy: true, parts: [[O, c => { for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? .5 : 1; c.lineTo(Math.cos(a) * r, Math.sin(a) * r + .1); } c.closePath(); }]] },
   smile: { name: '웃는 얼굴', easy: true, parts: [[Y, circle(0, 0, 1)], [D, circle(-.36, -.28, .15)], [D, circle(.36, -.28, .15)], [D, band(0, .05, .5, .11, .35, Math.PI - .35)]] },
