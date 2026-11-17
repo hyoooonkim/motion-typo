@@ -1,4 +1,4 @@
-const VER = 12;
+const VER = 13;
 const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '그릇 위로 수북이 더 퍼 준 밥', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '“더 먹어, 더.”' },
@@ -240,8 +240,9 @@ function sparks(dt) {
       p.d += ((press.on ? 1 : 0) - p.d) * (1 - Math.exp(-8 * dt));
       const sc = 1 + f * .6;
       ctx.fillStyle = HOT;
-      if (p.d < .98) { ctx.globalAlpha = clamp(a, 0, 1) * .6 * (1 - p.d); ctx.font = `400 ${ch * 1.02 * sc}px ${MONO}`; ctx.fillText('________', p.x, p.y); }
-      if (p.d > .02) { ctx.globalAlpha = clamp(a, 0, 1) * p.d; ctx.font = `700 ${ch * 1.2 * sc}px ${KR}`; ctx.fillText(S.word, p.x, p.y + (1 - p.d) * ch * .6); }
+      const fs = ch * 1.2 * sc, chars = [...S.word];
+      if (p.d < .98) { ctx.globalAlpha = clamp(a, 0, 1) * .65 * (1 - p.d); ctx.font = `400 ${fs}px ${MONO}`; chars.forEach((_, j) => ctx.fillText('_', p.x, p.y + j * fs * 1.05)); }
+      if (p.d > .02) { ctx.globalAlpha = clamp(a, 0, 1) * p.d; ctx.font = `700 ${fs}px ${KR}`; chars.forEach((c, j) => ctx.fillText(c, p.x, p.y + j * fs * 1.05 + (1 - p.d) * ch * .6)); }
     }
     else { ctx.font = `600 ${ch * 1.45}px ${MONO}`; ctx.fillStyle = f < .35 ? '#fff1c9' : f < .7 ? '#ffb35c' : '#ff7a3a'; ctx.fillText(p.c, p.x, p.y); }
   }
