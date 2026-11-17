@@ -1,4 +1,4 @@
-const VER = 11;
+const VER = 12;
 const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '그릇 위로 수북이 더 퍼 준 밥', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '“더 먹어, 더.”' },
@@ -224,9 +224,9 @@ function frame(now) {
 function sparks(dt) {
   const { S, ix, iy, k, ch, sp } = G, [fx0, fy0, fx1, fy1] = S.sparks, m = G.m;
   const X0 = ix + fx0 * m.w * k, X1 = ix + fx1 * m.w * k, Y0 = iy + fy0 * m.h * k, Y1 = iy + fy1 * m.h * k;
-  const spawn = (word) => sp.push({ x: X0 + Math.random() * (X1 - X0), y: Y0 + Math.random() * (Y1 - Y0), vx: (Math.random() - .5) * 60, vy: -(70 + Math.random() * 150), life: word ? 2.6 + Math.random() : .7 + Math.random() * 1.6, t: 0, word, ph: Math.random() * 6, c: '*+·\'.,`'[Math.floor(Math.random() * 7)] });
-  G.spAcc += dt * (press.on ? 70 : 34);
-  while (G.spAcc > 1) { G.spAcc--; spawn(Math.random() < (press.on ? .14 : .05)); }
+  const spawn = (word) => sp.push({ x: X0 + Math.random() * (X1 - X0), y: Y0 + Math.random() * (Y1 - Y0), vx: (Math.random() - .5) * 60, vy: -(70 + Math.random() * 150), life: word ? 2.6 + Math.random() : .7 + Math.random() * 1.6, t: 0, d: 0, word, ph: Math.random() * 6, c: '*+·\'.,`'[Math.floor(Math.random() * 7)] });
+  G.spAcc += dt * 40;
+  while (G.spAcc > 1) { G.spAcc--; spawn(Math.random() < .09); }
   if (Math.random() < dt * 1.4) for (let i = 0; i < 14; i++) spawn(false);
   ctx.textAlign = 'center';
   for (let i = sp.length - 1; i >= 0; i--) {
@@ -236,7 +236,13 @@ function sparks(dt) {
     p.x += p.vx * dt * (p.word ? .5 : 1); p.y += p.vy * dt * (p.word ? .45 : 1);
     const f = p.t / p.life, a = (1 - f) * (p.word ? smooth(p.t / .4) : (.6 + .4 * Math.sin(p.t * 30 + p.ph)));
     ctx.globalAlpha = clamp(a, 0, 1);
-    if (p.word) { ctx.font = `700 ${ch * (1.2 + f * .8)}px ${KR}`; ctx.fillStyle = HOT; ctx.fillText(S.word, p.x, p.y); }
+    if (p.word) {
+      p.d += ((press.on ? 1 : 0) - p.d) * (1 - Math.exp(-8 * dt));
+      const sc = 1 + f * .6;
+      ctx.fillStyle = HOT;
+      if (p.d < .98) { ctx.globalAlpha = clamp(a, 0, 1) * .6 * (1 - p.d); ctx.font = `400 ${ch * 1.02 * sc}px ${MONO}`; ctx.fillText('________', p.x, p.y); }
+      if (p.d > .02) { ctx.globalAlpha = clamp(a, 0, 1) * p.d; ctx.font = `700 ${ch * 1.2 * sc}px ${KR}`; ctx.fillText(S.word, p.x, p.y + (1 - p.d) * ch * .6); }
+    }
     else { ctx.font = `600 ${ch * 1.45}px ${MONO}`; ctx.fillStyle = f < .35 ? '#fff1c9' : f < .7 ? '#ffb35c' : '#ff7a3a'; ctx.fillText(p.c, p.x, p.y); }
   }
   ctx.globalAlpha = 1;
