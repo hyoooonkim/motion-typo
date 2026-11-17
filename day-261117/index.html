@@ -12,7 +12,7 @@
   #top { position: fixed; left: 20px; right: 20px; top: 14px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: baseline; padding-bottom: 7px; border-bottom: 1px solid rgba(236,235,230,.25); font: 400 14px 'Old Standard TT', 'Noto Serif KR', serif; letter-spacing: .12em; text-transform: uppercase; z-index: 2; }
   #top .r { text-align: right; }
   .back { color: inherit; text-decoration: none; opacity: .75; }
-  #cap { position: fixed; left: 20px; right: 20px; bottom: 58px; z-index: 2; font: 400 17px/1.5 'Old Standard TT', 'Noto Serif KR', serif; }
+  #cap { position: fixed; left: 20px; right: 20px; bottom: 16px; z-index: 2; font: 400 17px/1.5 'Old Standard TT', 'Noto Serif KR', serif; }
   .entry { margin: 0; max-width: 820px; padding-left: 1.4em; text-indent: -1.4em; }
   #word { font: 900 30px/1 'Noto Serif KR', serif; letter-spacing: -.01em; margin-right: .15em; }
   #pron { letter-spacing: .02em; }
@@ -20,26 +20,24 @@
   .br #hole { font-family: 'Noto Serif KR', serif; font-size: .9em; }
   #ex { margin: 6px 0 0 1.4em; font: 700 15px/1.5 'Noto Serif KR', serif; color: #ff6a3d; min-height: 23px; opacity: 0; transition: opacity .5s; }
   #ex.on { opacity: 1; }
-  #foot { position: fixed; left: 20px; right: 20px; bottom: 14px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 8px; border-top: 1px solid rgba(236,235,230,.25); font: 400 13px 'Old Standard TT', 'Noto Serif KR', serif; z-index: 2; }
-  #hint { opacity: .6; }
-  .btns { display: flex; gap: 14px; align-items: baseline; }
-  .btns button { background: none; border: 0; padding: 2px 0; color: inherit; font: italic 400 14px 'Old Standard TT', serif; cursor: pointer; opacity: .8; }
-  .btns button:hover { opacity: 1; text-decoration: underline; }
+  .pager { display: flex; align-items: baseline; gap: 14px; }
+  .pager button { background: none; border: 0; padding: 0 4px; color: inherit; font: 400 15px 'Old Standard TT', serif; cursor: pointer; opacity: .7; }
+  .pager button:hover { opacity: 1; }
   @media (max-width: 640px) {
     #top { font-size: 11px; }
-    #cap { font-size: 15px; bottom: 54px; }
+    #top .lbl { display: none; }
+    #cap { font-size: 15px; bottom: 14px; }
     #word { font-size: 24px; }
   }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<header id="top"><span>번역불가</span><span id="idx"></span><span class="r"><a class="back" href="../index.html">Untranslatable ↩</a></span></header>
+<header id="top"><span>번역불가</span><span class="pager"><button id="prev" aria-label="이전">←</button><span id="idx"></span><button id="next" aria-label="다음">→</button></span><span class="r"><a class="back" href="../index.html"><span class="lbl">Untranslatable </span>↩</a></span></header>
 <div id="cap">
   <p class="entry"><b id="word"></b> (<span id="pron"></span>), <i id="pos"></i> <span id="en"></span>. <span class="br">[번역 안 됨: <span id="hole"></span>.]</span></p>
   <p id="ex"></p>
 </div>
-<footer id="foot"><span id="hint">빈 곳을 꾹 누르면 채워져요</span><span class="btns"><button id="prev">← prev.</button><button id="next">next →</button></span></footer>
 <script type="module" src="main.js"></script>
 </body>
 </html>
