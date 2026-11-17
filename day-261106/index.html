@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261106 — 낙엽 쓸기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@500;700&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #77746e; touch-action: none; user-select: none; -webkit-user-select: none; font-family: 'Noto Sans KR', sans-serif; color: #2b2118; }
+  canvas { display: block; position: fixed; inset: 0; width: 100%; height: 100%; cursor: none; }
+  #top { position: fixed; left: 16px; top: 14px; right: 16px; display: flex; align-items: baseline; gap: 12px; pointer-events: none; color: #fff; text-shadow: 0 1px 8px rgba(0,0,0,.35); }
+  #top b { font: 400 22px 'Black Han Sans', sans-serif; letter-spacing: .02em; }
+  #top span { font-size: 12px; opacity: .9; }
+  #score { position: fixed; right: 16px; top: 16px; font-size: 12px; color: #fff; background: rgba(40,28,18,.45); padding: 6px 10px; border-radius: 14px; transition: opacity .3s; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
+  #score.hide { opacity: 0; }
+  #score.done { background: #c9572a; }
+  #bar { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; width: max-content; max-width: calc(100vw - 32px); }
+  .grp { display: flex; gap: 2px; background: rgba(255,250,240,.82); padding: 3px; border-radius: 20px; box-shadow: 0 4px 16px rgba(0,0,0,.18); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  .grp button { border: 0; background: transparent; font: 500 12px 'Noto Sans KR', sans-serif; color: #4a3626; padding: 7px 11px; border-radius: 16px; cursor: pointer; }
+  .grp button.on { background: #b9532a; color: #fff; }
+  .back { position: fixed; left: 14px; bottom: 16px; font: 13px sans-serif; color: rgba(255,255,255,.75); text-decoration: none; text-shadow: 0 1px 6px rgba(0,0,0,.4); }
+  #flash { position: fixed; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .5s; }
+  @media (max-width: 640px) { #top span { display: none; } #bar { bottom: 10px; } .grp button { padding: 7px 8px; } .back { bottom: auto; top: 50px; } }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top"><b>낙엽 쓸기</b><span id="hint">색깔별로 모인 낙엽을 쓸고 옮겨서 그림을 만들어 보세요</span></div>
+<div id="score" class="hide">그림 <b id="fill">0</b>%</div>
+<div id="bar">
+  <div class="grp" id="tools"><button data-tool="hand">손</button><button data-tool="broom" class="on">빗자루</button><button data-tool="blower">송풍기</button></div>
+  <div class="grp" id="shapes"><button data-shape="" class="on">자유</button><button data-shape="heart">하트</button><button data-shape="bear">곰</button><button data-shape="bird">새</button><button data-shape="person">사람</button><button data-shape="rose">장미</button></div>
+  <div class="grp"><button id="wind">바람</button><button id="shot">사진</button><button id="snd">소리 끄기</button></div>
+</div>
+<a class="back" href="../index.html">←</a>
+<div id="flash"></div>
+<script type="module" src="main.js"></script>
+</body>
+</html>
