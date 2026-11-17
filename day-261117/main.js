@@ -73,7 +73,7 @@ function build() {
   const S = SCENES[cur], m = maps[S.key];
   const capTop = $('cap').getBoundingClientRect().top;
   const top = 52, bot = capTop - 14, aw = W - 24, ah = Math.max(120, bot - top);
-  const k = Math.min(aw / m.w, ah / m.h), iw = m.w * k, ih = m.h * k;
+  const k = Math.min(aw / m.w, ah / m.h) * (S.fill ? .7 : 1), iw = m.w * k, ih = m.h * k;
   const ch = clamp(Math.max(ih, iw * .55) / 78, W < 640 ? 5 : 7, 11), cw = ch * .6;
   const ix = (W - iw) / 2, iy = top + (ah - ih) / 2;
   const cols = Math.floor((S.fill ? aw : iw) / cw), rows = Math.floor((S.fill ? ah : ih) / ch);
@@ -85,7 +85,7 @@ function build() {
     if (px >= 0 && py >= 0 && px < m.w && py < m.h && m.d[(py * m.w + px) * 4 + 1] > 110) { const p = [ox + (c + 1) * cw, oy + r * ch]; holes.push(p); hx += p[0]; hy += p[1]; }
   }
   const n = holes.length || 1;
-  G = { m, S, ch, cw, cols, rows, ox, oy, ix, iy, k, holes, hc: [hx / n, hy / n], D: new Float32Array(cols * rows), stream: S.en.join('  ·  ') + '  ·  ', kr: S.word + ' ' };
+  G = { m, S, ch, cw, cols, rows, ox, oy, ix, iy, k, iw, ih, st: [12, top, W - 12, top + ah], holes, hc: [hx / n, hy / n], D: new Float32Array(cols * rows), stream: S.en.join('  ·  ') + '  ·  ', kr: S.word + ' ' };
 }
 
 function enter(i) {
@@ -137,7 +137,7 @@ function frame(now) {
     const px = Math.floor(sx), py = Math.floor(sy), idx = r * cols + c;
     const out = px < 0 || py < 0 || px >= m.w || py >= m.h;
     if (out && !fill) continue;
-    const i = (py * m.w + px) * 4, lum = out ? 225 : m.d[i];
+    const i = (py * m.w + px) * 4, lum = out ? persp(ox + (c + .5) * cw, oy + (r + .5) * ch) : m.d[i];
     if (!out && m.d[i + 1] > 110) {
       if (holeOn && !holeOn(x, y, t)) continue;
       if ((c & 1) === 0) {
@@ -169,6 +169,18 @@ function frame(now) {
   $('ex').classList.toggle('on', shown / Math.max(1, nh) > .55);
 
   if (fade < 1) { ctx.globalAlpha = 1 - fade; ctx.fillStyle = '#161616'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+}
+
+function persp(X, Y) {
+  const { ix, iy, iw, ih, st } = G, cx = ix + iw / 2, cy = iy + ih / 2, dx = X - cx, dy = Y - cy;
+  const tx = (Math.abs(dx) - iw / 2) / ((dx < 0 ? cx - st[0] : st[2] - cx) - iw / 2);
+  const ty = (Math.abs(dy) - ih / 2) / ((dy < 0 ? cy - st[1] : st[3] - cy) - ih / 2);
+  const side = tx > ty, tt = Math.max(tx, ty);
+  if (Math.abs(tx - ty) < .06) return 0;
+  const ring = (Math.pow(clamp(tt, 0, 1), .75) * 5) % 1;
+  if (ring < .1) return 0;
+  const base = side ? 160 : dy < 0 ? 240 : 85;
+  return base * (.3 + .7 * clamp(tt, 0, 1));
 }
 
 function reach() {
