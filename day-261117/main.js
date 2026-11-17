@@ -1,11 +1,10 @@
-const VER = 8;
+const VER = 10;
 const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '그릇 위로 수북이 더 퍼 준 밥', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '“더 먹어, 더.”' },
   { key: 'nunchi', word: '눈치', pron: 'nun·chi', pos: 'n.', hole: '상 위로 오가는 시선', en: ['tact', 'sense', 'awareness', 'social cue', 'reading the room'], ex: '말 안 해도 눈치로 알지.' },
   { key: 'dapdap', fill: true, word: '답답하다', pron: 'dap·dap·a·da', pos: 'adj.', hole: '손을 얹은 가슴', en: ['stuffy', 'frustrated', 'suffocating', 'stifled', 'heavy'], ex: '말이 안 통해서 답답해.' },
-  { key: 'jjan', word: '짠하다', pron: 'jjan·ha·da', pos: 'adj.', hole: '막차 창가에 꾸벅 떨군 머리', en: ['pitiful', 'touching', 'poignant', 'sorry for', 'heartrending'], ex: '얼마나 피곤했으면… 짠하다.' },
-  { key: 'meong', word: '멍때리다', pron: 'meong·ttae·ri·da', pos: 'v.', hole: '불 앞에 앉은 사람의 머릿속', en: ['zone out', 'space out', 'daydream', 'stare blankly', 'blank'], ex: '아무 생각 없이 불만 봤어.' },
+  { key: 'meong', word: '멍때리다', pron: 'meong·ttae·ri·da', pos: 'v.', hole: '불을 보며 떠오른 생각 풍선', en: ['zone out', 'space out', 'daydream', 'stare blankly', 'blank'], ex: '아무 생각 없이 불만 봤어.' },
 ];
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -41,17 +40,10 @@ const WARP = {
     const cx = m.w / 2 + (x - m.w / 2) * sq;
     return [m.hc[0] + (cx - m.hc[0]) / k, m.hc[1] + (y - m.hc[1]) / k];
   },
-  jjan: (x, y, t, w, m) => {
-    const px = m.hb.x0 + (m.hb.x1 - m.hb.x0) * .65, py = m.hb.y1, p = t % 3.6;
-    const nod = p < 2.8 ? smooth(p / 2.8) : 1 - smooth((p - 2.8) / .25);
-    const a = -.35 * nod * w, c = Math.cos(a), s = Math.sin(a), dx = x - px, dy = y - py;
-    return [px + dx * c - dy * s, py + dx * s + dy * c];
-  },
   meong: (x, y, t, w, m) => {
-    const px = (m.hb.x0 + m.hb.x1) / 2, py = m.hb.y1, a = Math.sin(t * .7) * .06 * w, c = Math.cos(a), s = Math.sin(a), dx = x - px, dy = y - py;
-    let X = px + dx * c - dy * s, Y = py + dx * s + dy * c;
-    if (x > m.w * .66 && y > m.h * .38 && y < m.h * .93) {
-      const up = clamp((m.h * .93 - y) / (m.h * .5), 0, 1);
+    let X = x, Y = y - Math.sin(t * 1.3) * 7 * w - Math.sin(t * 2.1 + x * .02) * 2 * w;
+    if (x > m.w * .63 && y > m.h * .42 && y < m.h * .95) {
+      const up = clamp((m.h * .95 - y) / (m.h * .5), 0, 1);
       X += Math.sin(y * .06 + t * 9) * 7 * up + Math.sin(y * .13 - t * 13) * 3 * up;
       Y += (Math.sin(t * 11 + x * .05) * .5 + .5) * 9 * up;
     }
