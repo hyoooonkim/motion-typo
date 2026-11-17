@@ -137,7 +137,8 @@ function frame(now) {
     const px = Math.floor(sx), py = Math.floor(sy), idx = r * cols + c;
     const out = px < 0 || py < 0 || px >= m.w || py >= m.h;
     if (out && !fill) continue;
-    const i = (py * m.w + px) * 4, lum = out ? persp(ox + (c + .5) * cw, oy + (r + .5) * ch) : m.d[i];
+    const i = (py * m.w + px) * 4, edge = fill && !out && m.d[i] <= 46 && (px < m.w * .1 || px > m.w * .9 || py < m.h * .08 || py > m.h * .9);
+    const lum = out || edge ? persp(ox + (c + .5) * cw, oy + (r + .5) * ch) : m.d[i];
     if (!out && m.d[i + 1] > 110) {
       if (holeOn && !holeOn(x, y, t)) continue;
       if ((c & 1) === 0) {
@@ -176,9 +177,6 @@ function persp(X, Y) {
   const tx = (Math.abs(dx) - iw / 2) / ((dx < 0 ? cx - st[0] : st[2] - cx) - iw / 2);
   const ty = (Math.abs(dy) - ih / 2) / ((dy < 0 ? cy - st[1] : st[3] - cy) - ih / 2);
   const side = tx > ty, tt = Math.max(tx, ty);
-  if (Math.abs(tx - ty) < .06) return 0;
-  const ring = (Math.pow(clamp(tt, 0, 1), .75) * 5) % 1;
-  if (ring < .1) return 0;
   const base = side ? 160 : dy < 0 ? 240 : 85;
   return base * (.3 + .7 * clamp(tt, 0, 1));
 }
