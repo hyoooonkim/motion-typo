@@ -1,10 +1,10 @@
-const VER = 10;
+const VER = 11;
 const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '그릇 위로 수북이 더 퍼 준 밥', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '“더 먹어, 더.”' },
   { key: 'nunchi', word: '눈치', pron: 'nun·chi', pos: 'n.', hole: '상 위로 오가는 시선', en: ['tact', 'sense', 'awareness', 'social cue', 'reading the room'], ex: '말 안 해도 눈치로 알지.' },
   { key: 'dapdap', fill: true, word: '답답하다', pron: 'dap·dap·a·da', pos: 'adj.', hole: '손을 얹은 가슴', en: ['stuffy', 'frustrated', 'suffocating', 'stifled', 'heavy'], ex: '말이 안 통해서 답답해.' },
-  { key: 'meong', word: '멍때리다', pron: 'meong·ttae·ri·da', pos: 'v.', hole: '불을 보며 떠오른 생각 풍선', en: ['zone out', 'space out', 'daydream', 'stare blankly', 'blank'], ex: '아무 생각 없이 불만 봤어.' },
+  { key: 'meong', sparks: [.66, .5, .95, .62], word: '멍때리다', pron: 'meong·ttae·ri·da', pos: 'v.', hole: '타닥타닥 튀어 오르는 불씨', en: ['zone out', 'space out', 'daydream', 'stare blankly', 'blank'], ex: '아무 생각 없이 불만 봤어.' },
 ];
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
@@ -41,11 +41,11 @@ const WARP = {
     return [m.hc[0] + (cx - m.hc[0]) / k, m.hc[1] + (y - m.hc[1]) / k];
   },
   meong: (x, y, t, w, m) => {
-    let X = x, Y = y - Math.sin(t * 1.3) * 7 * w - Math.sin(t * 2.1 + x * .02) * 2 * w;
+    let X = x, Y = y;
     if (x > m.w * .63 && y > m.h * .42 && y < m.h * .95) {
       const up = clamp((m.h * .95 - y) / (m.h * .5), 0, 1);
-      X += Math.sin(y * .06 + t * 9) * 7 * up + Math.sin(y * .13 - t * 13) * 3 * up;
-      Y += (Math.sin(t * 11 + x * .05) * .5 + .5) * 9 * up;
+      X += Math.sin(y * .06 + t * 10) * 10 * up + Math.sin(y * .13 - t * 15) * 4 * up;
+      Y += (Math.sin(t * 12 + x * .05) * .5 + .5) * 14 * up;
     }
     return [X, Y];
   },
@@ -132,7 +132,7 @@ function build() {
     if (px >= 0 && py >= 0 && px < m.w && py < m.h && m.d[(py * m.w + px) * 4 + 1] > 110) { const p = [ox + (c + 1) * cw, oy + r * ch]; holes.push(p); hx += p[0]; hy += p[1]; }
   }
   const n = holes.length || 1;
-  G = { m, S, ch, cw, cols, rows, ox, oy, ix, iy, k, iw, ih, st: [12, top, W - 12, top + ah], holes, hc: [hx / n, hy / n], D: new Float32Array(cols * rows), stream: S.en.join('  ·  ') + '  ·  ', kr: S.word + ' ' };
+  G = { sp: [], spAcc: 0, m, S, ch, cw, cols, rows, ox, oy, ix, iy, k, iw, ih, st: [12, top, W - 12, top + ah], holes, hc: [hx / n, hy / n], D: new Float32Array(cols * rows), stream: S.en.join('  ·  ') + '  ·  ', kr: S.word + ' ' };
 }
 
 function enter(i) {
@@ -215,9 +215,31 @@ function frame(now) {
   ctx.font = `700 ${ch * 1.08}px ${KR}`;
   for (let i = 0; i < hot.length; i += 4) { ctx.globalAlpha = hot[i + 2]; ctx.fillText(hot[i + 3], hot[i], hot[i + 1] + (1 - hot[i + 2]) * ch * .6); }
   ctx.globalAlpha = 1;
-  $('ex').classList.toggle('on', shown / Math.max(1, nh) > .55);
+  if (G.S.sparks) sparks(dt);
+  $('ex').classList.toggle('on', G.S.sparks ? press.on && press.R > ch * 8 : shown / Math.max(1, nh) > .55);
 
   if (fade < 1) { ctx.globalAlpha = 1 - fade; ctx.fillStyle = '#161616'; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+}
+
+function sparks(dt) {
+  const { S, ix, iy, k, ch, sp } = G, [fx0, fy0, fx1, fy1] = S.sparks, m = G.m;
+  const X0 = ix + fx0 * m.w * k, X1 = ix + fx1 * m.w * k, Y0 = iy + fy0 * m.h * k, Y1 = iy + fy1 * m.h * k;
+  const spawn = (word) => sp.push({ x: X0 + Math.random() * (X1 - X0), y: Y0 + Math.random() * (Y1 - Y0), vx: (Math.random() - .5) * 60, vy: -(70 + Math.random() * 150), life: word ? 2.6 + Math.random() : .7 + Math.random() * 1.6, t: 0, word, ph: Math.random() * 6, c: '*+·\'.,`'[Math.floor(Math.random() * 7)] });
+  G.spAcc += dt * (press.on ? 70 : 34);
+  while (G.spAcc > 1) { G.spAcc--; spawn(Math.random() < (press.on ? .14 : .05)); }
+  if (Math.random() < dt * 1.4) for (let i = 0; i < 14; i++) spawn(false);
+  ctx.textAlign = 'center';
+  for (let i = sp.length - 1; i >= 0; i--) {
+    const p = sp[i];
+    p.t += dt; if (p.t > p.life) { sp.splice(i, 1); continue; }
+    p.vy += (p.word ? 15 : -20) * dt; p.vx += Math.sin(p.t * 5 + p.ph) * 40 * dt; p.vx *= Math.exp(-1.2 * dt);
+    p.x += p.vx * dt * (p.word ? .5 : 1); p.y += p.vy * dt * (p.word ? .45 : 1);
+    const f = p.t / p.life, a = (1 - f) * (p.word ? smooth(p.t / .4) : (.6 + .4 * Math.sin(p.t * 30 + p.ph)));
+    ctx.globalAlpha = clamp(a, 0, 1);
+    if (p.word) { ctx.font = `700 ${ch * (1.2 + f * .8)}px ${KR}`; ctx.fillStyle = HOT; ctx.fillText(S.word, p.x, p.y); }
+    else { ctx.font = `600 ${ch * 1.45}px ${MONO}`; ctx.fillStyle = f < .35 ? '#fff1c9' : f < .7 ? '#ffb35c' : '#ff7a3a'; ctx.fillText(p.c, p.x, p.y); }
+  }
+  ctx.globalAlpha = 1;
 }
 
 function persp(X, Y) {
