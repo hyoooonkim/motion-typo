@@ -1,3 +1,4 @@
+const VER = 7;
 const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '그릇 위로 수북이 더 퍼 준 밥', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '“더 먹어, 더.”' },
@@ -103,7 +104,7 @@ function load(key) {
       maps[key] = { w, h, d, f, LW, LH, hb: { x0, y0, x1, y1 }, hc: [sx / n, sy / n] };
       res();
     };
-    im.src = `map-${key}.png`;
+    im.src = `map-${key}.png?v=${VER}`;
   });
 }
 
