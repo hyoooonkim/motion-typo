@@ -2,7 +2,7 @@ const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '기대앉은 두 사람 사이', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '미운 정도 정이다.' },
   { key: 'nunchi', word: '눈치', pron: 'nun·chi', pos: 'n.', hole: '상 위로 오가는 시선', en: ['tact', 'sense', 'awareness', 'social cue', 'reading the room'], ex: '말 안 해도 눈치로 알지.' },
-  { key: 'dapdap', word: '답답하다', pron: 'dap·dap·a·da', pos: 'adj.', hole: '손을 얹은 가슴', en: ['stuffy', 'frustrated', 'suffocating', 'stifled', 'heavy'], ex: '말이 안 통해서 답답해.' },
+  { key: 'dapdap', fill: true, word: '답답하다', pron: 'dap·dap·a·da', pos: 'adj.', hole: '손을 얹은 가슴', en: ['stuffy', 'frustrated', 'suffocating', 'stifled', 'heavy'], ex: '말이 안 통해서 답답해.' },
   { key: 'aswip', word: '아쉽다', pron: 'a·swip·da', pos: 'adj.', hole: '떠나며 흔드는 손', en: ['pity', 'regret', 'miss', 'too bad', 'wish'], ex: '벌써 가? 아쉽다.' },
 ];
 
@@ -75,16 +75,17 @@ function build() {
   const top = 52, bot = capTop - 14, aw = W - 24, ah = Math.max(120, bot - top);
   const k = Math.min(aw / m.w, ah / m.h), iw = m.w * k, ih = m.h * k;
   const ch = clamp(Math.max(ih, iw * .55) / 78, W < 640 ? 5 : 7, 11), cw = ch * .6;
-  const cols = Math.floor(iw / cw), rows = Math.floor(ih / ch);
-  const ox = (W - cols * cw) / 2, oy = top + (ah - rows * ch) / 2;
+  const ix = (W - iw) / 2, iy = top + (ah - ih) / 2;
+  const cols = Math.floor((S.fill ? aw : iw) / cw), rows = Math.floor((S.fill ? ah : ih) / ch);
+  const ox = (W - cols * cw) / 2, oy = top + ((S.fill ? ah : ih) - rows * ch) / 2 + (S.fill ? 0 : iy - top);
   const holes = [];
   let hx = 0, hy = 0;
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c += 2) {
-    const px = Math.floor((c + .5) / cols * m.w), py = Math.floor((r + .5) / rows * m.h);
-    if (m.d[(py * m.w + px) * 4 + 1] > 110) { const p = [ox + (c + 1) * cw, oy + r * ch]; holes.push(p); hx += p[0]; hy += p[1]; }
+    const px = Math.floor((ox + (c + .5) * cw - ix) / k), py = Math.floor((oy + (r + .5) * ch - iy) / k);
+    if (px >= 0 && py >= 0 && px < m.w && py < m.h && m.d[(py * m.w + px) * 4 + 1] > 110) { const p = [ox + (c + 1) * cw, oy + r * ch]; holes.push(p); hx += p[0]; hy += p[1]; }
   }
   const n = holes.length || 1;
-  G = { m, S, ch, cw, cols, rows, ox, oy, holes, hc: [hx / n, hy / n], D: new Float32Array(cols * rows), stream: S.en.join('  ·  ') + '  ·  ', kr: S.word + ' ' };
+  G = { m, S, ch, cw, cols, rows, ox, oy, ix, iy, k, holes, hc: [hx / n, hy / n], D: new Float32Array(cols * rows), stream: S.en.join('  ·  ') + '  ·  ', kr: S.word + ' ' };
 }
 
 function enter(i) {
@@ -121,7 +122,7 @@ function frame(now) {
   ctx.fillStyle = '#161616'; ctx.fillRect(0, 0, W, H);
   ctx.textBaseline = 'top'; ctx.textAlign = 'center';
 
-  const { m, cols, rows, ox, oy, cw, ch, D, stream, kr } = G, L = stream.length, intro = t / 1.6, flow = Math.floor(t * 4), tick = Math.floor(t * 10);
+  const { m, cols, rows, ox, oy, ix, iy, k: K, cw, ch, D, stream, kr } = G, fill = G.S.fill, L = stream.length, intro = t / 1.6, flow = Math.floor(t * 4), tick = Math.floor(t * 10);
   const warp = WARP[G.S.key], holeOn = HOLE_ON[G.S.key];
   const hot = [], blank = [];
   let shown = 0, nh = 0;
@@ -129,13 +130,15 @@ function frame(now) {
   for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
     const s = intro * rows - r - c / cols * 6;
     if (s <= 0) continue;
-    const x = (c + .5) / cols * m.w, y = (r + .5) / rows * m.h;
-    const w = m.f[Math.floor(y / m.h * m.LH) * m.LW + Math.floor(x / m.w * m.LW)];
+    const x = (ox + (c + .5) * cw - ix) / K, y = (oy + (r + .5) * ch - iy) / K;
+    const inside = x >= 0 && y >= 0 && x < m.w && y < m.h;
+    const w = inside ? m.f[Math.floor(y / m.h * m.LH) * m.LW + Math.floor(x / m.w * m.LW)] : 0;
     const [sx, sy] = warp(x, y, t, w, m);
-    const px = Math.floor(sx), py = Math.floor(sy);
-    if (px < 0 || py < 0 || px >= m.w || py >= m.h) continue;
-    const i = (py * m.w + px) * 4, lum = m.d[i], idx = r * cols + c;
-    if (m.d[i + 1] > 110) {
+    const px = Math.floor(sx), py = Math.floor(sy), idx = r * cols + c;
+    const out = px < 0 || py < 0 || px >= m.w || py >= m.h;
+    if (out && !fill) continue;
+    const i = (py * m.w + px) * 4, lum = out ? 225 : m.d[i];
+    if (!out && m.d[i + 1] > 110) {
       if (holeOn && !holeOn(x, y, t)) continue;
       if ((c & 1) === 0) {
         const X = ox + (c + 1) * cw, Y = oy + r * ch, v = smooth((press.R - Math.hypot(X - press.x, Y - press.y)) / (ch * 6));
