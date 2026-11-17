@@ -22,7 +22,7 @@ function makeBroom(R) {
   x.globalCompositeOperation = 'source-atop'; x.fillStyle = g; x.fillRect(-14, -oy, L + 30, h); x.globalCompositeOperation = 'source-over';
   for (let k = 0; k < 4; k++) { x.fillStyle = k % 2 ? '#7b2f1e' : '#9b4128'; x.fillRect(-12 + k * 3.2, -7.5, 3.2, 15); }
   x.fillStyle = 'rgba(255,220,180,.25)'; x.fillRect(-12, -7.5, 12.8, 2);
-  const sh = canvas(w, h), sx = sh.getContext('2d'); sx.shadowColor = '#000'; sx.shadowBlur = 5 * P; sx.shadowOffsetX = w; sx.drawImage(head, -w, 0);
+  const sh = canvas(w, h), sx = sh.getContext('2d'); sx.shadowColor = '#1c140a'; sx.shadowBlur = 5 * P; sx.shadowOffsetX = w; sx.drawImage(head, -w, 0);
   return { head, sh, P, ox: 14, oy, R };
 }
 
@@ -43,12 +43,12 @@ export function drawBroom(ctx, X, Y, ang, speed, down, R) {
   const c = Math.cos(ang), s = Math.sin(ang), lift = down ? 3 : 22, squash = 1 - Math.min(.14, speed / 3500), splay = 1 + Math.min(.12, speed / 4000);
   const HL = 190, hEnd = 150;
   const [sx, sy] = wp(X, Y, c, s, -14, 0), [ex, ey] = wp(X, Y, c, s, -14 - HL, 0);
-  softLine(ctx, sx + SUN[0] * (lift + 6), sy + SUN[1] * (lift + 6), ex + SUN[0] * hEnd, ey + SUN[1] * hEnd, 3.5, 6, .5, 5);
+  softLine(ctx, sx + SUN[0] * (lift + 6), sy + SUN[1] * (lift + 6), ex + SUN[0] * hEnd, ey + SUN[1] * hEnd, 3.5, 6, .3, 5);
   const draw = (img, alpha, ox, oy) => {
     ctx.save(); ctx.translate(X + ox, Y + oy); ctx.rotate(ang); ctx.scale(squash * (down ? 1 : 1.04), splay * (down ? 1 : 1.04)); ctx.globalAlpha = alpha;
     ctx.drawImage(img, -broom.ox, -broom.oy / broom.P, img.width / broom.P, img.height / broom.P); ctx.restore();
   };
-  draw(broom.sh, down ? .75 : .45, SUN[0] * lift, SUN[1] * lift);
+  draw(broom.sh, down ? .48 : .3, SUN[0] * lift, SUN[1] * lift);
   draw(broom.head, 1, 0, 0);
   const px = (ex - X) * .06, py = (ey - Y) * .06, tx = ex + px, ty = ey + py;
   const dx = tx - sx, dy = ty - sy, L = Math.hypot(dx, dy), nx = -dy / L, ny = dx / L;
@@ -63,8 +63,8 @@ export function drawBlower(ctx, X, Y, ang, down, dt) {
   const c = Math.cos(ang), s = Math.sin(ang), hT = down ? 12 : 26, hB = 70, TL = 175;
   const [bx, by] = wp(X, Y, c, s, -TL, 0), [cx, cy] = wp(X, Y, c, s, -TL - 36, 6);
   if (down) for (let k = 0; k < 3; k++) puffs.push({ x: X + c * 6, y: Y + s * 6, vx: c * rnd(260, 520) + rnd(-80, 80), vy: s * rnd(260, 520) + rnd(-80, 80), life: rnd(.18, .4), r: rnd(1, 2.4) });
-  shadow(ctx, .42, 14, () => ctx.ellipse(cx + SUN[0] * (hB + 10), cy + SUN[1] * (hB + 10), 44, 34, ang, 0, TAU));
-  softLine(ctx, X + SUN[0] * hT, Y + SUN[1] * hT, bx + SUN[0] * hB, by + SUN[1] * hB, 6, 9, .45, 3 + (down ? 0 : 3));
+  shadow(ctx, .26, 14, () => ctx.ellipse(cx + SUN[0] * (hB + 10), cy + SUN[1] * (hB + 10), 44, 34, ang, 0, TAU));
+  softLine(ctx, X + SUN[0] * hT, Y + SUN[1] * hT, bx + SUN[0] * hB, by + SUN[1] * hB, 6, 9, .28, 3 + (down ? 0 : 3));
   if (down) { ctx.save(); ctx.translate(X, Y); ctx.rotate(ang); ctx.lineCap = 'round';
     for (let k = 0; k < 10; k++) { const d0 = rnd(8, 120), len = rnd(18, 55), sp = (d0 * .5 + 8) * rnd(-1, 1); ctx.strokeStyle = `rgba(240,235,222,${rnd(.08, .22) * (1 - d0 / 160)})`; ctx.lineWidth = rnd(1, 2.5); ctx.beginPath(); ctx.moveTo(d0, sp * .8); ctx.lineTo(d0 + len, sp * (1 + len / 120)); ctx.stroke(); }
     ctx.restore(); }

@@ -76,7 +76,7 @@ export const SUN = [.34, .58];
 export function makeSprites() {
   const S = 34, P = 2.5, size = Math.ceil(S * 1.8 * P), s = S * .5;
   const mk = () => { const c = document.createElement('canvas'); c.width = c.height = size; return c; };
-  const blurred = (src, b) => { const o = mk(), ox = o.getContext('2d'); ox.shadowColor = '#000'; ox.shadowBlur = b; ox.shadowOffsetX = size; ox.drawImage(src, -size, 0); return o; };
+  const blurred = (src, b) => { const o = mk(), ox = o.getContext('2d'); ox.shadowColor = '#1c140a'; ox.shadowBlur = b; ox.shadowOffsetX = size; ox.drawImage(src, -size, 0); return o; };
   return FAMS.map(f => {
     const out = [];
     for (let v = 0; v < 7; v++) {
@@ -84,9 +84,9 @@ export function makeSprites() {
       const x = c0.getContext('2d'); x.translate(size / 2, size / 2); x.scale(P, P);
       if (Math.random() < .3) x.scale(rnd(.68, .85), 1);
       drawLeaf(x, kind, s, a, b, f.name === '갈색' || f.name === '진갈색' ? Math.random() < .6 : Math.random() < .15);
-      const sil = mk(), sx = sil.getContext('2d'); sx.drawImage(c0, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#000'; sx.fillRect(0, 0, size, size);
+      const sil = mk(), sx = sil.getContext('2d'); sx.drawImage(c0, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#1c140a'; sx.fillRect(0, 0, size, size);
       const c = mk(), cx = c.getContext('2d');
-      cx.globalAlpha = .5; cx.drawImage(blurred(sil, s * .2 * P), SUN[0] * 3 * P, SUN[1] * 3 * P); cx.globalAlpha = 1; cx.drawImage(c0, 0, 0);
+      cx.globalAlpha = .36; cx.drawImage(blurred(sil, s * .2 * P), SUN[0] * 3 * P, SUN[1] * 3 * P); cx.globalAlpha = 1; cx.drawImage(c0, 0, 0);
       out.push({ c, c0, sh: [blurred(sil, 1.5 * P), blurred(sil, 4 * P), blurred(sil, 9 * P)], size, sc, P });
     }
     return out;

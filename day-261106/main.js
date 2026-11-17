@@ -178,7 +178,7 @@ function render(cursor = true) {
     ctx.drawImage(img, -l.spr.size / 2, -l.spr.size / 2);
   };
   for (const i of order) { const l = leaves[i]; if (l.z > 1) air.push(l); else put(l, l.spr.c, l.x, l.y, 1, 1); }
-  for (const l of air) { const h = l.z + 3; put(l, l.spr.sh[h < 30 ? 0 : h < 110 ? 1 : 2], l.x + SUN[0] * h, l.y + SUN[1] * h, 1, Math.max(.1, .5 - h / 600)); }
+  for (const l of air) { const h = l.z + 3; put(l, l.spr.sh[h < 30 ? 0 : h < 110 ? 1 : 2], l.x + SUN[0] * h, l.y + SUN[1] * h, 1, Math.max(.07, .36 - h / 800)); }
   for (const l of air) { const p = l.z / 1400; put(l, l.spr.c0, l.x + (l.x - W / 2) * p, l.y + (l.y - H / 2) * p, 1 + l.z / 700, 1); }
   ctx.globalAlpha = 1;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
