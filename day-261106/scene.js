@@ -9,51 +9,82 @@ export const FAMS = [
   { name: '초록', ink: '#9bbd4a', sp: [[2, '#86a23c', '#4f6a1f', 1], [2, '#a7b84a', '#6b7e25', .95], [1, '#a9b94c', '#6f7e26', .8]] },
 ];
 
-export function leafPath(ctx, kind, s) {
-  ctx.beginPath();
-  if (kind === 0) {
-    for (let i = 0; i <= 140; i++) {
-      const t = i / 140 * TAU - Math.PI / 2;
-      const lobe = Math.pow(Math.abs(Math.cos(2.5 * (t + Math.PI / 2))), 1.3), saw = .06 * Math.pow(Math.abs(Math.sin(t * 15)), 3);
-      const r = s * (.56 + .44 * lobe + saw) * (1 - .5 * Math.pow(Math.max(0, Math.sin(t)), 6));
-      i ? ctx.lineTo(Math.cos(t) * r, Math.sin(t) * r) : ctx.moveTo(Math.cos(t) * r, Math.sin(t) * r);
+const D2R = Math.PI / 180;
+function maplePts(s) {
+  const tips = [[-148, .82], [-90, 1], [-32, .82], [28, .52], [152, .52]].map(([a, l]) => [(a + rnd(-7, 7)) * D2R, l * rnd(.9, 1.08)]);
+  const seq = [...tips.slice(0, 4), [Math.PI / 2, .12, 1], tips[4]], pts = [];
+  for (let i = 0; i < seq.length; i++) {
+    const [a, la, sa] = seq[i], nx = seq[(i + 1) % seq.length], lb = nx[1], stem = sa || nx[2];
+    let b = nx[0]; if (b <= a) b += TAU;
+    const rs = stem ? .18 : rnd(.44, .54), n = 16;
+    for (let k = 0; k < n; k++) {
+      const t = k / n, ang = a + (b - a) * t;
+      let r = t < .5 ? la + (rs - la) * Math.pow(t * 2, 2.4) : rs + (lb - rs) * (1 - Math.pow(1 - (t - .5) * 2, 2.4));
+      if (k % 2 && !stem) r *= 1 + rnd(.05, .11) * Math.min(1, Math.abs(t - .5) * 3);
+      pts.push([Math.cos(ang) * r * s, Math.sin(ang) * r * s]);
     }
-    ctx.closePath();
-  } else if (kind === 1) {
-    ctx.moveTo(0, .42 * s);
-    ctx.quadraticCurveTo(-.18 * s, .12 * s, -.82 * s, -.32 * s);
-    ctx.quadraticCurveTo(-.45 * s, -.92 * s, -.04 * s, -.62 * s);
-    ctx.lineTo(0, -.44 * s); ctx.lineTo(.04 * s, -.62 * s);
-    ctx.quadraticCurveTo(.45 * s, -.92 * s, .82 * s, -.32 * s);
-    ctx.quadraticCurveTo(.18 * s, .12 * s, 0, .42 * s);
-    ctx.closePath();
-  } else {
-    ctx.moveTo(0, -s);
-    ctx.bezierCurveTo(.58 * s, -.62 * s, .5 * s, .5 * s, 0, .78 * s);
-    ctx.bezierCurveTo(-.5 * s, .5 * s, -.58 * s, -.62 * s, 0, -s);
-    ctx.closePath();
   }
+  return { pts, veins: tips.map(([a, l]) => [Math.cos(a) * l * s * .92, Math.sin(a) * l * s * .92]), base: [0, 0], stem: [0, s * .12] };
+}
+function ginkgoPts(s) {
+  const pts = [], cy = s * .42, notch = rnd(.1, .3), A0 = -142 * D2R, A1 = -38 * D2R, ph = rnd(0, 9);
+  pts.push([0, cy]);
+  for (let k = 1; k < 8; k++) { const t = k / 8, ex = Math.cos(A0) * s * 1.15, ey = cy + Math.sin(A0) * s * 1.15; pts.push([ex * t * (1 - .12 * Math.sin(t * Math.PI)), cy + (ey - cy) * t]); }
+  for (let k = 0; k <= 48; k++) {
+    const a = A0 + (A1 - A0) * k / 48, d = (a + Math.PI / 2) / .07;
+    const r = s * 1.15 * (.97 + .035 * Math.sin(a * 30 + ph)) * (1 - notch * Math.exp(-d * d));
+    pts.push([Math.cos(a) * r, cy + Math.sin(a) * r]);
+  }
+  for (let k = 7; k > 0; k--) { const t = k / 8, ex = Math.cos(A1) * s * 1.15, ey = cy + Math.sin(A1) * s * 1.15; pts.push([ex * t * (1 - .12 * Math.sin(t * Math.PI)), cy + (ey - cy) * t]); }
+  const veins = []; for (let k = 0; k <= 12; k++) { const a = A0 + (A1 - A0) * (k + .5) / 13; veins.push([Math.cos(a) * s * 1.05, cy + Math.sin(a) * s * 1.05]); }
+  return { pts, veins, base: [0, cy], stem: [0, cy], fan: 1 };
+}
+function ovalPts(s) {
+  const pts = [], w = s * rnd(.42, .55), h = s, N = 80, teeth = Math.round(rnd(22, 34)), sk = rnd(-.06, .06);
+  for (let k = 0; k < N; k++) {
+    const u = k / N * TAU, saw = 1 + .045 * ((k * teeth / N) % 1);
+    const x = w * Math.sin(u) * (1 - .55 * Math.pow(Math.cos(u / 2), 8)) * (Math.sin(u) > 0 ? 1 + sk : 1 - sk) * saw, y = -h * Math.cos(u) * (Math.cos(u) < 0 ? .82 : 1) * saw;
+    pts.push([x, y]);
+  }
+  const veins = []; for (let k = 1; k < 7; k++) { const y = -h * .8 + k * h * .24; veins.push([w * .8, y - h * .2], [-w * .8, y - h * .2], [0, y]); }
+  return { pts, veins, base: [0, h * .8], stem: [0, h * .8], mid: [[0, h * .8], [0, -h * .92]], w };
+}
+const tracePts = pts => { const p = new Path2D(); pts.forEach(([x, y], i) => i ? p.lineTo(x, y) : p.moveTo(x, y)); p.closePath(); return p; };
+const shift = (hex, k) => { const n = parseInt(hex.slice(1), 16); const f = c => Math.max(0, Math.min(255, Math.round(c * k))); return `rgb(${f(n >> 16)},${f(n >> 8 & 255)},${f(n & 255)})`; };
+
+function drawLeaf(x, kind, s, ca, cb, dry) {
+  const L = kind === 0 ? maplePts(s) : kind === 1 ? ginkgoPts(s) : ovalPts(s), path = tracePts(L.pts);
+  x.strokeStyle = shift(cb, .8); x.lineWidth = s * .05; x.lineCap = 'round';
+  x.beginPath(); x.moveTo(...L.stem); const sl = s * rnd(.35, .6), bend = rnd(-.2, .2) * s; x.quadraticCurveTo(L.stem[0] + bend, L.stem[1] + sl * .6, L.stem[0] + bend * .6, L.stem[1] + sl); x.stroke();
+  x.save(); x.shadowColor = 'rgba(25,14,5,.55)'; x.shadowBlur = s * .22; x.shadowOffsetX = s * .05; x.shadowOffsetY = s * .09;
+  const k = rnd(.88, 1.12), g = x.createRadialGradient(rnd(-.2, .2) * s, -s * .2, s * .1, 0, 0, s * 1.1);
+  g.addColorStop(0, shift(ca, k * 1.08)); g.addColorStop(.6, shift(ca, k)); g.addColorStop(1, shift(cb, k));
+  x.fillStyle = g; x.fill(path); x.restore();
+  x.save(); x.clip(path);
+  for (let i = 0; i < 10; i++) { x.fillStyle = `rgba(${Math.random() < .5 ? '255,240,200' : '60,28,8'},${rnd(.04, .12)})`; x.beginPath(); x.ellipse(rnd(-s, s), rnd(-s, s), rnd(.08, .3) * s, rnd(.06, .2) * s, rnd(0, 3), 0, TAU); x.fill(); }
+  if (dry || Math.random() < .5) for (let i = 0; i < (dry ? 9 : 4); i++) { x.fillStyle = `rgba(55,28,10,${rnd(.15, .45)})`; x.beginPath(); x.arc(rnd(-s * .7, s * .7), rnd(-s * .8, s * .6), rnd(.015, .06) * s, 0, TAU); x.fill(); }
+  x.lineJoin = 'round'; x.strokeStyle = `rgba(70,34,10,${dry ? .55 : rnd(.2, .38)})`; x.lineWidth = s * rnd(.14, .26); x.filter = `blur(${(s * .05).toFixed(1)}px)`; x.stroke(path); x.filter = 'none';
+  x.fillStyle = Math.random() < .5 ? 'rgba(0,0,0,.1)' : 'rgba(255,245,220,.08)'; x.fillRect(L.fan ? -s : 0, -s * 1.2, s * (L.fan ? 1 : 1.2), s * 2.4);
+  const vc = kind === 1 ? 'rgba(120,80,20,.28)' : `rgba(${dry ? '60,30,10' : '255,225,170'},${rnd(.14, .26)})`;
+  x.strokeStyle = vc; x.lineCap = 'round';
+  if (L.mid) { x.lineWidth = s * .045; x.beginPath(); x.moveTo(...L.mid[0]); x.lineTo(...L.mid[1]); x.stroke(); x.lineWidth = s * .02; for (let i = 0; i < L.veins.length; i += 3) { const [, , [, y]] = [L.veins[i], L.veins[i + 1], L.veins[i + 2]]; x.beginPath(); x.moveTo(0, y); x.quadraticCurveTo(L.w * .4, y - s * .06, ...L.veins[i]); x.moveTo(0, y); x.quadraticCurveTo(-L.w * .4, y - s * .06, ...L.veins[i + 1]); x.stroke(); } }
+  else { L.veins.forEach(([vx, vy], i) => { x.lineWidth = s * (kind === 1 ? .012 : i === 1 ? .045 : .035); x.beginPath(); x.moveTo(...L.base); x.lineTo(vx, vy); x.stroke(); if (kind === 0) { x.lineWidth = s * .015; for (let t = .3; t < .9; t += .2) { const px = vx * t, py = vy * t, a = Math.atan2(vy, vx); x.moveTo(px, py); x.lineTo(px + Math.cos(a + .7) * s * .15, py + Math.sin(a + .7) * s * .15); x.moveTo(px, py); x.lineTo(px + Math.cos(a - .7) * s * .15, py + Math.sin(a - .7) * s * .15); } x.stroke(); } }); }
+  x.restore();
 }
 
 export function makeSprites() {
-  const S = 32, P = 2, size = S * 2 * P + 16;
-  return FAMS.map(f => f.sp.map(([kind, a, b, sc]) => {
-    const c = document.createElement('canvas'); c.width = c.height = size;
-    const x = c.getContext('2d'); x.translate(size / 2, size / 2); x.scale(P, P);
-    x.save(); x.shadowColor = 'rgba(25,15,6,.5)'; x.shadowBlur = 4 * P; x.shadowOffsetY = 1.2 * P;
-    leafPath(x, kind, S * .5); const g = x.createLinearGradient(-S * .4, -S * .5, S * .4, S * .5);
-    g.addColorStop(0, a); g.addColorStop(1, b); x.fillStyle = g; x.fill(); x.restore();
-    x.save(); leafPath(x, kind, S * .5); x.clip();
-    for (let k = 0; k < 7; k++) { x.fillStyle = `rgba(${k % 2 ? '255,236,190' : '45,22,8'},${rnd(.06, .16)})`; x.beginPath(); x.arc(rnd(-S * .4, S * .4), rnd(-S * .4, S * .4), rnd(2, 7), 0, TAU); x.fill(); }
-    x.strokeStyle = 'rgba(50,26,10,.4)'; x.lineWidth = .9; x.beginPath();
-    if (kind === 0) for (let k = 0; k < 5; k++) { const t = -Math.PI / 2 + k * TAU / 5; x.moveTo(0, S * .1); x.lineTo(Math.cos(t) * S * .42, Math.sin(t) * S * .42); }
-    else if (kind === 1) for (let k = -3; k <= 3; k++) { x.moveTo(0, S * .2); x.lineTo(k * S * .11, -S * .36); }
-    else { x.moveTo(0, -S * .48); x.lineTo(0, S * .38); for (let k = 1; k < 5; k++) { const y = -S * .4 + k * S * .15; x.moveTo(0, y + S * .05); x.lineTo(S * .2, y - S * .05); x.moveTo(0, y + S * .05); x.lineTo(-S * .2, y - S * .05); } }
-    x.stroke(); x.restore();
-    x.strokeStyle = b; x.lineWidth = 1.3; x.lineCap = 'round'; x.beginPath();
-    const st = kind === 1 ? S * .2 : kind === 0 ? S * .08 : S * .38; x.moveTo(0, st); x.quadraticCurveTo(S * .04, st + S * .14, S * .02, st + S * .26); x.stroke();
-    return { c, size, sc };
-  }));
+  const S = 34, P = 2.5, size = Math.ceil(S * 1.7 * P);
+  return FAMS.map(f => {
+    const out = [];
+    for (let v = 0; v < 7; v++) {
+      const [kind, a, b, sc] = f.sp[v % f.sp.length], c = document.createElement('canvas'); c.width = c.height = size;
+      const x = c.getContext('2d'); x.translate(size / 2, size / 2); x.scale(P, P);
+      const curl = Math.random() < .3; if (curl) x.scale(rnd(.68, .85), 1);
+      drawLeaf(x, kind, S * .5, a, b, f.name === '갈색' || f.name === '진갈색' ? Math.random() < .6 : Math.random() < .15);
+      out.push({ c, size, sc, P });
+    }
+    return out;
+  });
 }
 
 export function makeGround(W, H, DPR) {

@@ -48,10 +48,11 @@ function setShape(name) {
   if (!name) return;
   const area = areaCache[name] || (areaCache[name] = areaByFam(name)), avail = [0, 0, 0, 0, 0, 0];
   leaves.forEach(l => avail[l.f]++);
-  const cover = Math.pow(32 * LS, 2) * .3;
-  let S = Math.min(W * .42, (H - 150) * .46);
+  const cover = Math.pow(32 * LS, 2) * (SHAPES[name].easy ? .2 : .3);
+  const barH = $('bar').getBoundingClientRect().height + 24;
+  let S = Math.min(W * .42, (H - barH - 60) * .48);
   area.forEach((a, f) => { if (a) S = Math.min(S, 100 * Math.sqrt(avail[f] * .8 * cover / a)); });
-  const cx = W / 2, cy = H / 2 - 8;
+  const cx = W / 2, cy = 50 + (H - barH - 50) / 2;
   mask = buildMask(name, S, cx, cy, gw, gh, CELL);
   maskCells = []; mask.forEach((v, i) => { if (v !== -2) maskCells.push(i); });
   guide = document.createElement('canvas'); guide.width = W * DPR; guide.height = H * DPR;
@@ -69,7 +70,7 @@ function score() {
   }
   fillPct = ok / maskCells.length;
   $('fill').textContent = Math.round(fillPct * 100);
-  if (!done && fillPct >= .75) { done = true; $('score').className = 'done'; $('hint').textContent = '완성! 사진으로 남겨 보세요'; chime(); }
+  if (!done && fillPct >= (SHAPES[shapeName].easy ? .7 : .75)) { done = true; $('score').className = 'done'; $('hint').textContent = '완성! 사진으로 남겨 보세요'; chime(); }
 }
 
 function grab() {
@@ -175,7 +176,7 @@ function render(cursor = true) {
   for (const i of order) {
     const l = leaves[i];
     if (l.z > 1) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = .2; ctx.fillStyle = '#1a120a'; ctx.beginPath(); ctx.ellipse(l.x + l.z * .35, l.y + l.z * .45, 9 * l.s * LS, 6 * l.s * LS, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; }
-    const fl = l.z > 1 ? .45 + .55 * Math.abs(Math.cos(T * 4 + l.ph)) : 1, sc = l.s * LS * (1 + l.z / 300) / 2, c = Math.cos(l.a) * sc, s = Math.sin(l.a) * sc;
+    const fl = l.z > 1 ? .45 + .55 * Math.abs(Math.cos(T * 4 + l.ph)) : 1, sc = l.s * LS * (1 + l.z / 300) / l.spr.P, c = Math.cos(l.a) * sc, s = Math.sin(l.a) * sc;
     ctx.setTransform(c * DPR, s * DPR, -s * fl * DPR, c * fl * DPR, l.x * DPR, l.y * DPR);
     ctx.drawImage(l.spr.c, -l.spr.size / 2, -l.spr.size / 2);
   }
@@ -221,7 +222,8 @@ cv.addEventListener('pointerleave', e => { if (!P.down) P.over = false; });
 
 const pick = (grp, attr, fn) => grp.querySelectorAll('button').forEach(b => b.onclick = () => { grp.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); fn(b.dataset[attr]); });
 pick($('tools'), 'tool', v => { release(); tool = v; });
-pick($('shapes'), 'shape', v => setShape(v));
+const sb = document.querySelectorAll('[data-shape]');
+sb.forEach(b => b.onclick = () => { sb.forEach(x => x.classList.toggle('on', x === b)); setShape(b.dataset.shape); });
 $('wind').onclick = () => { audioInit(); const a = rnd(0, TAU); gust = { x: Math.cos(a) * 420, y: Math.sin(a) * 420, t: 1.6 }; };
 $('snd').onclick = () => { mute = !mute; $('snd').textContent = mute ? '소리 켜기' : '소리 끄기'; if (master) master.gain.value = mute ? 0 : 1; };
 $('shot').onclick = () => {
