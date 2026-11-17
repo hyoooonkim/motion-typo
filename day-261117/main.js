@@ -41,6 +41,33 @@ const WARP = {
     return [px + dx * c - dy * s, py + dx * s + dy * c];
   },
 };
+const segD = (x, y, a, b) => {
+  const dx = b[0] - a[0], dy = b[1] - a[1], u = clamp(((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy), 0, 1);
+  return Math.hypot(x - a[0] - dx * u, y - a[1] - dy * u);
+};
+const SPOON = { a: [572, 205], b: [692, 84] };
+const lift = t => { const p = t % 5.2; return p < 1.4 ? 0 : p < 2.4 ? smooth(p - 1.4) : p < 3.3 ? 1 : p < 4.3 ? 1 - smooth(p - 3.3) : 0; };
+const OVER = {
+  siwon: (x, y, t, m) => {
+    const L = lift(t);
+    if (L < .01) return -1;
+    const { a, b } = SPOON, len = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / len, uy = (b[1] - a[1]) / len;
+    const a2 = [a[0] + 45 * L, a[1] - 170 * L], b2 = [b[0] + 45 * L, b[1] - 170 * L];
+    if (segD(x, y, a2, b2) < 5) return 225;
+    const hx = a2[0] - ux * 24, hy = a2[1] - uy * 24, al = (x - hx) * ux + (y - hy) * uy, pe = (x - hx) * -uy + (y - hy) * ux;
+    const e = (al / 30) ** 2 + (pe / 19) ** 2;
+    if (e < 1) return e < .5 ? 255 : 215;
+    if (L > .6) for (let k = 0; k < 3; k++) {
+      const ph = (t * 1.4 + k / 3) % 1, dx = x - (hx + (k - 1) * 9), dy = y - (hy + 16 + ph * 120 * L);
+      if (dx * dx + dy * dy < 20) return 235;
+    }
+    if (segD(x, y, a, b) < 8) {
+      const qx = Math.floor(x - uy * 16), qy = Math.floor(y + ux * 16);
+      return qx >= 0 && qy >= 0 && qx < m.w && qy < m.h ? m.d[(qy * m.w + qx) * 4] : 0;
+    }
+    return -1;
+  },
+};
 const HOLE_ON = { nunchi: (x, y, t) => ((x * .016 - t * .9) % 1 + 1) % 1 < .62 };
 
 function load(key) {
@@ -123,7 +150,7 @@ function frame(now) {
   ctx.textBaseline = 'top'; ctx.textAlign = 'center';
 
   const { m, cols, rows, ox, oy, ix, iy, k: K, cw, ch, D, stream, kr } = G, fill = G.S.fill, L = stream.length, intro = t / 1.6, flow = Math.floor(t * 4), tick = Math.floor(t * 10);
-  const warp = WARP[G.S.key], holeOn = HOLE_ON[G.S.key];
+  const warp = WARP[G.S.key], holeOn = HOLE_ON[G.S.key], over = OVER[G.S.key];
   const hot = [], blank = [];
   let shown = 0, nh = 0;
   ctx.font = `400 ${ch * 1.02}px ${MONO}`; ctx.fillStyle = '#ecebe6';
@@ -133,13 +160,14 @@ function frame(now) {
     const x = (ox + (c + .5) * cw - ix) / K, y = (oy + (r + .5) * ch - iy) / K;
     const inside = x >= 0 && y >= 0 && x < m.w && y < m.h;
     const w = inside ? m.f[Math.floor(y / m.h * m.LH) * m.LW + Math.floor(x / m.w * m.LW)] : 0;
-    const [sx, sy] = warp(x, y, t, w, m);
+    const ov = over ? over(x, y, t, m) : -1;
+    const [sx, sy] = ov >= 0 ? [x, y] : warp(x, y, t, w, m);
     const px = Math.floor(sx), py = Math.floor(sy), idx = r * cols + c;
     const out = px < 0 || py < 0 || px >= m.w || py >= m.h;
-    if (out && !fill) continue;
+    if (out && !fill && ov < 0) continue;
     const i = (py * m.w + px) * 4, edge = fill && !out && m.d[i] <= 46 && (px < m.w * .1 || px > m.w * .9 || py < m.h * .08 || py > m.h * .9);
-    const lum = out || edge ? persp(ox + (c + .5) * cw, oy + (r + .5) * ch) : m.d[i];
-    if (!out && m.d[i + 1] > 110) {
+    const lum = ov >= 0 ? ov : out || edge ? persp(ox + (c + .5) * cw, oy + (r + .5) * ch) : m.d[i];
+    if (ov < 0 && !out && m.d[i + 1] > 110) {
       if (holeOn && !holeOn(x, y, t)) continue;
       if ((c & 1) === 0) {
         const X = ox + (c + 1) * cw, Y = oy + r * ch, v = smooth((press.R - Math.hypot(X - press.x, Y - press.y)) / (ch * 6));
@@ -154,7 +182,7 @@ function frame(now) {
     const k = idx, hsh = Math.sin(k * 12.9898 + tick * 78.233) * 43758.5453 % 1;
     let chr = stream[(k + flow) % L];
     if (Math.abs(hsh) < .015) chr = 'abcdefghijklmnopqrstuvwxyz·'[Math.floor(Math.abs(hsh) * 1800) % 27];
-    if (chr === ' ') continue;
+    if (chr === ' ' || chr === '·') { if (ov < 0) { if (chr === ' ') continue; } else chr = 'o'; }
     ctx.globalAlpha = (.3 + .7 * Math.pow(lum / 255, 1.3)) * smooth(s);
     ctx.fillText(chr, ox + c * cw + cw / 2, oy + r * ch);
   }
