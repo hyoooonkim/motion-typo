@@ -1,11 +1,12 @@
-import { rnd, FAMS, makeSprites, makeGround, makeShade } from './scene.js';
+import { rnd, FAMS, SUN, makeSprites, makeGround, makeShade } from './scene.js';
+import { drawBroom, drawBlower } from './tools.js';
 import { SHAPES, buildMask, drawGuide, areaByFam } from './shapes.js';
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d'), $ = id => document.getElementById(id);
 const TAU = Math.PI * 2, CELL = 12, CAP = 9, MIX = [.3, .2, .12, .18, .1, .1];
 const sprites = makeSprites(), areaCache = {};
 let W = 1, H = 1, DPR = 1, gw = 1, gh = 1, LS = 1, ground, shade, counts, fcount, keys;
-let leaves = [], order = [], zones = [], T = 0, frame = 0;
+let leaves = [], order = [], zones = [], T = 0, frame = 0, lastDt = 0, toolSp = 0;
 let tool = 'broom', shapeName = '', mask = null, maskCells = [], guide = null, done = false, fillPct = 0, gust = { x: 0, y: 0, t: 0 }, touched = 0;
 const P = { x: -999, y: -999, lx: 0, ly: 0, vx: 0, vy: 0, down: false, over: false, ang: 0 };
 
@@ -92,10 +93,10 @@ function release() {
 }
 
 function step(dt) {
-  T += dt; frame++;
+  T += dt; frame++; lastDt = dt;
   if (dt > 0) { P.vx += ((P.x - P.lx) / dt - P.vx) * Math.min(1, dt * 20); P.vy += ((P.y - P.ly) / dt - P.vy) * Math.min(1, dt * 20); }
   P.lx = P.x; P.ly = P.y;
-  const sp = Math.hypot(P.vx, P.vy);
+  const sp = Math.hypot(P.vx, P.vy); toolSp = sp;
   if (sp > 12) { const t = Math.atan2(P.vy, P.vx); let d = t - P.ang; d = Math.atan2(Math.sin(d), Math.cos(d)); P.ang += d * Math.min(1, dt * 10); }
   counts.fill(0); fcount.fill(0);
   for (const l of leaves) {
@@ -106,7 +107,15 @@ function step(dt) {
   if (gust.t > 0) gust.t -= dt;
   for (const l of leaves) {
     if (l.held) { l.x += (P.x + l.hx - l.x) * Math.min(1, dt * 18); l.y += (P.y + l.hy - l.y) * Math.min(1, dt * 18); l.z = 14; l.vz = 0; l.vx = l.vy = 0; continue; }
-    if (P.down) {
+    if (P.down && tool === 'blower') {
+      const dx = l.x - P.x, dy = l.y - P.y, cA = Math.cos(P.ang), sA = Math.sin(P.ang), al = dx * cA + dy * sA, pe = -dx * sA + dy * cA, Lc = R * 1.6, wid = al * .55 + 14 * LS;
+      if (al > -12 && al < Lc && Math.abs(pe) < wid) {
+        const w = (1 - Math.max(0, al) / Lc) * (1 - Math.abs(pe) / wid * .6), f = w * 2600 * dt;
+        l.t = .5; l.vx += (cA + -sA * Math.sign(pe) * .35) * f; l.vy += (sA + cA * Math.sign(pe) * .35) * f;
+        if (w > .35 && Math.random() < dt * 5) l.vz = Math.max(l.vz, rnd(30, 110) * w);
+        l.va += rnd(-1, 1) * w * 24 * dt; touched++;
+      }
+    } else if (P.down) {
       const dx = l.x - P.x, dy = l.y - P.y, d2 = dx * dx + dy * dy;
       if (d2 < R2) {
         const d = Math.sqrt(d2) || 1, w = 1 - d / R;
@@ -114,11 +123,6 @@ function step(dt) {
           l.t = .5;
           const k = Math.min(1, w * dt * 16); l.vx += (P.vx * 1.06 - l.vx) * k; l.vy += (P.vy * 1.06 - l.vy) * k;
           if (sp > 30) { l.va += rnd(-1, 1) * w * sp * dt * .06; touched++; }
-        } else if (tool === 'blower') {
-          l.t = .5;
-          const f = w * w * 2400 * dt; l.vx += dx / d * f + P.vx * w * dt * 2; l.vy += dy / d * f + P.vy * w * dt * 2;
-          if (w > .4 && Math.random() < dt * 5) l.vz = Math.max(l.vz, rnd(30, 100) * w);
-          l.va += rnd(-1, 1) * w * 24 * dt; touched++;
         }
       }
     }
@@ -134,7 +138,7 @@ function step(dt) {
     if (l.t > 0) l.t -= dt;
     let fr = 7;
     if (l.z > 0 || l.vz > 0) {
-      l.vz = Math.max(-70, l.vz - 120 * dt); l.z += l.vz * dt; l.vx += Math.sin(T * 2.6 + l.ph) * 40 * dt; fr = 1.2;
+      l.vz = Math.max(-(45 + 40 * l.k), l.vz - 120 * dt); l.z += l.vz * dt; l.vx += Math.sin(T * (1.8 + l.k) + l.ph) * 55 * dt; l.vy += Math.cos(T * (1.3 + l.k) + l.ph * 1.7) * 30 * dt; l.va += Math.sin(T * 2 + l.ph) * 3 * dt; fr = 1.2;
       if (l.z <= 0) { l.z = 0; l.vz = 0; }
     }
     const e = Math.exp(-fr * dt); l.vx *= e; l.vy *= e;
@@ -154,27 +158,12 @@ function step(dt) {
 function drawTool() {
   if (!(P.over || P.down) || P.x < -100) return;
   const R = radius();
-  ctx.save(); ctx.translate(P.x, P.y); ctx.rotate(P.ang);
-  if (tool === 'broom') {
-    ctx.fillStyle = 'rgba(20,12,4,.22)'; ctx.beginPath(); ctx.ellipse(-60, 14, 140, 18, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#7a4f2a'; ctx.fillRect(-210, -4, 190, 8); ctx.fillStyle = '#a0703f'; ctx.fillRect(-210, -4, 190, 2.5);
-    ctx.fillStyle = '#b3402a'; ctx.fillRect(-26, -9, 10, 18);
-    const g = ctx.createLinearGradient(-18, 0, R * .3, 0); g.addColorStop(0, '#9b7b3c'); g.addColorStop(1, '#d9bc74');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(-18, -10); ctx.lineTo(R * .25, -R * .95); ctx.quadraticCurveTo(R * .42, 0, R * .25, R * .95); ctx.lineTo(-18, 10); ctx.closePath(); ctx.fill();
-    ctx.strokeStyle = 'rgba(90,60,20,.55)'; ctx.lineWidth = 1;
-    for (let k = -6; k <= 6; k++) { ctx.beginPath(); ctx.moveTo(-14, k * 1.4); ctx.lineTo(R * .3, k / 6 * R * .9); ctx.stroke(); }
-  } else if (tool === 'blower') {
-    if (P.down) { ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = 1.2; for (let k = 0; k < 7; k++) { const y = rnd(-R * .4, R * .4), x0 = rnd(0, R * .4); ctx.beginPath(); ctx.moveTo(x0, y * .4); ctx.lineTo(x0 + rnd(20, 60), y); ctx.stroke(); } }
-    ctx.fillStyle = 'rgba(20,12,4,.22)'; ctx.beginPath(); ctx.ellipse(-90, 16, 120, 16, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#3d3f42'; ctx.beginPath(); ctx.roundRect(-200, -8, 196, 16, 8); ctx.fill();
-    ctx.fillStyle = '#56595d'; ctx.fillRect(-200, -8, 196, 4);
-    ctx.fillStyle = '#e06a1e'; ctx.beginPath(); ctx.roundRect(-250, -24, 64, 48, 12); ctx.fill();
-  } else {
-    const held = leaves.some(l => l.held);
-    ctx.rotate(-P.ang); ctx.fillStyle = 'rgba(255,250,240,.28)'; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(0, 0, held ? R * .55 : R * .8, 0, TAU); ctx.fill(); ctx.stroke();
-    if (!held) for (let k = 0; k < 4; k++) { const a = -2.1 + k * .42; ctx.beginPath(); ctx.ellipse(Math.cos(a) * R * 1.05, Math.sin(a) * R * 1.05, R * .17, R * .32, a + Math.PI / 2, 0, TAU); ctx.fill(); ctx.stroke(); }
-  }
+  if (tool === 'broom') { drawBroom(ctx, P.x, P.y, P.ang, toolSp, P.down, R); return; }
+  if (tool === 'blower') { drawBlower(ctx, P.x, P.y, P.ang, P.down, lastDt); return; }
+  const held = leaves.some(l => l.held);
+  ctx.save(); ctx.translate(P.x, P.y); ctx.fillStyle = 'rgba(255,250,240,.28)'; ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(0, 0, held ? R * .55 : R * .8, 0, TAU); ctx.fill(); ctx.stroke();
+  if (!held) for (let k = 0; k < 4; k++) { const a = -2.1 + k * .42; ctx.beginPath(); ctx.ellipse(Math.cos(a) * R * 1.05, Math.sin(a) * R * 1.05, R * .17, R * .32, a + Math.PI / 2, 0, TAU); ctx.fill(); ctx.stroke(); }
   ctx.restore();
 }
 
@@ -182,13 +171,16 @@ function render(cursor = true) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = 1;
   ctx.drawImage(ground, 0, 0, W, H);
   if (guide) { ctx.globalAlpha = done ? .25 : .9; ctx.drawImage(guide, 0, 0, W, H); ctx.globalAlpha = 1; }
-  for (const i of order) {
-    const l = leaves[i];
-    if (l.z > 1) { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.globalAlpha = .2; ctx.fillStyle = '#1a120a'; ctx.beginPath(); ctx.ellipse(l.x + l.z * .35, l.y + l.z * .45, 9 * l.s * LS, 6 * l.s * LS, 0, 0, TAU); ctx.fill(); ctx.globalAlpha = 1; }
-    const fl = l.z > 1 ? .45 + .55 * Math.abs(Math.cos(T * 4 + l.ph)) : 1, sc = l.s * LS * (1 + l.z / 300) / l.spr.P, c = Math.cos(l.a) * sc, s = Math.sin(l.a) * sc;
-    ctx.setTransform(c * DPR, s * DPR, -s * fl * DPR, c * fl * DPR, l.x * DPR, l.y * DPR);
-    ctx.drawImage(l.spr.c, -l.spr.size / 2, -l.spr.size / 2);
-  }
+  const air = [];
+  const put = (l, img, x, y, k, a) => {
+    const fl = l.z > 1 ? .4 + .6 * Math.abs(Math.cos(T * (3 + l.k * 2) + l.ph)) : 1, sc = l.s * LS * k / l.spr.P, c = Math.cos(l.a) * sc, s = Math.sin(l.a) * sc;
+    ctx.globalAlpha = a; ctx.setTransform(c * DPR, s * DPR, -s * fl * DPR, c * fl * DPR, x * DPR, y * DPR);
+    ctx.drawImage(img, -l.spr.size / 2, -l.spr.size / 2);
+  };
+  for (const i of order) { const l = leaves[i]; if (l.z > 1) air.push(l); else put(l, l.spr.c, l.x, l.y, 1, 1); }
+  for (const l of air) { const h = l.z + 3; put(l, l.spr.sh[h < 30 ? 0 : h < 110 ? 1 : 2], l.x + SUN[0] * h, l.y + SUN[1] * h, 1, Math.max(.1, .5 - h / 600)); }
+  for (const l of air) { const p = l.z / 1400; put(l, l.spr.c0, l.x + (l.x - W / 2) * p, l.y + (l.y - H / 2) * p, 1 + l.z / 700, 1); }
+  ctx.globalAlpha = 1;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.drawImage(shade.c, -shade.M + Math.sin(T * .4) * 5, -shade.M + Math.cos(T * .33) * 4, W + shade.M * 2, H + shade.M * 2);
   if (cursor) drawTool();

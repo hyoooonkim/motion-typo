@@ -56,7 +56,7 @@ function drawLeaf(x, kind, s, ca, cb, dry) {
   const L = kind === 0 ? maplePts(s) : kind === 1 ? ginkgoPts(s) : ovalPts(s), path = tracePts(L.pts);
   x.strokeStyle = shift(cb, .8); x.lineWidth = s * .05; x.lineCap = 'round';
   x.beginPath(); x.moveTo(...L.stem); const sl = s * rnd(.35, .6), bend = rnd(-.2, .2) * s; x.quadraticCurveTo(L.stem[0] + bend, L.stem[1] + sl * .6, L.stem[0] + bend * .6, L.stem[1] + sl); x.stroke();
-  x.save(); x.shadowColor = 'rgba(25,14,5,.55)'; x.shadowBlur = s * .22; x.shadowOffsetX = s * .05; x.shadowOffsetY = s * .09;
+  x.save();
   const k = rnd(.88, 1.12), g = x.createRadialGradient(rnd(-.2, .2) * s, -s * .2, s * .1, 0, 0, s * 1.1);
   g.addColorStop(0, shift(ca, k * 1.08)); g.addColorStop(.6, shift(ca, k)); g.addColorStop(1, shift(cb, k));
   x.fillStyle = g; x.fill(path); x.restore();
@@ -72,16 +72,22 @@ function drawLeaf(x, kind, s, ca, cb, dry) {
   x.restore();
 }
 
+export const SUN = [.34, .58];
 export function makeSprites() {
-  const S = 34, P = 2.5, size = Math.ceil(S * 1.7 * P);
+  const S = 34, P = 2.5, size = Math.ceil(S * 1.8 * P), s = S * .5;
+  const mk = () => { const c = document.createElement('canvas'); c.width = c.height = size; return c; };
+  const blurred = (src, b) => { const o = mk(), ox = o.getContext('2d'); ox.shadowColor = '#000'; ox.shadowBlur = b; ox.shadowOffsetX = size; ox.drawImage(src, -size, 0); return o; };
   return FAMS.map(f => {
     const out = [];
     for (let v = 0; v < 7; v++) {
-      const [kind, a, b, sc] = f.sp[v % f.sp.length], c = document.createElement('canvas'); c.width = c.height = size;
-      const x = c.getContext('2d'); x.translate(size / 2, size / 2); x.scale(P, P);
-      const curl = Math.random() < .3; if (curl) x.scale(rnd(.68, .85), 1);
-      drawLeaf(x, kind, S * .5, a, b, f.name === '갈색' || f.name === '진갈색' ? Math.random() < .6 : Math.random() < .15);
-      out.push({ c, size, sc, P });
+      const [kind, a, b, sc] = f.sp[v % f.sp.length], c0 = mk();
+      const x = c0.getContext('2d'); x.translate(size / 2, size / 2); x.scale(P, P);
+      if (Math.random() < .3) x.scale(rnd(.68, .85), 1);
+      drawLeaf(x, kind, s, a, b, f.name === '갈색' || f.name === '진갈색' ? Math.random() < .6 : Math.random() < .15);
+      const sil = mk(), sx = sil.getContext('2d'); sx.drawImage(c0, 0, 0); sx.globalCompositeOperation = 'source-in'; sx.fillStyle = '#000'; sx.fillRect(0, 0, size, size);
+      const c = mk(), cx = c.getContext('2d');
+      cx.globalAlpha = .5; cx.drawImage(blurred(sil, s * .2 * P), SUN[0] * 3 * P, SUN[1] * 3 * P); cx.globalAlpha = 1; cx.drawImage(c0, 0, 0);
+      out.push({ c, c0, sh: [blurred(sil, 1.5 * P), blurred(sil, 4 * P), blurred(sil, 9 * P)], size, sc, P });
     }
     return out;
   });
