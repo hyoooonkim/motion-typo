@@ -1,4 +1,4 @@
-const VER = 7;
+const VER = 8;
 const SCENES = [
   { key: 'siwon', word: '시원하다', pron: 'si·won·ha·da', pos: 'adj.', hole: '국밥 위로 오르는 뜨거운 김', en: ['cool', 'refreshing', 'relieved', 'satisfying', 'clear'], ex: '뜨거운 국물을 들이켜고, “아, 시원하다.”' },
   { key: 'jeong', word: '정', pron: 'jeong', pos: 'n.', hole: '그릇 위로 수북이 더 퍼 준 밥', en: ['affection', 'attachment', 'bond', 'warmth', 'love'], ex: '“더 먹어, 더.”' },
@@ -27,8 +27,13 @@ const WARP = {
     return [x + Math.sin(y * .032 + t * 3.2) * 15 * w * (.35 + up), y + Math.sin(t * 1.7 + x * .01) * 5 * w];
   },
   jeong: (x, y, t, w, m) => {
-    const p = t % 2.4, pat = Math.exp(-(((p - .3) / .12) ** 2)) + .7 * Math.exp(-(((p - .75) / .12) ** 2)), k = 1 + .14 * pat * w;
-    return [x, m.hb.y1 + (y - m.hb.y1) / k];
+    const { k, lift } = gob(t), H0 = m.hb.y1 - m.hb.y0;
+    const sh = -(H0 * (k - 1) + lift) * clamp((640 - x) / 340, 0, 1);
+    if (y < 320 && x > 240) { const qy = y - sh; if (isArm(m, x, qy)) return [x, qy]; }
+    let sy = y;
+    if (x > m.hb.x0 - 20 && x < m.hb.x1 + 20 && y < m.hb.y1) sy = m.hb.y1 + (y - m.hb.y1) / k;
+    if (isArm(m, x, sy)) sy += 45;
+    return [x, sy];
   },
   nunchi: (x, y, t) => [x, y + Math.sin(t * 2.2 + Math.floor(x / 150) * 1.7) * 4],
   dapdap: (x, y, t, w, m) => {
@@ -52,6 +57,17 @@ const WARP = {
     }
     return [X, Y];
   },
+};
+const gob = t => {
+  const s = t % 6.8;
+  if (s < 5.6) { const i = Math.floor(s / 1.4), f = (s % 1.4) / 1.4; return { k: 1 + .085 * (i + smooth((f - .45) / .25)), lift: Math.sin(f * Math.PI) * 30 }; }
+  const f = (s - 5.6) / 1.2;
+  return { k: 1 + .34 * (1 - smooth(f)), lift: -Math.sin(f * Math.PI) * 10 };
+};
+const isArm = (m, x, y) => {
+  if (y >= 320 || x <= 240 || x >= m.w || y < 0) return false;
+  const i = (Math.floor(y) * m.w + Math.floor(x)) * 4;
+  return m.d[i] > 46 && m.d[i + 1] <= 110;
 };
 const segD = (x, y, a, b) => {
   const dx = b[0] - a[0], dy = b[1] - a[1], u = clamp(((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy), 0, 1);
