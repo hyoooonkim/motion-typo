@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { PROFILE } from './bust.js?v=1';
 
-const VER = 3;
+const VER = 9;
 const PEOPLE = [
   { k: 'kr', who: '준호 · 32 · 서울', tint: '#1d2a44', ink: '#d9b765', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
   { k: 'wa', who: '코피 · 64 · 아크라', tint: '#4a1a17', ink: '#e8c28a', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
@@ -23,11 +24,12 @@ const rim = new THREE.DirectionalLight(0x9fb6ff, 1.2); rim.position.set(4, 1, -3
 scene.add(new THREE.AmbientLight(0xffffff, .25));
 const glow = new THREE.PointLight(0xffd9a0, 0, 4, 1.5); scene.add(glow);
 const head = new THREE.Group(); scene.add(head);
-glow.position.set(0, 0, .1); head.add(glow);
+glow.position.set(0, -.9, .05); head.add(glow);
 
+let baseDist = 8;
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
-  camera.aspect = w / h; camera.position.set(0, .05, w / h < .8 ? 8.2 : 5.3); camera.lookAt(0, -.02, 0); camera.updateProjectionMatrix();
+  camera.aspect = w / h; const t = Math.tan(14 * Math.PI / 180); baseDist = Math.max(2.15 / t, 1.55 / (t * camera.aspect)); camera.position.set(0, 0, baseDist); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 
@@ -58,41 +60,53 @@ function paperMat(map, opts = {}) {
   return m;
 }
 
-function shape(d) {
-  let x = d.x * .74, y = d.y, z = d.z * .86;
-  if (y < -.3) { const k = Math.min(1, (-y - .3) / .7); x *= 1 - k * .34; z *= 1 - k * .12; }
-  if (z > 0) {
-    const f = Math.min(1, z / .5);
-    z *= .93;
-    z += .2 * Math.exp(-(x * x) / .02 - ((y + .22) ** 2) / .05) * f;
-    z -= .07 * Math.exp(-((Math.abs(x) - .26) ** 2) / .012 - ((y + .02) ** 2) / .01) * f;
-    z += .05 * Math.exp(-(x * x) / .04 - ((y + .86) ** 2) / .02) * f;
+const HT = 3.6, WD = HT * 672 / 900, SEG = 20;
+function buildLayer(prof, inset, map, opts, isFace) {
+  const N = prof.length;
+  let neck = Infinity, neckI = 0;
+  for (let i = Math.floor(N * .2); i < Math.floor(N * .7); i++) if (prof[i][2] < neck) { neck = prof[i][2]; neckI = i; }
+  const top = prof[0][0], chin = prof[neckI][0], S = THREE.MathUtils.smoothstep;
+  const Y = yv => (HT / 2 - yv * HT) * (inset < 1 ? .955 : 1) - (inset < 1 ? .03 : 0);
+  const ring = prof.map(([yv, cx, hw], i) => {
+    const w0 = Math.max(.03, hw * WD), f = THREE.MathUtils.lerp(1.12, .42, S(hw, neck * 1.3, neck * 2.6));
+    return { y: Y(yv), c: (cx - .5) * WD, w0, w: w0 * inset, d: w0 * f * inset, v: 1 - yv, ht: i < neckI ? (yv - top) / (chin - top) : -1 };
+  });
+  const vert = (r, j) => {
+    const R = ring[r], ph = j / SEG * Math.PI * 2, sn = Math.sin(ph), cs = Math.cos(ph);
+    let z = R.d * cs;
+    if (R.ht > 0) z += .17 * inset * Math.exp(-(((R.ht - .6) / .1) ** 2)) * Math.max(0, cs) ** 30;
+    const p = new THREE.Vector3(R.c + R.w * sn, R.y, z);
+    let u = .5 + (R.c + R.w0 * sn) / WD, v = R.v;
+    if (isFace && R.ht >= 0) { const k = S(-cs, .05, .6); u = THREE.MathUtils.lerp(u, .5 + ring[0].c / WD, k); v = THREE.MathUtils.lerp(v, ring[0].v - .025, k); }
+    return [p, u, v, [r, j]];
+  };
+  const raw = [];
+  const tri = (A, B, C, hint, m) => raw.push([A, B, C, hint, m]);
+  for (let r = 0; r < N - 1; r++) for (let j = 0; j < SEG; j++) {
+    const a = vert(r, j), b = vert(r, j + 1), c = vert(r + 1, j + 1), d = vert(r + 1, j), ph = (j + .5) / SEG * Math.PI * 2, h = new THREE.Vector3(Math.sin(ph), 0, Math.cos(ph));
+    const m = { kind: 'side', r, j }; if ((r + j) % 2) { tri(a, d, b, h, m); tri(b, d, c, h, m); } else { tri(a, d, c, h, m); tri(a, c, b, h, m); }
   }
-  return new THREE.Vector3(x, y, z);
-}
-
-function buildLayer(scale, detail, map, opts) {
-  const ico = new THREE.IcosahedronGeometry(1, detail).toNonIndexed();
-  const P = ico.attributes.position, n = P.count, pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), v = new THREE.Vector3();
-  for (let i = 0; i < n; i++) {
-    v.fromBufferAttribute(P, i).normalize();
-    const p = shape(v).multiplyScalar(scale);
-    pos.set([p.x, p.y, p.z], i * 3);
-    const q = p.clone().divideScalar(scale), back = THREE.MathUtils.smoothstep(-q.z, -.1, .45);
-    uv.set([.5 + q.x / 1.7, THREE.MathUtils.lerp(.52 + q.y * .465, .965, back)], i * 2);
-  }
+  const T0 = ring[0], TN = ring[N - 1];
+  const pole = [new THREE.Vector3(T0.c, T0.y + .03, 0), .5 + T0.c / WD, Math.min(.995, T0.v + .01), 'P'];
+  const base = [new THREE.Vector3(TN.c, TN.y, 0), .5 + TN.c / WD, TN.v, 'B'];
+  for (let j = 0; j < SEG; j++) { tri(pole, vert(0, j), vert(0, j + 1), new THREE.Vector3(0, 1, 0), { kind: 'pole', r: 0, j }); tri(base, vert(N - 1, j + 1), vert(N - 1, j), new THREE.Vector3(0, -1, 0), { kind: 'cap', r: N - 2, j }); }
+  const n = raw.length * 3, pos = new Float32Array(n * 3), uv = new Float32Array(n * 2), hints = [], keys = [];
+  raw.forEach(([A, B, C, h], t) => {
+    const nr = B[0].clone().sub(A[0]).cross(C[0].clone().sub(A[0]));
+    if (nr.dot(h) < 0) [B, C] = [C, B];
+    [A, B, C].forEach((q, j) => { pos.set([q[0].x, q[0].y, q[0].z], (t * 3 + j) * 3); uv.set([q[1], q[2]], (t * 3 + j) * 2); });
+    hints.push(h); keys.push([A[3], B[3], C[3]]);
+  });
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  const mesh = new THREE.Mesh(g, paperMat(map, opts));
-  const T = n / 3, tris = [];
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
-  for (let t = 0; t < T; t++) {
-    a.fromArray(pos, t * 9); b.fromArray(pos, t * 9 + 3); c.fromArray(pos, t * 9 + 6);
-    const cen = a.clone().add(b).add(c).divideScalar(3), nrm = b.clone().sub(a).cross(c.clone().sub(a)).normalize();
-    if (nrm.dot(cen) < 0) nrm.negate();
-    tris.push({ idx: t, cen, nrm, orig: pos.slice(t * 9, t * 9 + 9), t0: -1 });
-  }
-  return { mesh, tris, pos, scale, peeled: 0 };
+  const mesh = new THREE.Mesh(g, paperMat(map, opts)), scale = inset;
+  const S2 = SEG / 2;
+  const orig = ring.map((_, r) => Array.from({ length: SEG + 1 }, (_, j) => vert(r, j)[0]));
+  const tris = raw.map(([, , , , m], t) => ({ idx: t, ...m, side: m.j >= S2 ? 0 : 1, keys: keys[t], u: 0 }));
+  const cur = orig.map(row => row.map(p => p.clone()));
+  const uv2 = orig.map(() => new Float32Array(SEG + 1));
+  const P = Array.from({ length: N }, () => [0, 0]), Pd = Array.from({ length: N }, () => [0, 0]);
+  return { mesh, tris, pos, P, Pd, N, S2, orig, cur, uv2, pole: pole[0].clone(), base: base[0].clone(), curl: 1.35, curlGoal: 1.35, late: 0, ph: Math.random() * 6 };
 }
 
 function wordSheet(P) {
@@ -120,7 +134,7 @@ function coreSprite(P) {
   g.fillText(P.en.split('').join(' '), 512, 500);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, opacity: .25, depthWrite: false }));
-  s.scale.set(1.3, .76, 1); s.position.set(0, -.05, .12); return s;
+  s.scale.set(1.5, .88, 1); s.position.set(0, -.95, .02); return s;
 }
 
 let ac = null, noiseBuf = null, lastSnd = 0;
@@ -134,43 +148,50 @@ function rustle(gain = .5) {
   s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t, Math.random() * .2, .18);
 }
 
-let L = [], core = null, cur = null, ending = 0, frontL1 = 1;
-const clock = new THREE.Clock(), q = new THREE.Quaternion(), tmp = new THREE.Vector3();
+let L = [], core = null, cur = null, ending = 0;
+const clock = new THREE.Clock();
 
-function peel(layer, t, from, delay = 0, fall = false) {
-  const tr = layer.tris[t]; if (tr.t0 >= 0) return false;
-  const o = tr.orig, V = [0, 1, 2].map(i => new THREE.Vector3(o[i * 3], o[i * 3 + 1], o[i * 3 + 2]));
-  let fi = 0, bd = Infinity;
-  V.forEach((p, i) => { const d = p.distanceTo(from); if (d < bd) { bd = d; fi = i; } });
-  const h0 = V[(fi + 1) % 3], h1 = V[(fi + 2) % 3], e = h1.clone().sub(h0).normalize();
-  if (e.clone().cross(V[fi].clone().sub(h0)).dot(tr.nrm) < 0) e.negate();
-  Object.assign(tr, { fi, h0, e, free: V[fi].clone().sub(h0), ang: 1.9 + Math.random() * .7, ph: Math.random() * 6.3, t0: clock.elapsedTime + delay, fall: fall ? clock.elapsedTime + delay + .55 + Math.random() * .35 : 0, spin: (Math.random() - .5) * 4 });
-  layer.peeled++;
-  return true;
+const ang = (a, b) => Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z);
+function unroll(layer, r, s, time) {
+  const { orig, cur, uv2, Pd, S2 } = layer, O = orig[r], C = cur[r], U = uv2[r], p = Pd[r][s];
+  const step = s ? -1 : 1, end = s ? 0 : SEG;
+  const fu = k => { const df = s ? k : SEG - k; const u = THREE.MathUtils.clamp(p * (S2 + 1.5) - df, 0, 1); return u * u * (3 - 2 * u); };
+  let prev = O[S2].clone().sub(O[S2 - step]), acc = 0;
+  C[S2].copy(O[S2]);
+  for (let k = S2; k !== end; k += step) {
+    const e = O[k + step].clone().sub(O[k]), u = fu(k);
+    acc += ang(prev, e) * u * layer.curl * (k === S2 ? .5 : 1) + .015 * Math.sin(time * 1.2 + k * .7 + r * .3 + layer.ph) * u;
+    prev = e;
+    const c = Math.cos(-acc), sn = Math.sin(-acc);
+    C[k + step].set(C[k].x + e.x * c - e.z * sn, O[k + step].y, C[k].z + e.x * sn + e.z * c);
+    U[k + step] = fu(k + step);
+  }
+  U[S2] = 0;
 }
-
-function updateFlaps(time) {
+function updateSheets(dt, time) {
+  const k = 1 - Math.exp(-dt * 2.4);
   for (const layer of L) {
-    let dirty = false;
-    for (const tr of layer.tris) {
-      if (tr.t0 < 0) continue;
-      const u = Math.min(1, Math.max(0, (time - tr.t0) / .75));
-      const k = u - 1, ease = 1 + 2.4 * k * k * k + 1.4 * k * k;
-      const a = tr.ang * ease + (u > 0 ? .05 * Math.sin(time * 1.6 + tr.ph) * u : 0);
-      q.setFromAxisAngle(tr.e, a); tmp.copy(tr.free).applyQuaternion(q).add(tr.h0);
-      if (tr.fall && time > tr.fall) {
-        const s = time - tr.fall; if (s > 3) continue;
-        const o = tr.orig, c = tr.cen;
-        q.setFromAxisAngle(tr.e, tr.spin * s);
-        for (let j = 0; j < 3; j++) {
-          const p = j === tr.fi ? tmp.clone() : new THREE.Vector3(o[j * 3], o[j * 3 + 1], o[j * 3 + 2]);
-          p.sub(c).applyQuaternion(q).add(c).addScaledVector(tr.nrm, 1.1 * s); p.y -= 2.6 * s * s;
-          layer.pos.set([p.x, p.y, p.z], tr.idx * 9 + j * 3);
-        }
-      } else layer.pos.set([tmp.x, tmp.y, tmp.z], tr.idx * 9 + tr.fi * 3);
-      dirty = true;
+    const { P, Pd, N, cur } = layer;
+    if (layer.late && time > layer.late) { P.forEach((p, r) => { if (r < N - 1) p[0] = p[1] = 1; }); layer.curlGoal = 1; layer.late = 0; }
+    layer.curl += (layer.curlGoal - layer.curl) * k * .6;
+    for (let r = 0; r < N - 1; r++) for (let s = 0; s < 2; s++) {
+      const nb = ((P[r - 1] || P[r])[s] + P[r + 1][s]) * .5;
+      P[r][s] = Math.max(P[r][s], nb * .985);
+      Pd[r][s] += (P[r][s] - Pd[r][s]) * k;
     }
-    if (dirty) layer.mesh.geometry.attributes.position.needsUpdate = true;
+    for (let r = 0; r < N; r++) { unroll(layer, r, 0, time); unroll(layer, r, 1, time); }
+    const top = new THREE.Vector3(); cur[0].forEach(p => top.add(p)); top.divideScalar(SEG + 1); top.y = layer.pole.y;
+    for (const tr of layer.tris) {
+      let um = 0;
+      tr.keys.forEach((kk, j) => {
+        const q = kk === 'P' ? top : kk === 'B' ? layer.base : cur[kk[0]][kk[1]];
+        if (kk !== 'P' && kk !== 'B') um = Math.max(um, layer.uv2[kk[0]][kk[1]]);
+        layer.pos.set([q.x, q.y, q.z], tr.idx * 9 + j * 3);
+      });
+      tr.u = um;
+    }
+    layer.mesh.geometry.attributes.position.needsUpdate = true;
+    layer.mesh.geometry.computeBoundingSphere();
   }
 }
 
@@ -182,12 +203,11 @@ async function load(i) {
   [...ui.people.children].forEach((b, j) => b.classList.toggle('on', j === i));
   ui.who.textContent = P.who; ui.cap.classList.remove('end');
   await document.fonts.load(`900 100px 'Noto Serif KR'`, P.core); await document.fonts.load(`700 60px 'Noto Sans KR'`, P.words.join(''));
-  const face = await loader.loadAsync(`face-${P.k}.jpg?v=${VER}`); face.colorSpace = THREE.SRGBColorSpace; face.anisotropy = 8;
+  const face = await loader.loadAsync(`bust-${P.k}.jpg?v=${VER}`); face.colorSpace = THREE.SRGBColorSpace; face.anisotropy = 8;
   for (const l of L) { head.remove(l.mesh); l.mesh.geometry.dispose(); l.mesh.material.map?.dispose(); l.mesh.material.dispose(); }
   if (core) { head.remove(core); core.material.map.dispose(); core.material.dispose(); }
-  L = [buildLayer(1, 2, face), buildLayer(.84, 2, wordSheet(P), { iridescence: .55, roughness: .3 })];
+  L = [buildLayer(PROFILE[P.k], 1, face, {}, true), buildLayer(PROFILE[P.k], .84, wordSheet(P), { iridescence: .55, roughness: .3 }, false)];
   L.forEach(l => head.add(l.mesh));
-  frontL1 = L[1].tris.filter(t => t.cen.z > 0).length;
   core = coreSprite(P); head.add(core); glow.intensity = 0;
 }
 
@@ -198,24 +218,24 @@ document.getElementById('again').onclick = () => load(PEOPLE.indexOf(cur));
 
 function finale() {
   ending = clock.elapsedTime; ui.cap.classList.add('end');
-  const front = new THREE.Vector3(0, 0, 3);
-  for (const l of L) l.tris.forEach((tr, t) => { if (tr.cen.z > -.12 * l.scale && tr.t0 < 0) peel(l, t, front, .15 + Math.hypot(tr.cen.x, tr.cen.y + .1) * .9 + (l === L[1] ? .5 : 0), true); else if (tr.cen.z > -.12 * l.scale && !tr.fall) tr.fall = clock.elapsedTime + Math.random() * .5; });
+  L[0].late = ending + .05; L[1].late = ending + .9;
 }
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pick(e) {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
   for (const h of ray.intersectObjects(L.map(l => l.mesh), false)) {
-    const l = L.find(l => l.mesh === h.object);
-    if (l.tris[h.faceIndex].t0 < 0) return { l, t: h.faceIndex, p: head.worldToLocal(h.point.clone()) };
+    const l = L.find(l => l.mesh === h.object), tr = l.tris[h.faceIndex];
+    if (tr.kind !== 'cap' && tr.u < .3) return { l, tr };
   }
   return null;
 }
 function rub(hit) {
-  let n = 0;
-  hit.l.tris.forEach((tr, t) => { if (tr.cen.distanceTo(hit.p) < .17 * hit.l.scale && peel(hit.l, t, hit.p, Math.random() * .08)) n++; });
-  if (n) rustle(.4 + Math.min(.4, n * .08));
-  if (!ending && L[1].tris.filter(t => t.t0 >= 0 && t.cen.z > 0).length / frontL1 > .38) finale();
+  const { P, N } = hit.l, r0 = hit.tr.r, s = hit.tr.side;
+  for (let r = Math.max(0, r0 - 5); r <= Math.min(N - 2, r0 + 5); r++) P[r][s] = Math.min(1, P[r][s] + .09 * (1 - Math.abs(r - r0) / 6));
+  rustle(.35);
+  const L1 = L[1].P, m = L1.reduce((a, p) => a + p[0] + p[1], 0) / (L1.length * 2);
+  if (!ending && m > .24) finale();
 }
 
 let mode = null, lx = 0, ly = 0, yaw = 0, pitch = 0, idle = 0, lastRub = 0;
@@ -236,10 +256,11 @@ renderer.setAnimationLoop(() => {
   if (!mode && idle > 1.5) yaw += (Math.sin(time * .35) * .45 - yaw) * .01;
   head.rotation.set(pitch, yaw, 0);
   head.position.y = Math.sin(time * .8) * .03;
-  updateFlaps(time);
+  updateSheets(dt, time);
   if (core) {
-    const k = ending ? Math.min(1, (time - ending) / 2.2) : 0;
-    core.material.opacity = .25 + .75 * k; core.scale.set(1.3 * (1 + .12 * k), .76 * (1 + .12 * k), 1);
+    const k = ending ? Math.min(1, (time - ending) / 2.2) : 0, z = ending ? THREE.MathUtils.smoothstep(time - ending, .3, 3.5) : 0;
+    camera.position.z = baseDist * (1 + .6 * z);
+    core.material.opacity = .25 + .75 * k; core.scale.set(1.5 * (1 + .12 * k), .88 * (1 + .12 * k), 1);
     glow.intensity = 1.4 * k * (1 + .08 * Math.sin(time * 2.2));
   }
   renderer.render(scene, camera);

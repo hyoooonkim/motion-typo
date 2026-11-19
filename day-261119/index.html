@@ -16,7 +16,7 @@
   #people button.on { color: #111; background: #ece8e1; border-color: #ece8e1; }
   #cap { position: fixed; left: 22px; bottom: 22px; font-size: 12px; letter-spacing: .08em; line-height: 1.7; opacity: .8; z-index: 2; pointer-events: none; }
   #again { position: fixed; right: 22px; bottom: 22px; background: transparent; color: #ece8e1; border: 1px solid rgba(236,232,225,.4); font: 12px 'IBM Plex Mono', monospace; letter-spacing: .1em; padding: 7px 12px; cursor: pointer; z-index: 2; }
-  @media (max-width: 639px) { #people { top: 38px; } #people button { padding: 4px 6px; font-size: 11px; } }
+  @media (max-width: 639px) { #people { top: 38px; } #people button { padding: 4px 6px; font-size: 10px; white-space: nowrap; } }
 </style>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
 </head>
@@ -25,6 +25,6 @@
 <nav id="people"></nav>
 <div id="cap"><span id="who"></span></div>
 <button id="again">다시 싸기</button>
-<script type="module" src="main.js?v=3"></script>
+<script type="module" src="main.js?v=9"></script>
 </body>
 </html>
