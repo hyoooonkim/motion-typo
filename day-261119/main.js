@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 16;
+const VER = 17;
 const PEOPLE = [
   { k: 'kr', who: '준호 · 서울', mat: 'gold', words: ['승진', '인정', '연봉', '더빨리', '증명'], core: '성공', en: 'SUCCESS' },
   { k: 'wa', who: '코피 · 아크라', mat: 'stone', words: ['이름', '약속', '가문', '부끄럼없이', '지킨다'], core: '명예', en: 'HONOR' },
@@ -12,11 +12,11 @@ const PEOPLE = [
   { k: 'in', who: '라젠드라 · 자이푸르', mat: 'wood', words: ['손주', '밥상', '집', '함께', '돌아와'], core: '가족', en: 'FAMILY' },
 ];
 const MATS = {
-  stone: { rough: .95, metal: 0, radius: .34, jag: .09, bump: 4, ink: 'rgba(18,18,18,.8)' },
-  gold: { rough: .28, metal: 1, radius: .07, jag: 0, bump: 2, ink: 'rgba(70,40,0,.75)' },
-  wood: { rough: .72, metal: 0, radius: .09, jag: 0, bump: 3, ink: 'rgba(60,28,8,.8)' },
-  wax: { rough: .5, metal: 0, radius: .24, jag: .02, bump: 2.5, ink: 'rgba(130,20,45,.65)' },
-  glass: { rough: .22, metal: 0, radius: .15, jag: 0, bump: 1.5, ink: 'rgba(255,255,255,.85)', glass: true },
+  stone: { rough: .93, metal: 0, radius: .36, jag: .1, tint: .78, seg: 7, nrm: 2.2, ao: .55, inRough: .98 },
+  gold: { rough: .2, metal: 1, radius: .05, jag: 0, seg: 4, nrm: 1.4, ao: .4, inRough: .55 },
+  wood: { rough: .62, metal: 0, radius: .05, jag: .004, seg: 4, nrm: 1.6, ao: .5, inRough: .8 },
+  wax: { rough: .48, metal: 0, radius: .2, jag: .012, seg: 6, nrm: 1.2, ao: .3, inRough: .62, phys: { transmission: .18, thickness: 1.2, attenuationColor: new THREE.Color('#e88a9c'), attenuationDistance: .6, sheen: .4, sheenColor: new THREE.Color('#ffd0d8') } },
+  glass: { rough: .16, metal: 0, radius: .12, jag: 0, seg: 5, nrm: .9, ao: -.35, inRough: .85, phys: { transmission: .9, thickness: .9, ior: 1.5, attenuationColor: new THREE.Color('#8fd6cf'), attenuationDistance: 1.4 } },
 };
 
 
@@ -28,7 +28,10 @@ const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;
 scene.environmentIntensity = .55;
 const camera = new THREE.PerspectiveCamera(28, 1, .1, 50);
-const key = new THREE.DirectionalLight(0xfff2e0, 2.2); key.position.set(-3, 4, 5); scene.add(key);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const key = new THREE.DirectionalLight(0xfff2e0, 2.6); key.position.set(-3, 4.5, 5); scene.add(key);
+key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0004; key.shadow.normalBias = .02; key.shadow.radius = 4;
+Object.assign(key.shadow.camera, { left: -2.6, right: 2.6, top: 2.6, bottom: -2.6, near: 1, far: 15 });
 const rim = new THREE.DirectionalLight(0x9fb6ff, 1.2); rim.position.set(4, 1, -3); scene.add(rim);
 scene.add(new THREE.AmbientLight(0xffffff, .25));
 
@@ -74,7 +77,7 @@ function rustle(gain = .5) {
 }
 
 const S = THREE.MathUtils.smoothstep, clamp = THREE.MathUtils.clamp, V = (x, y, z) => new THREE.Vector3(x, y, z);
-const HT = 3.6, WD = HT * 672 / 900, C = .43;
+const HT = 3.6, WD = HT * 672 / 900, U = .24;
 
 const NSEG = [2, 4, 4, 4, 2], MID = 8, NC = 17, TR = [0, .25, .5, .75, 1, 1.25, 1.5];
 function netPath(s) {
@@ -162,104 +165,132 @@ function shapeNet(cube, time) {
   cube.mesh.geometry.attributes.position.needsUpdate = true; cube.mesh.geometry.computeBoundingSphere();
 }
 
-const loader = new THREE.TextureLoader();
 const loadImg = src => new Promise(r => { const i = new Image(); i.onload = () => r(i); i.src = `${src}?v=${VER}`; });
-
-function atlas(P, base, n) {
-  const M = MATS[P.mat], G = 8, cs = 128, c = document.createElement('canvas'), b = document.createElement('canvas');
-  c.width = c.height = b.width = b.height = G * cs;
-  const g = c.getContext('2d'), gb = b.getContext('2d');
-  gb.fillStyle = '#808080'; gb.fillRect(0, 0, b.width, b.height);
-  const glyphs = [...(P.core + P.en + P.words.join('') + P.core)].filter(ch => ch.trim());
-  for (let i = 0; i < G * G; i++) {
-    const x = (i % G) * cs, y = Math.floor(i / G) * cs, sx = Math.random() * (base.width - 256), sy = Math.random() * (base.height - 256);
-    g.drawImage(base, sx, sy, 256, 256, x, y, cs, cs);
-    if (i === 0 || i > n) continue;
-    const ch = glyphs[(i - 1) % glyphs.length], fs = /[가-힣]/.test(ch) ? 82 : 92;
-    const font = `900 ${fs}px 'Noto Sans KR'`; g.font = gb.font = font; g.textAlign = gb.textAlign = 'center'; g.textBaseline = gb.textBaseline = 'middle';
-    const cx = x + cs / 2, cy = y + cs / 2 + 4;
-    g.fillStyle = M.glass ? 'rgba(0,40,40,.25)' : 'rgba(255,255,255,.22)'; g.fillText(ch, cx + 1.5, cy + 2);
-    g.fillStyle = M.ink; g.fillText(ch, cx, cy);
-    gb.filter = 'blur(1.5px)'; gb.fillStyle = M.glass ? '#bbb' : '#000'; gb.fillText(ch, cx, cy); gb.filter = 'none';
-  }
-  const t = new THREE.CanvasTexture(c), tb = new THREE.CanvasTexture(b); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
-  const m = new THREE.MeshPhysicalMaterial({ map: t, bumpMap: tb, bumpScale: M.bump, roughness: M.rough, metalness: M.metal, ...(M.glass ? { transmission: .45, thickness: .4, ior: 1.45 } : {}) });
-  return { m, G };
-}
-
 let seed = 1;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-const noise3 = (x, y, z) => Math.sin(x * 3.1 + y * 1.7) * Math.cos(y * 2.3 - z * 1.9) + .5 * Math.sin(z * 4.7 + x * 2.9);
+const noise3 = (x, y, z) => Math.sin(x * 3.1 + y * 1.7) * Math.cos(y * 2.3 - z * 1.9) + .5 * Math.sin(z * 4.7 + x * 2.9) + .12 * Math.sin(x * 7.3 - z * 6.1 + y * 5.3);
 
-function buildBlock(cube, P, A, cell) {
-  const M = MATS[P.mat], sz = cube.s * .9, g = new RoundedBoxGeometry(sz, sz, sz, 4, sz * M.radius);
+const G = 8, CS = 256, AW = G * CS;
+function canvas2() { const c = document.createElement('canvas'); c.width = c.height = AW; return [c, c.getContext('2d', { willReadFrequently: true })]; }
+function atlas(P, base, glyphs) {
+  const M = MATS[P.mat], [cc, g] = canvas2(), [mc, gm] = canvas2(), [sc, gs] = canvas2(), [lc, gl] = canvas2();
+  gm.fillStyle = '#000'; gm.fillRect(0, 0, AW, AW);
+  for (let i = 0; i < G * G; i++) {
+    const x = (i % G) * CS, y = Math.floor(i / G) * CS, sz = 380 + rnd() * 120;
+    g.drawImage(base, rnd() * (base.width - sz), rnd() * (base.height - sz), sz, sz, x, y, CS, CS);
+    const ch = glyphs[i - 1];
+    if (!ch) continue;
+    const fs = /[가-힣]/.test(ch) ? 150 : 170, jx = (rnd() - .5) * 6, jy = (rnd() - .5) * 6;
+    gm.save(); gm.translate(x + CS / 2 + jx, y + CS / 2 + 8 + jy); gm.rotate((rnd() - .5) * .05);
+    gm.font = `900 ${fs}px 'Noto Sans KR'`; gm.textAlign = 'center'; gm.textBaseline = 'middle'; gm.fillStyle = '#fff'; gm.fillText(ch, 0, 0); gm.restore();
+  }
+  gs.filter = `blur(${P.mat === 'stone' ? 2.2 : 1.6}px)`; gs.drawImage(mc, 0, 0); gl.filter = 'blur(7px)'; gl.drawImage(mc, 0, 0);
+  const col = g.getImageData(0, 0, AW, AW), m = gs.getImageData(0, 0, AW, AW).data, ml = gl.getImageData(0, 0, AW, AW).data, cd = col.data;
+  const H = new Float32Array(AW * AW);
+  for (let i = 0, n = AW * AW; i < n; i++) {
+    const lum = (cd[i * 4] * .3 + cd[i * 4 + 1] * .59 + cd[i * 4 + 2] * .11) / 255;
+    let mk = m[i * 4] / 255;
+    if (P.mat === 'stone' && mk > .05 && mk < .95) mk = clamp(mk + (Math.random() - .5) * .35, 0, 1);
+    H[i] = lum * .25 - mk * .9;
+  }
+  const [nc, gn] = canvas2(), nd = gn.createImageData(AW, AW), [rc, gr] = canvas2(), rd = gr.createImageData(AW, AW);
+  for (let y = 0; y < AW; y++) for (let x = 0; x < AW; x++) {
+    const i = y * AW + x, l = H[y * AW + Math.max(0, x - 1)], r = H[y * AW + Math.min(AW - 1, x + 1)], u = H[Math.max(0, y - 1) * AW + x], d = H[Math.min(AW - 1, y + 1) * AW + x];
+    let nx = (l - r) * M.nrm * 6, ny = (d - u) * M.nrm * 6, nz = 1; const L = Math.hypot(nx, ny, nz); nx /= L; ny /= L; nz /= L;
+    nd.data[i * 4] = (nx * .5 + .5) * 255; nd.data[i * 4 + 1] = (ny * .5 + .5) * 255; nd.data[i * 4 + 2] = (nz * .5 + .5) * 255; nd.data[i * 4 + 3] = 255;
+    const mk = m[i * 4] / 255, ao = ml[i * 4] / 255 * .6 + mk * .4, lum = (cd[i * 4] + cd[i * 4 + 1] + cd[i * 4 + 2]) / 765;
+    const k = (M.ao >= 0 ? 1 - M.ao * ao : 1) * (M.tint || 1), add = M.ao < 0 ? -M.ao * mk * 255 : 0;
+    cd[i * 4] = cd[i * 4] * k + add; cd[i * 4 + 1] = cd[i * 4 + 1] * k + add; cd[i * 4 + 2] = cd[i * 4 + 2] * k + add;
+    const rv = THREE.MathUtils.lerp(M.rough * (.85 + .3 * lum), M.inRough, mk);
+    rd.data[i * 4] = rd.data[i * 4 + 1] = rd.data[i * 4 + 2] = rv * 255; rd.data[i * 4 + 3] = 255;
+  }
+  g.putImageData(col, 0, 0); gn.putImageData(nd, 0, 0); gr.putImageData(rd, 0, 0);
+  const T = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
+  const mat = new THREE.MeshPhysicalMaterial({ map: T(cc, true), normalMap: T(nc), normalScale: new THREE.Vector2(1, 1), roughnessMap: T(rc), roughness: 1, metalness: M.metal, envMapIntensity: M.metal ? 1.4 : 1, ...(M.phys || {}) });
+  return mat;
+}
+
+function buildBlock(cube, P, mat, cell) {
+  const M = MATS[P.mat], sz = cube.s * .92, g = new RoundedBoxGeometry(sz, sz, sz, M.seg, sz * M.radius);
   const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv, off = rnd() * 9;
-  const sq = M.jag ? V(1 + (rnd() - .5) * .16, .86 + rnd() * .12, .9 + rnd() * .1) : V(1, 1, 1);
-  const cu = c => [(c % A.G) / A.G, 1 - (Math.floor(c / A.G) + 1) / A.G];
+  const sq = M.jag > .03 ? V(1 + (rnd() - .5) * .14, .84 + rnd() * .14, .88 + rnd() * .1) : V(1, 1, 1);
+  const cu = c => [(c % G) / G, 1 - (Math.floor(c / G) + 1) / G];
   for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), nz = nor.getZ(i);
-    const [u0, v0] = cu(nz > .55 ? cell : 0), fx = nz > .55 ? x : Math.abs(nor.getX(i)) > .5 ? z : x, fy = Math.abs(nor.getY(i)) > .5 ? z : y;
-    uv.setXY(i, u0 + clamp(fx / sz + .5, .02, .98) / A.G, v0 + clamp(fy / sz + .5, .02, .98) / A.G);
-    const d = M.jag * sz * noise3(x / sz * 2.2 + off, y / sz * 2.2, z / sz * 2.2 - off);
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), nz = nor.getZ(i), front = nz > .5;
+    const [u0, v0] = cu(front ? cell : 0), fx = front ? x : Math.abs(nor.getX(i)) > .5 ? z : x, fy = Math.abs(nor.getY(i)) > .5 ? z : y;
+    uv.setXY(i, u0 + clamp(fx / sz + .5, .015, .985) / G, v0 + clamp(fy / sz + .5, .015, .985) / G);
+    const fq = M.jag > .03 ? 1.5 : 2.4, d = M.jag * sz * noise3(x / sz * fq + off, y / sz * fq, z / sz * fq - off) * (front ? .45 : 1);
     pos.setXYZ(i, (x + nor.getX(i) * d) * sq.x, (y + nor.getY(i) * d) * sq.y, (z + nor.getZ(i) * d) * sq.z);
   }
   g.computeVertexNormals();
-  const m = new THREE.Mesh(g, A.m); m.rotation.set((rnd() - .5) * .08, (rnd() - .5) * .1, (rnd() - .5) * .08); return m;
+  const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true;
+  m.rotation.set((rnd() - .5) * .06, (rnd() - .5) * .08, (rnd() - .5) * .06); return m;
+}
+
+function packCubes(prof) {
+  const at = yn => { let r = prof[0]; for (const q of prof) if (q[0] <= yn) r = q; return r; };
+  const inside = (x, y) => { const yn = .5 - y / HT; if (yn < prof[0][0] || yn > prof[prof.length - 1][0] + .01) return 0; const [, cx, hw] = at(yn); return Math.abs(x / WD + .5 - cx) < hw ? 1 : 0; };
+  const NX = Math.ceil(WD / U), NY = Math.ceil(HT / U), x0 = -NX * U / 2, y0 = HT / 2;
+  const cov = [], used = [];
+  for (let r = 0; r < NY; r++) { cov.push([]); used.push([]); for (let c = 0; c < NX; c++) { let n = 0; for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) n += inside(x0 + (c + (a + .5) / 4) * U, y0 - (r + (b + .5) / 4) * U); cov[r].push(n / 16); used[r].push(false); } }
+  const fits = (r, c, n) => {
+    if (r + n > NY || c + n > NX) return false; let s = 0;
+    for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) { if (used[r + a][c + b] || cov[r + a][c + b] < .15) return false; s += cov[r + a][c + b]; }
+    return s / (n * n) > .62;
+  };
+  const cubes = [];
+  for (let r = 0; r < NY; r++) for (let c = 0; c < NX; c++) {
+    if (used[r][c] || cov[r][c] < .5) continue;
+    const q = rnd(), want = q < .12 ? 4 : q < .42 ? 3 : q < .8 ? 2 : 1;
+    let n = want; while (n > 1 && !fits(r, c, n)) n--;
+    if (!fits(r, c, n)) continue;
+    for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) used[r + a][c + b] = true;
+    cubes.push({ ix: x0 + (c + n / 2) * U, iy: y0 - (r + n / 2) * U, n, s: n * U * (.95 + rnd() * .04) });
+  }
+  return cubes;
 }
 
 function buildPerson(P, img, base) {
-  const grp = new THREE.Group(), prof = PROFILE[P.k], cubes = [];
-  const at = yn => { let r = prof[0]; for (const q of prof) if (q[0] <= yn) r = q; return r; };
-  const inside = (x, y) => { const yn = .5 - y / HT; if (yn < prof[0][0] || yn > prof[prof.length - 1][0] + .01) return false; const [, cx, hw] = at(yn); return Math.abs(x / WD + .5 - cx) < hw; };
-  const cols = Math.ceil(WD / C / 2) + 1, rows = Math.ceil(HT / C);
-  for (let r = 0; r < rows; r++) for (let i = -cols; i < cols; i++) {
-    const x = (i + .5) * C, y = HT / 2 - (r + .5) * C;
-    let n = 0; for (let a = 0; a < 5; a++) for (let b = 0; b < 5; b++) n += inside(x + (a / 4 - .5) * C * .9, y + (b / 4 - .5) * C * .9);
-    if (n / 25 > .42) cubes.push({ ix: x, iy: y, r, i, s: C * (.93 + rnd() * .06) });
-  }
+  const grp = new THREE.Group(), cubes = packCubes(PROFILE[P.k]);
+  cubes.sort((a, b) => b.iy + b.n * U / 2 - (a.iy + a.n * U / 2) || a.ix - b.ix);
+  const glyphs = [...(P.core + P.en + P.words.join('') + P.core + P.en)].filter(ch => ch.trim());
   const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.needsUpdate = true;
-  const pm = paperMat(tex), A = atlas(P, base, cubes.length);
+  const pm = paperMat(tex), bm = atlas(P, base, glyphs.slice(0, Math.min(cubes.length, G * G - 1)));
   cubes.forEach((cb, k) => {
     const node = new THREE.Group();
-    node.position.set(cb.ix + (rnd() - .5) * .07, cb.iy + (rnd() - .5) * .03, (rnd() - .5) * .3 + (Math.abs(cb.i + .5) < 1 ? .1 : 0));
-    node.rotation.set((rnd() - .5) * .08, (rnd() - .5) * .45, (rnd() - .5) * .1);
-    node.add(buildNet(cb, pm), buildBlock(cb, P, A, k + 1));
+    node.position.set(cb.ix + (rnd() - .5) * .03, cb.iy + (rnd() - .5) * .02, -cb.s / 2 + (rnd() - .5) * .14 + (cb.n === 1 ? .05 : 0));
+    node.rotation.set((rnd() - .5) * .05, (rnd() - .5) * .22, (rnd() - .5) * .06);
+    const net = buildNet(cb, pm); net.castShadow = net.receiveShadow = true;
+    node.add(net, buildBlock(cb, P, bm, k < G * G - 1 ? k + 1 : 0));
     cb.node = node; grp.add(node);
   });
-  const lc = document.createElement('canvas'); lc.width = 512; lc.height = 64; const lg = lc.getContext('2d');
-  lg.fillStyle = 'rgba(236,232,225,.75)'; lg.font = `500 30px 'IBM Plex Mono', 'Noto Sans KR'`; lg.textAlign = 'center'; lg.textBaseline = 'middle'; lg.fillText(P.who, 256, 32);
-  const lt = new THREE.CanvasTexture(lc); lt.colorSpace = THREE.SRGBColorSpace;
-  const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: lt, transparent: true, depthWrite: false })); label.scale.set(2.4, .3, 1);
-  label.position.y = Math.min(...cubes.map(c => c.iy)) - C * .5 - .32; grp.add(label);
-  return { P, grp, cubes, pm, ending: 0, yaw0: 0 };
+  return { P, grp, cubes, pm, ending: 0 };
 }
 
 const world = new THREE.Group(); scene.add(world);
-let people = [], baseDist = 20, yaw = 0, pitch = .06;
+let person = null, cur = 0, baseDist = 10, yaw = -.25, pitch = .06;
 const clock = new THREE.Clock();
 function layout() {
-  const w = innerWidth, h = innerHeight, t = Math.tan(14 * Math.PI / 180), tall = w / h < .9;
+  const w = innerWidth, h = innerHeight, t = Math.tan(14 * Math.PI / 180);
   renderer.setSize(w, h, false); camera.aspect = w / h;
-  people.forEach((p, i) => tall ? p.grp.position.set(i < 3 ? (i - 1) * 3.05 : (i - 3.5) * 3.05, i < 3 ? 2.15 : -2.3, 0) : p.grp.position.set((i - 2) * 3.0, .1, 0));
-  const [hw, hh] = tall ? [4.75, 4.7] : [7.6, 2.3];
-  baseDist = Math.max(hh / t, hw / (t * camera.aspect)) + 1.5;
+  baseDist = Math.max(2.25 / t, 1.75 / (t * camera.aspect));
   camera.position.set(0, 0, baseDist); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix();
 }
-addEventListener('resize', layout);
+addEventListener('resize', layout); layout();
 
-function dispose(o) { o.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) { m.material.map?.dispose(); m.material.bumpMap?.dispose(); m.material.dispose(); } }); }
-async function build() {
-  await Promise.all([document.fonts.load(`900 80px 'Noto Sans KR'`, PEOPLE.map(P => P.core + P.words.join('') + P.en).join('')), document.fonts.load(`500 30px 'IBM Plex Mono'`, 'abc')]);
-  const imgs = await Promise.all(PEOPLE.map(P => loadImg(`bust-${P.k}.jpg`))), bases = await Promise.all(PEOPLE.map(P => loadImg(`mat-${P.mat}.jpg`)));
-  people.forEach(p => { world.remove(p.grp); dispose(p.grp); });
-  seed = 7;
-  people = PEOPLE.map((P, i) => buildPerson(P, imgs[i], bases[i]));
-  people.forEach(p => world.add(p.grp));
-  layout();
+const ui = { people: document.getElementById('people'), who: document.getElementById('who') };
+function dispose(o) { o.traverse(m => { if (m.geometry) m.geometry.dispose(); if (m.material) { ['map', 'normalMap', 'roughnessMap'].forEach(k => m.material[k]?.dispose()); m.material.dispose(); } }); }
+async function load(i) {
+  cur = i; const P = PEOPLE[i];
+  [...ui.people.children].forEach((b, j) => b.classList.toggle('on', j === i)); ui.who.textContent = P.who;
+  await document.fonts.load(`900 150px 'Noto Sans KR'`, P.core + P.words.join('') + P.en);
+  const [img, base] = await Promise.all([loadImg(`bust-${P.k}.jpg`), loadImg(`mat-${P.mat}.jpg`)]);
+  if (person) { world.remove(person.grp); dispose(person.grp); }
+  seed = 11 + i * 31;
+  person = buildPerson(P, img, base); world.add(person.grp);
 }
-document.getElementById('again').onclick = build;
-document.getElementById('people').remove();
-document.getElementById('cap').remove();
+PEOPLE.forEach((P, i) => { const b = document.createElement('button'); b.textContent = P.who.split(' · ')[1]; b.onclick = () => load(i); ui.people.append(b); });
+document.getElementById('again').onclick = () => load(cur);
 
 const peeled = p => p.cubes.reduce((a, c) => a + c.p[0] + c.p[1], 0) / (p.cubes.length * 2);
 function finale(p) {
@@ -268,17 +299,17 @@ function finale(p) {
 }
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pick(e) {
+  if (!person || person.ending) return null;
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-  const meshes = people.flatMap(p => p.ending ? [] : p.cubes.map(c => c.mesh)), h = ray.intersectObjects(meshes, false)[0];
+  const h = ray.intersectObjects(person.cubes.map(c => c.mesh), false)[0];
   if (!h) return null;
-  for (const p of people) { const c = p.cubes.find(c => c.mesh === h.object); if (c) return { p, c, s: c.side[h.faceIndex] }; }
-  return null;
+  const c = person.cubes.find(c => c.mesh === h.object); return { p: person, c, s: c.side[h.faceIndex] };
 }
 function rub({ p, c, s }) {
-  c.p[s] = Math.min(1, c.p[s] + .1); c.p[1 - s] = Math.min(1, c.p[1 - s] + .03);
-  for (const o of p.cubes) if (o !== c) { const d = Math.hypot(o.ix - c.ix, o.iy - c.iy) / C; if (d < 2.3) { o.p[0] = Math.min(1, o.p[0] + .04 / d); o.p[1] = Math.min(1, o.p[1] + .04 / d); } }
+  c.p[s] = Math.min(1, c.p[s] + .1); c.p[1 - s] = Math.min(1, c.p[1 - s] + .035);
+  for (const o of p.cubes) if (o !== c) { const d = Math.hypot(o.ix - c.ix, o.iy - c.iy) / ((o.s + c.s) * .5); if (d < 1.8) { const a = .035 / Math.max(.6, d); o.p[0] = Math.min(1, o.p[0] + a); o.p[1] = Math.min(1, o.p[1] + a); } }
   rustle(.3);
-  if (!p.ending && peeled(p) > .32) finale(p);
+  if (!p.ending && peeled(p) > .4) finale(p);
 }
 
 let mode = null, lx = 0, ly = 0, idle = 0, lastRub = 0;
@@ -288,7 +319,7 @@ cv.addEventListener('pointerdown', e => {
 });
 cv.addEventListener('pointermove', e => {
   if (!mode) return;
-  if (mode === 'turn') { yaw += (e.clientX - lx) * .006; pitch = clamp(pitch + (e.clientY - ly) * .004, -.35, .45); }
+  if (mode === 'turn') { yaw += (e.clientX - lx) * .007; pitch = clamp(pitch + (e.clientY - ly) * .004, -.35, .45); }
   else if (performance.now() - lastRub > 28) { lastRub = performance.now(); const h = pick(e); if (h) rub(h); }
   lx = e.clientX; ly = e.clientY;
 });
@@ -296,19 +327,20 @@ addEventListener('pointerup', () => { mode = null; });
 
 renderer.setAnimationLoop(() => {
   const dt = Math.min(.05, clock.getDelta()), time = clock.elapsedTime, k = 1 - Math.exp(-dt * 3); idle += dt;
-  if (!mode && idle > 2) yaw *= .99;
-  people.forEach((p, i) => {
-    p.grp.rotation.set(pitch, yaw + Math.sin(time * .3 + i * 1.3) * .22, 0);
+  if (!mode && idle > 2) yaw += (Math.sin(time * .25) * .35 - .1 - yaw) * .008;
+  world.rotation.set(pitch, yaw, 0);
+  const p = person;
+  if (p) {
     const t = p.ending ? time - p.ending : -1, fade = S(t, 1.2, 2.8);
     for (const c of p.cubes) {
       const moving = Math.abs(c.p[0] - c.pd[0]) + Math.abs(c.p[1] - c.pd[1]) > 1e-4;
       c.pd[0] += (c.p[0] - c.pd[0]) * k; c.pd[1] += (c.p[1] - c.pd[1]) * k;
       if ((moving || c.pd[0] + c.pd[1] > .002) && c.mesh.visible) shapeNet(c, time);
-      if (p.ending) { c.mesh.position.y = -.3 * fade * fade; c.mesh.visible = fade < 1; }
+      if (p.ending) { c.mesh.position.y = -.3 * fade * fade; c.mesh.visible = fade < 1; c.mesh.castShadow = fade < .5; }
     }
     if (p.ending) p.pm.opacity = 1 - fade;
-  });
+  }
   renderer.render(scene, camera);
 });
 
-build();
+load(0);
