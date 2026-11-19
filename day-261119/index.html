@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261119 — 사람 포장지</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@400;700;900&family=Noto+Serif+KR:wght@700;900&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 42%, #24232a 0%, #0c0c0f 70%); color: #ece8e1; font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .75; z-index: 2; pointer-events: none; }
+  #top a { color: inherit; text-decoration: none; pointer-events: auto; }
+  #people { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); display: flex; gap: 4px; z-index: 3; }
+  #people button { background: transparent; color: rgba(236,232,225,.65); border: 1px solid rgba(236,232,225,.22); font: 12px 'IBM Plex Mono', 'Noto Sans KR', monospace; padding: 4px 9px; cursor: pointer; }
+  #people button.on { color: #111; background: #ece8e1; border-color: #ece8e1; }
+  #cap { position: fixed; left: 22px; bottom: 22px; font-size: 12px; letter-spacing: .08em; line-height: 1.7; opacity: .8; z-index: 2; pointer-events: none; }
+  #again { position: fixed; right: 22px; bottom: 22px; background: transparent; color: #ece8e1; border: 1px solid rgba(236,232,225,.4); font: 12px 'IBM Plex Mono', monospace; letter-spacing: .1em; padding: 7px 12px; cursor: pointer; z-index: 2; }
+  @media (max-width: 639px) { #people { top: 38px; } #people button { padding: 4px 6px; font-size: 11px; } }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/" } }</script>
+</head>
+<body>
+<header id="top"><span>사람 포장지 · UNWRAP</span><a href="../index.html">← INDEX</a></header>
+<nav id="people"></nav>
+<div id="cap"><span id="who"></span></div>
+<button id="again">다시 싸기</button>
+<script type="module" src="main.js?v=3"></script>
+</body>
+</html>
