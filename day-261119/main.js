@@ -3,7 +3,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 14;
+const VER = 15;
 const PEOPLE = [
   { k: 'kr', glow: '#3f86ff', who: '준호 · 32 · 서울', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
   { k: 'wa', glow: '#ff5a2a', who: '코피 · 64 · 아크라', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
@@ -28,7 +28,7 @@ const head = new THREE.Group(); scene.add(head);
 let baseDist = 8;
 function resize() {
   const w = innerWidth, h = innerHeight; renderer.setSize(w, h, false);
-  camera.aspect = w / h; const t = Math.tan(14 * Math.PI / 180); baseDist = Math.max(2.15 / t, 1.55 / (t * camera.aspect)); camera.position.set(0, 0, baseDist); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix();
+  camera.aspect = w / h; const t = Math.tan(14 * Math.PI / 180); baseDist = Math.max(3.45 / t, 1.8 / (t * camera.aspect)); camera.position.set(0, 0, baseDist); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize); resize();
 
@@ -142,7 +142,14 @@ function shapePanel(pn, time) {
   pn.mesh.geometry.attributes.position.needsUpdate = true; pn.mesh.geometry.computeBoundingSphere();
 }
 
-const HB = { w: 1.7, h: 1.05, d: 1.45 }, BB = { w: 2.5, h: 1.5, d: 1.55 }, BASE = -1.4;
+const HB = { w: 1.7, h: 1.05, d: 1.45 }, BASE = -2.85;
+const LAYOUT = [
+  [{ id: 'shoeL', w: .86, h: .4, d: 1.2, x: -.5, z: .12, ry: -.05 }, { id: 'shoeR', w: .86, h: .4, d: 1.2, x: .5, z: .12, ry: .06 }],
+  [{ id: 'legL', w: .78, h: 1.85, d: .82, x: -.47, ry: .03 }, { id: 'legR', w: .78, h: 1.85, d: .82, x: .47, ry: -.04 }],
+  [{ id: 'hips', w: 1.95, h: .72, d: 1.15, ry: -.04 }],
+  [{ id: 'torso', w: 2.5, h: 1.5, d: 1.55, ry: .02, lamp: true }],
+  [{ id: 'head', ...HB, z: -.04, ry: .09, lamp: true }],
+];
 
 function crop(img, x0, y0, x1, y1, mirror) {
   const c = document.createElement('canvas'); c.width = 768; c.height = Math.round(768 * (y1 - y0) / (x1 - x0) * img.height / img.width) || 512; const g = c.getContext('2d');
@@ -178,7 +185,7 @@ function wrap(B, T, o = {}) {
   return ps;
 }
 
-function lightBox(B, P, texs) {
+function lightBox(B, P, texs, hasLamp) {
   const g = new RoundedBoxGeometry(B.w - .06, B.h - .06, B.d - .06, 5, .16), pos = g.attributes.position, uv = g.attributes.uv;
   const per = 2 * (B.w + B.d);
   for (let i = 0; i < pos.count; i++) {
@@ -198,7 +205,7 @@ function lightBox(B, P, texs) {
     const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: { ...u, uShell: { value: 1 }, uGrow: { value: grow }, uAlpha: { value: a } }, vertexShader: FIG_VS, fragmentShader: FIG_FS, transparent: true, depthWrite: false, side: THREE.BackSide }));
     m.renderOrder = 2 + i; grp.add(m);
   });
-  const lamp = new THREE.PointLight(col, 0, 5, 1.5); lamp.position.y = B.h / 2; grp.add(lamp);
+  const lamp = hasLamp ? new THREE.PointLight(col, 0, 5, 1.5) : null; if (lamp) { lamp.position.y = B.h / 2; grp.add(lamp); }
   return { grp, body, u, lamp };
 }
 
@@ -213,6 +220,7 @@ function wordSprite(P) {
   s.renderOrder = 8; return s;
 }
 
+const LOWS = ['hips', 'legL', 'legR', 'shoeL', 'shoeR'];
 let world = null, boxes = [], panels = [], word = null, cur = null, ending = 0, flow = 0, boost = 0;
 const clock = new THREE.Clock();
 const ui = { people: document.getElementById('people'), who: document.getElementById('who'), cap: document.getElementById('cap') };
@@ -228,20 +236,31 @@ async function load(i) {
   [...ui.people.children].forEach((b, j) => b.classList.toggle('on', j === i));
   ui.who.textContent = P.who; ui.cap.classList.remove('end');
   await Promise.all([document.fonts.load(`900 100px 'Noto Serif KR'`, P.core), document.fonts.load(`900 60px 'Noto Sans KR'`, P.words.join('')), document.fonts.load(`400 60px 'Noto Sans KR'`, P.words.join(''))]);
-  const [bust, front, side, top] = await Promise.all([tex(`bust-${P.k}.jpg`), tex(`box-${P.k}-front.jpg`), tex(`box-${P.k}-side.jpg`), tex(`box-${P.k}-top.jpg`)]);
+  const [bust, front, side, top, ...lows] = await Promise.all([tex(`bust-${P.k}.jpg`), tex(`box-${P.k}-front.jpg`), tex(`box-${P.k}-side.jpg`), tex(`box-${P.k}-top.jpg`), ...LOWS.map(n => tex(`low-${P.k}-${n}.jpg`))]);
+  const low = Object.fromEntries(LOWS.map((n, i) => [n, lows[i]]));
   if (world) { head.remove(world); disposeAll(world); }
   world = new THREE.Group(); world.position.y = BASE; head.add(world);
   const texs = {
     words: textTex(r => (r % 3 === 1 ? P.words[r % P.words.length] : P.words.slice(r % 2).join('   ·   ')) + '      '),
     core: textTex(() => `${P.core}   ${P.en}   `, true),
   };
-  const body = new THREE.Group(), hd = new THREE.Group();
-  hd.position.set(0, BB.h + .012, -.04); hd.rotation.y = .09;
-  world.add(body, hd);
-  const bp = wrap(BB, bodyTex(bust.image, PROFILE[P.k]), { fixedTop: true }), hp = wrap(HB, { front, side, top, back: top, backVr: [.45, 1] });
-  boxes = [{ grp: body, ps: bp, L: lightBox(BB, P, texs) }, { grp: hd, ps: hp, L: lightBox(HB, P, texs) }];
-  for (const b of boxes) { b.ps.forEach(pn => { pn.box = b; b.grp.add(pn.mesh); }); b.grp.add(b.L.grp); b.rev = 0; }
-  panels = [...bp, ...hp];
+  const one = t => ({ front: t, side: t, back: t, top: t });
+  const T = {
+    shoeL: one(low.shoeL), shoeR: one(low.shoeR), legL: one(low.legL), legR: one(low.legR), hips: one(low.hips),
+    torso: bodyTex(bust.image, PROFILE[P.k]), head: { front, side, top, back: top, backVr: [.45, 1] },
+  };
+  boxes = []; panels = [];
+  let y = 0, hd = null;
+  for (const layer of LAYOUT) {
+    for (const B of layer) {
+      const grp = new THREE.Group(); grp.position.set(B.x || 0, y, B.z || 0); grp.rotation.y = B.ry || 0; world.add(grp);
+      const b = { grp, ps: wrap(B, T[B.id], { fixedTop: B.id !== 'head' }), L: lightBox(B, P, texs, B.lamp), rev: 0 };
+      b.ps.forEach(pn => { pn.box = b; grp.add(pn.mesh); }); grp.add(b.L.grp);
+      boxes.push(b); panels.push(...b.ps);
+      if (B.id === 'head') hd = grp;
+    }
+    y += layer[0].h + .012;
+  }
   word = wordSprite(P); word.position.set(0, HB.h * .5, 0); hd.add(word);
   flow = 0; boost = 0;
 }
@@ -269,9 +288,9 @@ function pick(e) {
 }
 function rub(hit) {
   if (hit.stir) { boost = Math.min(1.6, boost + .12); return; }
-  panels.forEach(pn => { if (!pn.fixed) pn.p = Math.min(1, pn.p + (pn === hit.pn ? .035 : pn.box === hit.pn.box ? .012 : .004)); });
+  panels.forEach(pn => { if (!pn.fixed) pn.p = Math.min(1, pn.p + (pn === hit.pn ? .05 : pn.box === hit.pn.box ? .02 : .006)); });
   rustle(.35);
-  if (!ending && peeled() > .6) finale();
+  if (!ending && peeled() > .5) finale();
 }
 
 let mode = null, lx = 0, ly = 0, yaw = -.35, pitch = .1, idle = 0, lastRub = 0;
@@ -300,11 +319,11 @@ renderer.setAnimationLoop(() => {
       const l = b.ps.filter(pn => !pn.fixed), m = l.reduce((a, pn) => a + pn.pd, 0) / l.length, u = b.L.u;
       b.rev = Math.max(S(m, .05, .7), S(t, .3, 2));
       u.uFlow.value = flow; u.uTime.value = time; u.uEnd.value = e; u.uReveal.value = b.rev;
-      b.L.lamp.intensity = (1.2 * b.rev + 2 * S(t, .5, 2.5)) * (1 + .08 * Math.sin(time * 2.2 + b.grp.position.y));
+      if (b.L.lamp) b.L.lamp.intensity = (1.2 * b.rev + 2 * S(t, .5, 2.5)) * (1 + .08 * Math.sin(time * 2.2 + b.grp.position.y));
     }
     word.material.opacity = wv; word.position.y = HB.h * .5 + 1.35 * S(t, 1.4, 4.6) + .04 * Math.sin(time * 1.4) * wv;
     const sc = 1 + .25 * wv; word.scale.set(1.9 * sc, 1.04 * sc, 1);
-    camera.position.set(0, .2 * z, baseDist * (1 + .5 * z)); camera.lookAt(0, -.12 + .4 * z, 0);
+    camera.position.set(0, .3 * z, baseDist * (1 + .28 * z)); camera.lookAt(0, .05 + .55 * z, 0);
   }
   renderer.render(scene, camera);
 });
