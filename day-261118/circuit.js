@@ -56,15 +56,17 @@ export function paintCircuit(C, waves, col, beat = 0) {
     const dk = d[k];
     for (const w of waves) {
       const u = Math.min(1, w.t / w.dur);
-      if (w.kind === 'in') {
-        let da = ang[k] - w.ang; da = Math.abs(Math.atan2(Math.sin(da), Math.cos(da)));
-        if (da > .62) continue;
-        const front = w.from * (1 - u);
-        I += Math.exp(-(((dk - front) / 9) ** 2)) * (1 - da / .62) * w.gain;
-      } else {
+      if (w.t < 0) continue;
+      if (w.kind === 'out') {
         const front = u * maxD * 1.05, x = (dk - front) / 12;
         I += (Math.exp(-x * x) + (dk < front ? .22 * Math.exp(-(front - dk) / 55) : 0)) * Math.pow(1 - u, .6) * w.gain;
+        continue;
       }
+      let da = ang[k] - w.ang; da = Math.abs(Math.atan2(Math.sin(da), Math.cos(da)));
+      if (da > .4 || dk > w.to + 14) continue;
+      const front = w.kind === 'in' ? w.to * (1 - u) : w.to * u, x = (dk - front) / 11;
+      const trail = w.kind === 'in' ? (dk > front ? .25 * Math.exp(-(dk - front) / 40) : 0) : (dk < front ? .25 * Math.exp(-(front - dk) / 40) : 0);
+      I += (Math.exp(-x * x) + trail) * (1 - da / .4) * w.gain;
     }
     if (beat > .01 && dk < 150) I += beat * .3 * (1 - dk / 300);
     data[idx[k] * 4 + 3] = I > 1 ? 255 : I * 255;

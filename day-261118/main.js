@@ -1,5 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
-import { buildCircuit, paintCircuit } from './circuit.js?v=6';
+import { buildCircuit, paintCircuit } from './circuit.js?v=8';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -11,7 +11,7 @@ const NOTES = [
   { k: '톡', n: 'D6', f: 1174.7, type: 'tok' },
   { k: '뽕', n: 'FX', f: 900, type: 'pop' },
 ];
-const SLOTS = 5, LEAD = .3;
+const SLOTS = 5, LEAD = .6, TAP = .28;
 const CASES = [
   { t: '심쿵', d: '길에서 댕냥이를 만났다', chips: [3, 0, 7, 4], step: .3, idle: .9, col: [255, 196, 214] },
   { t: '이상형', d: '천년의 이상형을 만났다', chips: [0, 0, 1, 2, 5], step: .19, idle: .45, col: [255, 150, 130] },
@@ -53,13 +53,16 @@ function fire(ni, si) {
   const n = NOTES[ni];
   beat = Math.max(beat, n.type === 'thump' ? 1.3 : .85);
   padLit[ni] = 1; if (si >= 0) chipLit[si] = 1;
-  waves.push({ kind: 'out', t: 0, dur: .8, gain: n.type === 'thump' ? 1.2 : .9 });
 }
 
-function inWave(ni) { waves.push({ kind: 'in', t: 0, dur: LEAD, ang: L.pads[ni].a, from: L.pads[ni].d, gain: 1 }); padLit[ni] = .6; }
+function travel(kind, ni, dur, delay = 0) { const p = L.pads[ni]; waves.push({ kind, t: -delay, dur, ang: p.a, to: p.d, gain: 1.6 }); }
+function route(prev, ni, tt) {
+  if (prev < 0) travel('outp', ni, tt);
+  else { travel('in', prev, tt / 2); travel('outp', ni, tt / 2, tt / 2); }
+}
 
 function addChip(ni) {
-  unlock(); sound(NOTES[ni], now() + LEAD); inWave(ni); queue.push({ at: T + LEAD, ni, si: -1 });
+  unlock(); sound(NOTES[ni], now() + TAP); travel('outp', ni, TAP); queue.push({ at: T + TAP, ni, si: -1 });
   if (chips.length < SLOTS) { chips.push(ni); name = ''; } else chipLit.fill(.6);
 }
 
@@ -109,11 +112,12 @@ function frame(t) {
     run.t += dt;
     const u = run.t / run.dur;
     chips.forEach((ni, i) => {
-      if (!run.started.has(i) && run.t >= (i + .5) * STEP - LEAD) { run.started.add(i); inWave(ni); }
+      const tt = Math.min(.6, STEP * .92);
+      if (!run.started.has(i) && run.t >= (i + .5) * STEP - tt) { run.started.add(i); route(i ? chips[i - 1] : -1, ni, tt); }
       if (!run.fired.has(i) && run.t >= (i + .5) * STEP) { run.fired.add(i); fire(ni, i); }
     });
     if (u >= 1.08) { run = null; name = partName(); nameT = 0; }
-  } else if ((idle += dt) > CASES[cs].idle) { idle = 0; beat = Math.max(beat, .22); waves.push({ kind: 'out', t: 0, dur: .9, gain: .3 }); }
+  } else if ((idle += dt) > CASES[cs].idle) { idle = 0; beat = Math.max(beat, .22); }
   queue = queue.filter(q => { if (T >= q.at) { fire(q.ni, q.si); return false; } return true; });
   beat *= Math.exp(-4.5 * dt);
   for (let i = 0; i < padLit.length; i++) padLit[i] *= Math.exp(-3 * dt);
