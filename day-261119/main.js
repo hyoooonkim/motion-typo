@@ -60,7 +60,7 @@ function paperMat(map, opts = {}) {
   return m;
 }
 
-const HT = 3.6, WD = HT * 672 / 900, SEG = 20;
+const HT = 3.6, WD = HT * 672 / 900, SEG = 28;
 const S = THREE.MathUtils.smoothstep;
 function shape(prof, inset) {
   const N = prof.length;
@@ -114,8 +114,8 @@ function buildLayer(prof, map) {
   const tris = raw.map(([, , , , m], t) => ({ idx: t, ...m, side: m.j >= S2 ? 0 : 1, keys: keys[t], u: 0 }));
   const cur = orig.map(row => row.map(p => p.clone()));
   const uv2 = orig.map(() => new Float32Array(SEG + 1));
-  const P = Array.from({ length: N }, () => [0, 0]), Pd = Array.from({ length: N }, () => [0, 0]);
-  return { mesh, tris, pos, P, Pd, N, S2, orig, cur, uv2, pole: pole[0].clone(), base: base[0].clone(), curl: 1.35, curlGoal: 1.35, late: 0, ph: Math.random() * 6 };
+  const P = Array.from({ length: N }, () => [0, 0]), Pd = Array.from({ length: N }, () => [0, 0]), Ps = Array.from({ length: N }, () => [0, 0]);
+  return { mesh, tris, pos, P, Pd, Ps, N, S2, orig, cur, uv2, pole: pole[0].clone(), base: base[0].clone(), curl: .72, curlGoal: .72, roll: .5, rollGoal: .5, late: 0, ph: Math.random() * 6 };
 }
 
 const ROWS = 6, RH = .17, TW = 2048 / 160 * RH;
@@ -199,14 +199,15 @@ const clock = new THREE.Clock();
 
 const ang = (a, b) => Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z);
 function unroll(layer, r, s, time) {
-  const { orig, cur, uv2, Pd, S2 } = layer, O = orig[r], C = cur[r], U = uv2[r], p = Pd[r][s];
+  const { orig, cur, uv2, Ps, S2 } = layer, O = orig[r], C = cur[r], U = uv2[r], p = Ps[r][s];
   const step = s ? -1 : 1, end = s ? 0 : SEG;
-  const fu = k => { const df = s ? k : SEG - k; const u = THREE.MathUtils.clamp(p * (S2 + 1.5) - df, 0, 1); return u * u * (3 - 2 * u); };
+  const fu = k => { const df = s ? k : SEG - k; const u = THREE.MathUtils.clamp((p * (S2 + 4) - df) / 4, 0, 1); return u * u * (3 - 2 * u); };
   let prev = O[S2].clone().sub(O[S2 - step]), acc = 0;
+  const sgn = Math.sign(ang(prev, O[S2 + step].clone().sub(O[S2]))) || 1;
   C[S2].copy(O[S2]);
   for (let k = S2; k !== end; k += step) {
     const e = O[k + step].clone().sub(O[k]), u = fu(k);
-    acc += ang(prev, e) * u * layer.curl * (k === S2 ? .5 : 1) + .015 * Math.sin(time * 1.2 + k * .7 + r * .3 + layer.ph) * u;
+    acc += ang(prev, e) * u * layer.curl * (k === S2 ? .5 : 1) + sgn * u * u * e.length() * layer.roll + .012 * Math.sin(time * 1.2 + k * .7 + r * .3 + layer.ph) * u;
     prev = e;
     const c = Math.cos(-acc), sn = Math.sin(-acc);
     C[k + step].set(C[k].x + e.x * c - e.z * sn, O[k + step].y, C[k].z + e.x * sn + e.z * c);
@@ -218,13 +219,14 @@ function updateSheets(dt, time) {
   const k = 1 - Math.exp(-dt * 2.4);
   for (const layer of L) {
     const { P, Pd, N, cur } = layer;
-    if (layer.late && time > layer.late) { P.forEach((p, r) => { if (r < N - 1) p[0] = p[1] = 1; }); layer.curlGoal = 1; layer.late = 0; }
-    layer.curl += (layer.curlGoal - layer.curl) * k * .6;
+    if (layer.late && time > layer.late) { P.forEach((p, r) => { if (r < N - 1) p[0] = p[1] = 1; }); layer.curlGoal = 1; layer.rollGoal = 0; layer.late = 0; }
+    layer.curl += (layer.curlGoal - layer.curl) * k * .6; layer.roll += (layer.rollGoal - layer.roll) * k * .6;
     for (let r = 0; r < N - 1; r++) for (let s = 0; s < 2; s++) {
       const nb = ((P[r - 1] || P[r])[s] + P[r + 1][s]) * .5;
       P[r][s] = Math.max(P[r][s], nb * .985);
-      Pd[r][s] += (P[r][s] - Pd[r][s]) * k;
+      Pd[r][s] += (P[r][s] - Pd[r][s]) * k * .7;
     }
+    for (let r = 0; r < N; r++) for (let s = 0; s < 2; s++) { let a = 0, w = 0; for (let d = -3; d <= 3; d++) { const q = Pd[r + d]; if (q) { const ww = 4 - Math.abs(d); a += q[s] * ww; w += ww; } } layer.Ps[r][s] = a / w; }
     for (let r = 0; r < N; r++) { unroll(layer, r, 0, time); unroll(layer, r, 1, time); }
     const top = new THREE.Vector3(); cur[0].forEach(p => top.add(p)); top.divideScalar(SEG + 1); top.y = layer.pole.y;
     for (const tr of layer.tris) {
