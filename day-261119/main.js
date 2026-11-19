@@ -312,7 +312,7 @@ renderer.setAnimationLoop(() => {
   if (fig) {
     const k = ending ? S(time - ending, .4, 2.6) : 0, z = ending ? S(time - ending, .3, 3.5) : 0;
     camera.position.z = baseDist * (1 + .35 * z);
-    fig.boost *= Math.exp(-dt * 1.5); fig.flow += dt * (.035 + .25 * fig.boost);
+    fig.boost *= Math.exp(-dt * 1.5); fig.flow += dt * (.01 + .06 * fig.boost);
     fig.u.uFlow.value = fig.flow; fig.u.uTime.value = time; fig.u.uEnd.value = k; fig.u.uReveal.value = Math.max(k, S(peeled(), .1, .55));
     glow.intensity = (.6 * peeled() + 1.2 * k) * (1 + .08 * Math.sin(time * 2.2));
   }
