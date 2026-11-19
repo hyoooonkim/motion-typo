@@ -3,14 +3,14 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 19;
+const VER = 20;
 const PEOPLE = [
   { k: 'kr', who: '준호 · 서울', mat: 'gold', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
   { k: 'wa', who: '코피 · 아크라', mat: 'stone', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
   { k: 'no', who: '잉리드 · 오슬로', mat: 'glass', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
 ];
 const MATS = {
-  stone: { rough: .9, metal: 0, radius: .2, jag: .07, cuts: 7, tint: .55, hgt: .9, seg: 10, nrm: 3.2, ao: .6, inRough: .98 },
+  stone: { rough: .9, metal: 0, radius: .2, jag: .07, cuts: 7, rock: true, shapes: [[4, 3, .22], [3, 3, .18], [4, 2, .16], [3, 2, .22], [2, 2, .16], [2, 1, .06]], tint: .55, hgt: .9, seg: 10, nrm: 3.2, ao: .6, inRough: .98 },
   gold: { rough: .16, metal: 1, radius: .07, jag: 0, seg: 4, nrm: 2.2, ao: .3, inRough: .42, hgt: .05, flat: '#f1b53a', flatMix: .8, envI: 1.25, studio: true, bars: true, taper: .1, phys: { clearcoat: .25, clearcoatRoughness: .08 } },
   glass: { rough: .16, metal: 0, radius: .12, jag: 0, seg: 5, nrm: .9, ao: -.35, inRough: .85, phys: { transmission: .9, thickness: .9, ior: 1.5, attenuationColor: new THREE.Color('#8fd6cf'), attenuationDistance: 1.4 } },
 };
@@ -247,7 +247,37 @@ function atlas(P, base, specs) {
   return mat;
 }
 
+const hash = (x, y, z) => { const h = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453; return h - Math.floor(h); };
+function vnoise(x, y, z) {
+  const X = Math.floor(x), Y = Math.floor(y), Z = Math.floor(z), fx = x - X, fy = y - Y, fz = z - Z, sx = fx * fx * (3 - 2 * fx), sy = fy * fy * (3 - 2 * fy), sz = fz * fz * (3 - 2 * fz);
+  const L = (a, b, t) => a + (b - a) * t, c = (i, j, k) => hash(X + i, Y + j, Z + k);
+  return L(L(L(c(0, 0, 0), c(1, 0, 0), sx), L(c(0, 1, 0), c(1, 1, 0), sx), sy), L(L(c(0, 0, 1), c(1, 0, 1), sx), L(c(0, 1, 1), c(1, 1, 1), sx), sy), sz) * 2 - 1;
+}
+const fbm = (x, y, z, o = 4) => { let a = 0, f = 1, w = .5; for (let i = 0; i < o; i++) { a += w * vnoise(x * f, y * f, z * f); f *= 2.03; w *= .5; } return a; };
+function buildRock(cube, mat, cell) {
+  const rx = cube.w * .5, ry = cube.h * .5, rz = cube.d * .47, g = new THREE.IcosahedronGeometry(1, 24), pos = g.attributes.position, uv = g.attributes.uv, o = rnd() * 50;
+  const cuts = Array.from({ length: 3 + Math.floor(rnd() * 4) }, () => [V(rnd() - .5, (rnd() - .5) * 1.4, rnd() - .75).normalize(), .78 + rnd() * .14]);
+  const cu = c => [(c % G) / G, 1 - (Math.floor(c / G) + 1) / G], q = V(0, 0, 0);
+  for (let i = 0; i < pos.count; i++) {
+    q.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
+    let r = 1 + .16 * fbm(q.x * 1.1 + o, q.y * 1.1, q.z * 1.1) + .045 * fbm(q.x * 4 + o, q.y * 4, q.z * 4) + .012 * fbm(q.x * 14, q.y * 14 + o, q.z * 14);
+    q.multiplyScalar(r);
+    for (const [n, k] of cuts) { const e = q.dot(n) - k; if (e > 0) q.addScaledVector(n, -e * .92); }
+    if (q.y < -.72) q.y = -.72 - (q.y + .72) * .15;
+    if (q.z > .82) q.z = .82 + (q.z - .82) * .3;
+    q.set(q.x * rx, q.y * ry, q.z * rz);
+    pos.setXYZ(i, q.x, q.y, q.z);
+    const front = q.z > rz * .25, [u0, v0] = cu(front ? cell : 0);
+    const fx = front ? q.x / (rx * 2) : (Math.abs(q.x) > Math.abs(q.z) ? q.z / (rz * 2) : q.x / (rx * 2)), fy = q.y / (ry * 2);
+    uv.setXY(i, u0 + clamp(fx * (front ? 1.12 : 1) + .5, .015, .985) / G, v0 + clamp(fy * (front ? 1.12 : 1) + .5, .015, .985) / G);
+  }
+  g.computeVertexNormals(); g.computeBoundingBox();
+  const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; cube.block = m;
+  m.rotation.set((rnd() - .5) * .1, (rnd() - .5) * .3, (rnd() - .5) * .14); return m;
+}
+
 function buildBlock(cube, P, mat, cell) {
+  if (MATS[P.mat].rock) return buildRock(cube, mat, cell);
   const M = MATS[P.mat], bw = cube.w * .92, bh = cube.h * .92, bd = cube.d * .92, sz = Math.min(bw, bh, bd), g = new RoundedBoxGeometry(bw, bh, bd, M.seg, sz * M.radius);
   const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv, off = rnd() * 9;
   const sq = M.cuts ? V(1.08 + rnd() * .1, .76 + rnd() * .2, .95 + rnd() * .1) : V(1, 1, 1);
@@ -268,8 +298,8 @@ function buildBlock(cube, P, mat, cell) {
   m.rotation.set((rnd() - .5) * .06, (rnd() - .5) * .08, (rnd() - .5) * .06); return m;
 }
 
-function packCubes(prof, bars) {
-  const SH = bars ? [[2, 4, .3], [2, 3, .25], [1, 2, .3], [1, 1, .15]] : [[4, 4, .12], [3, 3, .3], [2, 2, .38], [1, 1, .2]];
+function packCubes(prof, M) {
+  const bars = M.bars, SH = M.shapes || (bars ? [[2, 4, .3], [2, 3, .25], [1, 2, .3], [1, 1, .15]] : [[4, 4, .12], [3, 3, .3], [2, 2, .38], [1, 1, .2]]);
   const at = yn => { let r = prof[0]; for (const q of prof) if (q[0] <= yn) r = q; return r; };
   const inside = (x, y) => { const yn = .5 - y / HT; if (yn < prof[0][0] || yn > prof[prof.length - 1][0] + .01) return 0; const [, cx, hw] = at(yn); return Math.abs(x / WD + .5 - cx) < hw ? 1 : 0; };
   const NX = Math.ceil(WD / U), NY = Math.ceil(HT / U), x0 = -NX * U / 2, y0 = HT / 2;
@@ -288,13 +318,13 @@ function packCubes(prof, bars) {
     const sh = SH[k]; if (!fits(r, c, sh)) continue;
     for (let a = 0; a < sh[1]; a++) for (let b = 0; b < sh[0]; b++) used[r + a][c + b] = true;
     const f = .95 + rnd() * .04, w = sh[0] * U * f, h = sh[1] * U * f;
-    cubes.push({ ix: x0 + (c + sh[0] / 2) * U, iy: y0 - (r + sh[1] / 2) * U, n: sh[0] * sh[1], kind: `${sh[0]}x${sh[1]}`, w, h, d: bars ? Math.min(w, h) * .6 : w, s: Math.max(w, h) });
+    cubes.push({ ix: x0 + (c + sh[0] / 2) * U, iy: y0 - (r + sh[1] / 2) * U, n: sh[0] * sh[1], kind: `${sh[0]}x${sh[1]}`, w, h, d: bars ? Math.min(w, h) * .6 : M.rock ? Math.min(w, h) * .95 : w, s: Math.max(w, h) });
   }
   return cubes;
 }
 
 function buildPerson(P, img, base) {
-  const grp = new THREE.Group(), cubes = packCubes(PROFILE[P.k], MATS[P.mat].bars);
+  const grp = new THREE.Group(), cubes = packCubes(PROFILE[P.k], MATS[P.mat]);
   cubes.sort((a, b) => b.iy + b.n * U / 2 - (a.iy + a.n * U / 2) || a.ix - b.ix);
   const texts = [P.core, P.en, ...P.words], cell = new Map(), specs = [], bars = MATS[P.mat].bars;
   const big = [...cubes].sort((a, b) => b.n - a.n || b.iy - a.iy).slice(0, texts.length).sort((a, b) => b.iy - a.iy || a.ix - b.ix);
