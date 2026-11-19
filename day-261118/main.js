@@ -1,5 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
-import { buildCircuit, paintCircuit } from './circuit.js?v=11';
+import { buildCircuit, paintCircuit } from './circuit.js?v=12';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -24,7 +24,7 @@ const GOLD = '#e7c36a', SILK = '#e8eef4';
 const MONO = '"Share Tech Mono", monospace', KR = '"Noto Sans KR", sans-serif';
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const img = new Image(); img.src = 'board.jpg?v=4';
+const img = new Image(); img.src = 'board.jpg?v=5';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
@@ -60,8 +60,8 @@ function labelSpot(p, taken) {
     return n;
   };
   let best = null, bs = 1e9;
-  for (let ring = 0; ring < 7; ring++) for (let k = 0; k < 32; k++) {
-    const a = k / 32 * Math.PI * 2, rr = L.pr + fs * (1.6 + ring * .7), x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr * .85;
+  for (let ring = 0; ring < 3; ring++) for (let k = 0; k < 48; k++) {
+    const a = k / 32 * Math.PI * 2, rr = L.pr + fs * (1.35 + ring * .45), x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr * .85;
     const sc = cover(x, y) * 10 + ring * 3;
     if (sc < bs) { bs = sc; best = [x, y]; }
   }
@@ -173,12 +173,6 @@ function frame(t) {
     sg.addColorStop(0, '#ffffff'); sg.addColorStop(.35, lit > .05 ? '#fff4d6' : '#d5dbe1'); sg.addColorStop(1, '#6f7884');
     ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(p.x, p.y, r * .74, 0, Math.PI * 2); ctx.fill();
     const fs = clamp(L.R * .07, 12, 16), lx = p.lx ?? p.x, lyy = p.ly ?? p.y;
-    const ldx = lx - p.x, ldy = lyy - p.y, ld = Math.hypot(ldx, ldy);
-    if (ld > fs * 2.6) {
-      const ux = ldx / ld, uy = ldy / ld;
-      ctx.strokeStyle = 'rgba(226,230,228,.55)'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(p.x + ux * (r + 3), p.y + uy * (r + 3)); ctx.lineTo(lx - ux * fs * 1.25, lyy - uy * fs * 1.05); ctx.stroke();
-    }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `500 ${fs}px ${KR}`;
     ctx.fillStyle = 'rgba(226,230,228,.22)'; ctx.fillText(n.k, lx + .6, lyy - fs * .35 + .6);
