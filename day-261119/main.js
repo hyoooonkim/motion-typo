@@ -2,13 +2,13 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 9;
+const VER = 10;
 const PEOPLE = [
-  { k: 'kr', who: '준호 · 32 · 서울', tint: '#1d2a44', ink: '#d9b765', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
-  { k: 'wa', who: '코피 · 64 · 아크라', tint: '#4a1a17', ink: '#e8c28a', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
-  { k: 'la', who: '루시아 · 26 · 보고타', tint: '#5a1e33', ink: '#f2b8c6', words: ['그리움', '편지', '너', '다시', '안아줘'], core: '사랑', en: 'LOVE' },
-  { k: 'no', who: '잉리드 · 43 · 오슬로', tint: '#1c3a3a', ink: '#bfe0d6', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
-  { k: 'in', who: '라젠드라 · 71 · 자이푸르', tint: '#5a3510', ink: '#f4cf7e', words: ['손주', '밥상', '집', '함께', '돌아와'], core: '가족', en: 'FAMILY' },
+  { k: 'kr', glow: '#3f86ff', who: '준호 · 32 · 서울', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
+  { k: 'wa', glow: '#ff5a2a', who: '코피 · 64 · 아크라', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
+  { k: 'la', glow: '#ff4f9a', who: '루시아 · 26 · 보고타', words: ['그리움', '편지', '너', '다시', '안아줘'], core: '사랑', en: 'LOVE' },
+  { k: 'no', glow: '#2fd655', who: '잉리드 · 43 · 오슬로', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
+  { k: 'in', glow: '#ffad1f', who: '라젠드라 · 71 · 자이푸르', words: ['손주', '밥상', '집', '함께', '돌아와'], core: '가족', en: 'FAMILY' },
 ];
 
 const cv = document.createElement('canvas'); document.body.prepend(cv);
@@ -61,23 +61,32 @@ function paperMat(map, opts = {}) {
 }
 
 const HT = 3.6, WD = HT * 672 / 900, SEG = 20;
-function buildLayer(prof, inset, map, opts, isFace) {
+const S = THREE.MathUtils.smoothstep;
+function shape(prof, inset) {
   const N = prof.length;
   let neck = Infinity, neckI = 0;
   for (let i = Math.floor(N * .2); i < Math.floor(N * .7); i++) if (prof[i][2] < neck) { neck = prof[i][2]; neckI = i; }
-  const top = prof[0][0], chin = prof[neckI][0], S = THREE.MathUtils.smoothstep;
+  const top = prof[0][0], chin = prof[neckI][0];
   const Y = yv => (HT / 2 - yv * HT) * (inset < 1 ? .955 : 1) - (inset < 1 ? .03 : 0);
   const ring = prof.map(([yv, cx, hw], i) => {
     const w0 = Math.max(.03, hw * WD), f = THREE.MathUtils.lerp(1.12, .42, S(hw, neck * 1.3, neck * 2.6));
     return { y: Y(yv), c: (cx - .5) * WD, w0, w: w0 * inset, d: w0 * f * inset, v: 1 - yv, ht: i < neckI ? (yv - top) / (chin - top) : -1 };
   });
-  const vert = (r, j) => {
-    const R = ring[r], ph = j / SEG * Math.PI * 2, sn = Math.sin(ph), cs = Math.cos(ph);
+  const at = (r, ph) => {
+    const R = ring[r], sn = Math.sin(ph), cs = Math.cos(ph);
     let z = R.d * cs;
     if (R.ht > 0) z += .17 * inset * Math.exp(-(((R.ht - .6) / .1) ** 2)) * Math.max(0, cs) ** 30;
-    const p = new THREE.Vector3(R.c + R.w * sn, R.y, z);
+    return [new THREE.Vector3(R.c + R.w * sn, R.y, z), sn, cs];
+  };
+  return { N, ring, at };
+}
+
+function buildLayer(prof, map) {
+  const { N, ring, at } = shape(prof, 1);
+  const vert = (r, j) => {
+    const R = ring[r], [p, sn, cs] = at(r, j / SEG * Math.PI * 2);
     let u = .5 + (R.c + R.w0 * sn) / WD, v = R.v;
-    if (isFace && R.ht >= 0) { const k = S(-cs, .05, .6); u = THREE.MathUtils.lerp(u, .5 + ring[0].c / WD, k); v = THREE.MathUtils.lerp(v, ring[0].v - .025, k); }
+    if (R.ht >= 0) { const k = S(-cs, .05, .6); u = THREE.MathUtils.lerp(u, .5 + ring[0].c / WD, k); v = THREE.MathUtils.lerp(v, ring[0].v - .025, k); }
     return [p, u, v, [r, j]];
   };
   const raw = [];
@@ -99,7 +108,7 @@ function buildLayer(prof, inset, map, opts, isFace) {
   });
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  const mesh = new THREE.Mesh(g, paperMat(map, opts)), scale = inset;
+  const mesh = new THREE.Mesh(g, paperMat(map));
   const S2 = SEG / 2;
   const orig = ring.map((_, r) => Array.from({ length: SEG + 1 }, (_, j) => vert(r, j)[0]));
   const tris = raw.map(([, , , , m], t) => ({ idx: t, ...m, side: m.j >= S2 ? 0 : 1, keys: keys[t], u: 0 }));
@@ -109,32 +118,69 @@ function buildLayer(prof, inset, map, opts, isFace) {
   return { mesh, tris, pos, P, Pd, N, S2, orig, cur, uv2, pole: pole[0].clone(), base: base[0].clone(), curl: 1.35, curlGoal: 1.35, late: 0, ph: Math.random() * 6 };
 }
 
-function wordSheet(P) {
-  const c = document.createElement('canvas'); c.width = 1024; c.height = 1640; const g = c.getContext('2d');
-  g.fillStyle = P.tint; g.fillRect(0, 0, c.width, c.height);
-  g.fillStyle = P.ink; g.textAlign = 'center'; g.textBaseline = 'middle';
-  let y = 30, r = 0;
-  while (y < c.height) {
-    const w = P.words[r % P.words.length], big = r % 3 === 1, fs = big ? 150 : 62;
-    g.font = `${big ? 900 : 700} ${fs}px 'Noto Sans KR'`;
-    g.globalAlpha = big ? .95 : .55;
-    const line = big ? w : Array(8).fill(w).join('  ·  ');
-    g.fillText(line, c.width / 2 + (big ? 0 : (r % 2 ? -60 : 60)), y + fs / 2);
-    y += fs * 1.22; r++;
+const ROWS = 6, RH = .17, TW = 2048 / 160 * RH;
+function textTex(lines, serif) {
+  const c = document.createElement('canvas'); c.width = 2048; c.height = ROWS * 160; const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, c.width, c.height); g.fillStyle = '#fff'; g.textBaseline = 'middle';
+  for (let r = 0; r < ROWS; r++) {
+    const big = r % 3 === 1, txt = lines(r);
+    g.font = `${serif ? 900 : big ? 900 : 400} ${big ? 118 : 84}px ${serif ? "'Noto Serif KR'" : "'Noto Sans KR'"}`;
+    const w = g.measureText(txt).width, n = Math.max(1, Math.round(c.width / w)), sx = c.width / (w * n);
+    g.filter = 'blur(1.5px)'; g.save(); g.translate(0, r * 160 + 80); g.scale(sx, 1);
+    for (let i = 0; i < n; i++) g.fillText(txt, i * w, 0);
+    g.restore();
   }
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t;
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; return t;
 }
 
-function coreSprite(P) {
-  const c = document.createElement('canvas'); c.width = 1024; c.height = 600; const g = c.getContext('2d');
-  g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.shadowColor = 'rgba(255,250,240,.9)'; g.shadowBlur = 40;
-  g.fillStyle = P.tint; g.font = `900 330px 'Noto Serif KR'`; g.fillText(P.core, 512, 260);
-  g.shadowBlur = 12; g.font = `500 46px 'IBM Plex Mono'`; g.fillStyle = P.tint;
-  g.fillText(P.en.split('').join(' '), 512, 500);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, transparent: true, opacity: .25, depthWrite: false }));
-  s.scale.set(1.5, .88, 1); s.position.set(0, -.95, .02); return s;
+const FIG_VS = `uniform float uGrow; varying vec3 vN, vV; varying vec2 vUv; varying float vY;
+void main() { vec4 mv = modelViewMatrix * vec4(position + normal * uGrow, 1.); vN = normalize(normalMatrix * normal); vV = -mv.xyz; vUv = uv; vY = position.y; gl_Position = projectionMatrix * mv; }`;
+const FIG_FS = `uniform sampler2D uTex, uCore; uniform vec3 uCol, uDeep, uHi; uniform float uTime, uFlow, uEnd, uBottom, uShell, uAlpha, uReveal;
+varying vec3 vN, vV; varying vec2 vUv; varying float vY;
+float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+void main() {
+  float ndv = abs(dot(normalize(vN), normalize(vV))), fr = 1. - ndv, grain = hash(gl_FragCoord.xy + fract(uTime * 7.) * 91.) - .5;
+  float fade = smoothstep(uBottom, uBottom + 1.1, vY);
+  if (uShell > .5) { gl_FragColor = vec4(mix(uCol, uHi, .35) + grain * .08, pow(ndv, 1.7) * uAlpha * uReveal * fade); return; }
+  vec3 n = normalize(vN); float lit = .55 + .55 * max(dot(n, normalize(vec3(-.4, .8, .5))), 0.);
+  vec3 col = mix(uDeep, uCol, smoothstep(.0, .8, fr) * .8 + .2 * lit) * (.7 + .5 * lit);
+  col = mix(col, uHi, smoothstep(.65, 1., fr) * .6);
+  float row = floor(vUv.y / ${RH.toFixed(4)}), dir = mod(row, 2.) * 2. - 1., sp = .7 + .6 * fract(sin(row * 37.1) * 917.3);
+  vec2 tuv = vec2(vUv.x / ${TW.toFixed(4)} + uFlow * dir * sp, vUv.y / ${(RH * ROWS).toFixed(4)});
+  float txt = mix(texture2D(uTex, tuv).r, texture2D(uCore, tuv).r, uEnd) * smoothstep(.12, .55, ndv);
+  col = mix(col, uHi * 1.15, txt * (.38 + .3 * uEnd));
+  gl_FragColor = vec4(col + grain * .11, (1. - smoothstep(.45, 1., fr)) * fade);
+}`;
+
+function buildFigure(prof, P) {
+  const { N, ring, at } = shape(prof, .84), FS = 72, W = FS + 1;
+  const pos = [], uv = [], idx = [];
+  for (let r = 0; r < N; r++) {
+    const row = Array.from({ length: W }, (_, c) => at(r, Math.PI + c / FS * Math.PI * 2)[0]);
+    const cum = [0]; for (let c = 1; c < W; c++) cum.push(cum[c - 1] + row[c].distanceTo(row[c - 1]));
+    row.forEach((p, c) => { pos.push(p.x, p.y, p.z); uv.push(cum[c] - cum[FS] / 2, p.y); });
+  }
+  for (let r = 0; r < N - 1; r++) for (let c = 0; c < FS; c++) { const a = r * W + c, b = a + 1, d = a + W, e = d + 1; idx.push(a, d, b, b, d, e); }
+  const top = N * W; pos.push(ring[0].c, ring[0].y + .02, 0); uv.push(0, ring[0].y);
+  for (let c = 0; c < FS; c++) idx.push(top, c, c + 1);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  const col = new THREE.Color(P.glow), u = {
+    uTex: { value: textTex(r => (r % 3 === 1 ? P.words[r % P.words.length] : P.words.slice(r % 2).join('   ·   ')) + '      ') },
+    uCore: { value: textTex(r => `${P.core}   ${P.en}   `, true) },
+    uCol: { value: col }, uDeep: { value: col.clone().multiplyScalar(.16) }, uHi: { value: col.clone().lerp(new THREE.Color('#fffbe8'), .55) },
+    uTime: { value: 0 }, uFlow: { value: 0 }, uEnd: { value: 0 }, uBottom: { value: ring[N - 1].y }, uShell: { value: 0 }, uGrow: { value: 0 }, uAlpha: { value: 1 }, uReveal: { value: 0 },
+  };
+  const grp = new THREE.Group();
+  const body = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: u, vertexShader: FIG_VS, fragmentShader: FIG_FS, transparent: true }));
+  body.renderOrder = 1; grp.add(body);
+  [[.04, .45], [.1, .3], [.18, .2], [.3, .12], [.45, .07]].forEach(([grow, a], i) => {
+    const su = { ...u, uShell: { value: 1 }, uGrow: { value: grow }, uAlpha: { value: a } };
+    const m = new THREE.Mesh(g, new THREE.ShaderMaterial({ uniforms: su, vertexShader: FIG_VS, fragmentShader: FIG_FS, transparent: true, depthWrite: false, side: THREE.BackSide }));
+    m.renderOrder = 2 + i; grp.add(m);
+  });
+  return { grp, body, u, flow: 0, boost: 0 };
 }
 
 let ac = null, noiseBuf = null, lastSnd = 0;
@@ -148,7 +194,7 @@ function rustle(gain = .5) {
   s.connect(f); f.connect(g); g.connect(ac.destination); s.start(t, Math.random() * .2, .18);
 }
 
-let L = [], core = null, cur = null, ending = 0;
+let L = [], fig = null, cur = null, ending = 0;
 const clock = new THREE.Clock();
 
 const ang = (a, b) => Math.atan2(a.x * b.z - a.z * b.x, a.x * b.x + a.z * b.z);
@@ -202,13 +248,13 @@ async function load(i) {
   const P = PEOPLE[i]; cur = P; ending = 0;
   [...ui.people.children].forEach((b, j) => b.classList.toggle('on', j === i));
   ui.who.textContent = P.who; ui.cap.classList.remove('end');
-  await document.fonts.load(`900 100px 'Noto Serif KR'`, P.core); await document.fonts.load(`700 60px 'Noto Sans KR'`, P.words.join(''));
+  await document.fonts.load(`900 100px 'Noto Serif KR'`, P.core); await document.fonts.load(`900 60px 'Noto Sans KR'`, P.words.join('')); await document.fonts.load(`400 60px 'Noto Sans KR'`, P.words.join(''));
   const face = await loader.loadAsync(`bust-${P.k}.jpg?v=${VER}`); face.colorSpace = THREE.SRGBColorSpace; face.anisotropy = 8;
   for (const l of L) { head.remove(l.mesh); l.mesh.geometry.dispose(); l.mesh.material.map?.dispose(); l.mesh.material.dispose(); }
-  if (core) { head.remove(core); core.material.map.dispose(); core.material.dispose(); }
-  L = [buildLayer(PROFILE[P.k], 1, face, {}, true), buildLayer(PROFILE[P.k], .84, wordSheet(P), { iridescence: .55, roughness: .3 }, false)];
-  L.forEach(l => head.add(l.mesh));
-  core = coreSprite(P); head.add(core); glow.intensity = 0;
+  if (fig) { head.remove(fig.grp); fig.body.geometry.dispose(); fig.u.uTex.value.dispose(); fig.u.uCore.value.dispose(); fig.grp.children.forEach(m => m.material.dispose()); }
+  L = [buildLayer(PROFILE[P.k], face)]; head.add(L[0].mesh);
+  fig = buildFigure(PROFILE[P.k], P); head.add(fig.grp);
+  glow.color.set(P.glow); glow.intensity = 0;
 }
 
 PEOPLE.forEach((P, i) => {
@@ -216,26 +262,32 @@ PEOPLE.forEach((P, i) => {
 });
 document.getElementById('again').onclick = () => load(PEOPLE.indexOf(cur));
 
+const peeled = () => { const p = L[0].P; return p.reduce((a, q) => a + q[0] + q[1], 0) / (p.length * 2); };
 function finale() {
   ending = clock.elapsedTime; ui.cap.classList.add('end');
-  L[0].late = ending + .05; L[1].late = ending + .9;
+  L[0].late = ending + .05;
 }
 
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
 function pick(e) {
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
-  for (const h of ray.intersectObjects(L.map(l => l.mesh), false)) {
-    const l = L.find(l => l.mesh === h.object), tr = l.tris[h.faceIndex];
+  for (const h of ray.intersectObjects([L[0].mesh, fig.body], false)) {
+    if (h.object === fig.body) {
+      const q = head.worldToLocal(h.point.clone()), O = L[0].orig;
+      let r = 0; O.forEach((row, i) => { if (i < O.length - 1 && Math.abs(row[0].y - q.y) < Math.abs(O[r][0].y - q.y)) r = i; });
+      return { stir: true, l: L[0], tr: { r, side: q.x > O[r][L[0].S2].x ? 1 : 0 } };
+    }
+    const l = L[0], tr = l.tris[h.faceIndex];
     if (tr.kind !== 'cap' && tr.u < .3) return { l, tr };
   }
   return null;
 }
 function rub(hit) {
-  const { P, N } = hit.l, r0 = hit.tr.r, s = hit.tr.side;
-  for (let r = Math.max(0, r0 - 5); r <= Math.min(N - 2, r0 + 5); r++) P[r][s] = Math.min(1, P[r][s] + .09 * (1 - Math.abs(r - r0) / 6));
+  if (hit.stir) fig.boost = Math.min(1.6, fig.boost + .12);
+  const { P, N } = hit.l, r0 = hit.tr.r, s = hit.tr.side, amt = hit.stir ? .04 : .09;
+  for (let r = Math.max(0, r0 - 5); r <= Math.min(N - 2, r0 + 5); r++) P[r][s] = Math.min(1, P[r][s] + amt * (1 - Math.abs(r - r0) / 6));
   rustle(.35);
-  const L1 = L[1].P, m = L1.reduce((a, p) => a + p[0] + p[1], 0) / (L1.length * 2);
-  if (!ending && m > .24) finale();
+  if (!ending && peeled() > .42) finale();
 }
 
 let mode = null, lx = 0, ly = 0, yaw = 0, pitch = 0, idle = 0, lastRub = 0;
@@ -257,11 +309,12 @@ renderer.setAnimationLoop(() => {
   head.rotation.set(pitch, yaw, 0);
   head.position.y = Math.sin(time * .8) * .03;
   updateSheets(dt, time);
-  if (core) {
-    const k = ending ? Math.min(1, (time - ending) / 2.2) : 0, z = ending ? THREE.MathUtils.smoothstep(time - ending, .3, 3.5) : 0;
-    camera.position.z = baseDist * (1 + .6 * z);
-    core.material.opacity = .25 + .75 * k; core.scale.set(1.5 * (1 + .12 * k), .88 * (1 + .12 * k), 1);
-    glow.intensity = 1.4 * k * (1 + .08 * Math.sin(time * 2.2));
+  if (fig) {
+    const k = ending ? S(time - ending, .4, 2.6) : 0, z = ending ? S(time - ending, .3, 3.5) : 0;
+    camera.position.z = baseDist * (1 + .35 * z);
+    fig.boost *= Math.exp(-dt * 1.5); fig.flow += dt * (.035 + .25 * fig.boost);
+    fig.u.uFlow.value = fig.flow; fig.u.uTime.value = time; fig.u.uEnd.value = k; fig.u.uReveal.value = Math.max(k, S(peeled(), .1, .55));
+    glow.intensity = (.6 * peeled() + 1.2 * k) * (1 + .08 * Math.sin(time * 2.2));
   }
   renderer.render(scene, camera);
 });
