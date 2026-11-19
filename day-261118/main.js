@@ -1,5 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
-import { buildCircuit, paintCircuit } from './circuit.js?v=8';
+import { buildCircuit, paintCircuit } from './circuit.js?v=9';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -24,7 +24,7 @@ const GOLD = '#e7c36a', SILK = '#e8eef4';
 const MONO = '"Share Tech Mono", monospace', KR = '"Noto Sans KR", sans-serif';
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const img = new Image(); img.src = 'board.jpg?v=2';
+const img = new Image(); img.src = 'board.jpg?v=3';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
@@ -144,7 +144,9 @@ function frame(t) {
     ctx.shadowColor = GOLD; ctx.shadowBlur = 18 * lit;
     ctx.fillStyle = lit > .05 ? `rgb(${231 + 24 * lit},${195 + 50 * lit},${106 + 100 * lit})` : GOLD;
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
-    ctx.fillStyle = '#071c38'; ctx.beginPath(); ctx.arc(p.x, p.y, r * .42, 0, Math.PI * 2); ctx.fill();
+    const sg = ctx.createRadialGradient(p.x - r * .28, p.y - r * .32, r * .05, p.x, p.y, r * .8);
+    sg.addColorStop(0, '#ffffff'); sg.addColorStop(.35, lit > .05 ? '#fff4d6' : '#d5dbe1'); sg.addColorStop(1, '#6f7884');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(p.x, p.y, r * .74, 0, Math.PI * 2); ctx.fill();
     const lx = p.x + Math.cos(p.a) * (r + 22), lyy = p.y + Math.sin(p.a) * (r + 18);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = SILK; ctx.font = `700 ${clamp(L.R * .075, 13, 19)}px ${KR}`; ctx.fillText(n.k, lx, lyy - 6);
