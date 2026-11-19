@@ -31,7 +31,7 @@ const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 let W = 0, H = 0, DPR = 1, L = null, last = performance.now(), T = 0, idle = 0;
 let chips = CASES[0].chips.slice(), beat = 0, hover = -1, run = null, name = '', nameT = 0;
 const padLit = new Array(NOTES.length).fill(0), chipLit = new Array(SLOTS).fill(0);
-let waves = [], queue = [], stamps = [], C = null;
+let waves = [], queue = [], C = null;
 
 function layout() {
   const strip = W < 640 ? 150 : 132, top = W < 640 ? 118 : 64, ah = H - strip - top;
@@ -53,7 +53,7 @@ function fire(ni, si) {
   const n = NOTES[ni];
   beat = Math.max(beat, n.type === 'thump' ? 1.3 : .85);
   padLit[ni] = 1; if (si >= 0) chipLit[si] = 1;
-  stamps.push({ ch: n.k, t: 0 }); waves.push({ kind: 'out', t: 0, dur: .8, gain: n.type === 'thump' ? 1.2 : .9 });
+  waves.push({ kind: 'out', t: 0, dur: .8, gain: n.type === 'thump' ? 1.2 : .9 });
 }
 
 function inWave(ni) { waves.push({ kind: 'in', t: 0, dur: LEAD, ang: L.pads[ni].a, gain: 1 }); padLit[ni] = .6; }
@@ -69,7 +69,7 @@ function startRun() {
   const t0 = now() + LEAD, dur = SLOTS * STEP;
   chips.forEach((ni, i) => sound(NOTES[ni], t0 + (i + .5) * STEP));
   run = { t: -LEAD, dur, started: new Set(), fired: new Set() };
-  name = ''; stamps = [];
+  name = '';
 }
 
 function wave(x) {
@@ -119,7 +119,6 @@ function frame(t) {
   for (let i = 0; i < padLit.length; i++) padLit[i] *= Math.exp(-3 * dt);
   for (let i = 0; i < SLOTS; i++) chipLit[i] *= Math.exp(-3 * dt);
   waves.forEach(w => w.t += dt); waves = waves.filter(w => w.t < w.dur);
-  stamps.forEach(s => s.t += dt); stamps = stamps.filter(s => s.t < .9);
   nameT += dt;
 
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
@@ -141,14 +140,6 @@ function frame(t) {
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(C.oc, L.bx, L.by, L.bw, L.bh);
     ctx.globalAlpha = .5; ctx.drawImage(C.oc, L.bx - 1, L.by - 1, L.bw + 2, L.bh + 2);
-    ctx.restore();
-  }
-
-  for (const s of stamps) {
-    const a = s.t < .08 ? s.t / .08 : 1 - clamp((s.t - .2) / .7, 0, 1), sc = 1 + .18 * (1 - ease(s.t / .25));
-    ctx.save(); ctx.translate(L.cx, L.cy); ctx.scale(sc, sc);
-    ctx.font = `900 ${L.R * .62}px ${KR}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    const cc = CASES[cs].col; ctx.fillStyle = `rgba(${cc[0]},${cc[1]},${cc[2]},${.9 * a})`; ctx.fillText(s.ch, 0, L.R * .04);
     ctx.restore();
   }
 
