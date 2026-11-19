@@ -1,5 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
-import { buildCircuit, paintCircuit } from './circuit.js?v=9';
+import { buildCircuit, paintCircuit } from './circuit.js?v=10';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -24,7 +24,7 @@ const GOLD = '#e7c36a', SILK = '#e8eef4';
 const MONO = '"Share Tech Mono", monospace', KR = '"Noto Sans KR", sans-serif';
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const img = new Image(); img.src = 'board.jpg?v=3';
+const img = new Image(); img.src = 'board.jpg?v=4';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 

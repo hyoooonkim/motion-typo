@@ -1,4 +1,4 @@
-const PAD_ANG = [-58, -28, 0, 22, 158, 180, 208, 238];
+const PAD_ANG = [-58, -28, 0, 28, 146, 180, 208, 238];
 
 export function buildCircuit(img) {
   const MW = 720, MH = Math.round(img.naturalHeight / img.naturalWidth * MW), N = MW * MH;
