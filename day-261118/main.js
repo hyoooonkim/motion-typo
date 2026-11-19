@@ -1,5 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
-import { buildCircuit, paintCircuit } from './circuit.js?v=10';
+import { buildCircuit, paintCircuit } from './circuit.js?v=11';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -42,6 +42,29 @@ function layout() {
   const x0 = W < 640 ? 22 : 40, x1 = W - (W < 640 ? 22 : 230), sy = H - strip, ly = sy + 50;
   const socks = Array.from({ length: SLOTS }, (_, i) => ({ x: x0 + (i + .5) / SLOTS * (x1 - x0), y: ly + 34 }));
   L = { strip, bx, by, bw, bh, cx, cy, R, pads, x0, x1, sy, ly, socks, pr: clamp(R * .05, 7, 11) };
+  if (C) pads.forEach(p => { [p.lx, p.ly] = labelSpot(p); });
+}
+
+function labelSpot(p) {
+  const { busy, MW, MH } = C, fs = clamp(L.R * .07, 12, 16), bwid = fs * 2.6, bht = fs * 2;
+  const cover = (x, y) => {
+    let n = 0;
+    for (let j = 0; j < 5; j++) for (let i = 0; i < 6; i++) {
+      const sx = x - bwid / 2 + bwid * i / 5, sy = y - bht / 2 + bht * j / 4;
+      const u = Math.floor((sx - L.bx) / L.bw * MW), v = Math.floor((sy - L.by) / L.bh * MH);
+      if (u < 0 || v < 0 || u >= MW || v >= MH) { n += 2; continue; }
+      if (busy[v * MW + u]) n++;
+    }
+    return n;
+  };
+  let best = null, bs = 1e9;
+  for (let k = 0; k < 16; k++) {
+    const a = k / 16 * Math.PI * 2, rr = L.pr + fs * 1.9, x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr * .8;
+    let da = a - p.a; da = Math.abs(Math.atan2(Math.sin(da), Math.cos(da)));
+    const sc = cover(x, y) * 3 + da;
+    if (sc < bs) { bs = sc; best = [x, y]; }
+  }
+  return best;
 }
 
 function resize() {
@@ -147,10 +170,13 @@ function frame(t) {
     const sg = ctx.createRadialGradient(p.x - r * .28, p.y - r * .32, r * .05, p.x, p.y, r * .8);
     sg.addColorStop(0, '#ffffff'); sg.addColorStop(.35, lit > .05 ? '#fff4d6' : '#d5dbe1'); sg.addColorStop(1, '#6f7884');
     ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(p.x, p.y, r * .74, 0, Math.PI * 2); ctx.fill();
-    const lx = p.x + Math.cos(p.a) * (r + 22), lyy = p.y + Math.sin(p.a) * (r + 18);
+    ctx.strokeStyle = 'rgba(226,230,228,.55)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2); ctx.stroke();
+    const fs = clamp(L.R * .07, 12, 16), lx = p.lx ?? p.x, lyy = p.ly ?? p.y;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = SILK; ctx.font = `700 ${clamp(L.R * .075, 13, 19)}px ${KR}`; ctx.fillText(n.k, lx, lyy - 6);
-    ctx.globalAlpha = .55; ctx.font = `${clamp(L.R * .042, 9, 11)}px ${MONO}`; ctx.fillText(`U${i + 1} ${n.n}`, lx, lyy + 10); ctx.globalAlpha = 1;
+    ctx.font = `500 ${fs}px ${KR}`;
+    ctx.fillStyle = 'rgba(226,230,228,.22)'; ctx.fillText(n.k, lx + .6, lyy - fs * .35 + .6);
+    ctx.fillStyle = 'rgba(226,230,228,.86)'; ctx.fillText(n.k, lx, lyy - fs * .35);
+    ctx.font = `${Math.round(fs * .62)}px ${MONO}`; ctx.fillStyle = 'rgba(226,230,228,.7)'; ctx.fillText(`U${i + 1}·${n.n}`, lx, lyy + fs * .55);
   });
 
   ctx.fillStyle = 'rgba(2,13,30,.88)'; ctx.fillRect(0, L.sy, W, L.strip);

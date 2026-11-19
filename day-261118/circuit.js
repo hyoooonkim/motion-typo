@@ -45,7 +45,9 @@ export function buildCircuit(img) {
     const i = idx[best];
     return { u: (i % MW) / MW, v: ((i / MW) | 0) / MH, a: ang[best], d: dd[best] };
   });
-  return { oc, octx, od, idx: Int32Array.from(idx), d: Float32Array.from(dd), ang: Float32Array.from(ang), maxD, pads };
+  const busy = new Uint8Array(N);
+  for (let i = 0; i < N; i++) { const r = px[i * 4], g = px[i * 4 + 1], b = px[i * 4 + 2]; busy[i] = gold[i] || (r + g + b > 330) ? 1 : 0; }
+  return { oc, octx, od, idx: Int32Array.from(idx), d: Float32Array.from(dd), ang: Float32Array.from(ang), maxD, pads, busy, MW, MH };
 }
 
 export function paintCircuit(C, waves, col, beat = 0) {
