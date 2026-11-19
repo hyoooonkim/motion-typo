@@ -3,19 +3,15 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 18;
+const VER = 19;
 const PEOPLE = [
   { k: 'kr', who: '준호 · 서울', mat: 'gold', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
   { k: 'wa', who: '코피 · 아크라', mat: 'stone', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
-  { k: 'la', who: '루시아 · 보고타', mat: 'wax', words: ['그리움', '편지', '너', '다시', '안아줘'], core: '사랑', en: 'LOVE' },
   { k: 'no', who: '잉리드 · 오슬로', mat: 'glass', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
-  { k: 'in', who: '라젠드라 · 자이푸르', mat: 'wood', words: ['손주', '밥상', '집', '함께', '돌아와'], core: '가족', en: 'FAMILY' },
 ];
 const MATS = {
   stone: { rough: .9, metal: 0, radius: .2, jag: .07, cuts: 7, tint: .55, hgt: .9, seg: 10, nrm: 3.2, ao: .6, inRough: .98 },
-  gold: { rough: .13, metal: 1, radius: .03, jag: 0, seg: 4, nrm: 1.6, ao: .35, inRough: .5, hgt: .05, flat: '#e6b04a', flatMix: .85, envI: 1.15, studio: true, phys: { clearcoat: .25, clearcoatRoughness: .08 } },
-  wood: { rough: .62, metal: 0, radius: .05, jag: .004, seg: 4, nrm: 1.6, ao: .5, inRough: .8 },
-  wax: { rough: .48, metal: 0, radius: .2, jag: .012, seg: 6, nrm: 1.2, ao: .3, inRough: .62, phys: { transmission: .18, thickness: 1.2, attenuationColor: new THREE.Color('#e88a9c'), attenuationDistance: .6, sheen: .4, sheenColor: new THREE.Color('#ffd0d8') } },
+  gold: { rough: .16, metal: 1, radius: .07, jag: 0, seg: 4, nrm: 2.2, ao: .3, inRough: .42, hgt: .05, flat: '#f1b53a', flatMix: .8, envI: 1.25, studio: true, bars: true, taper: .1, phys: { clearcoat: .25, clearcoatRoughness: .08 } },
   glass: { rough: .16, metal: 0, radius: .12, jag: 0, seg: 5, nrm: .9, ao: -.35, inRough: .85, phys: { transmission: .9, thickness: .9, ior: 1.5, attenuationColor: new THREE.Color('#8fd6cf'), attenuationDistance: 1.4 } },
 };
 
@@ -87,8 +83,8 @@ const S = THREE.MathUtils.smoothstep, clamp = THREE.MathUtils.clamp, V = (x, y, 
 const HT = 3.6, WD = HT * 672 / 900, U = .24;
 
 const NSEG = [2, 4, 4, 4, 2], MID = 8, NC = 17, TR = [0, .25, .5, .75, 1, 1.25, 1.5];
-function netPath(s) {
-  const h = s / 2, P = [[0, h], [h, h], [h, -h], [-h, -h], [-h, h], [0, h]], F = [0, 1, 2, 3, 0];
+function netPath(w, d) {
+  const hw = w / 2, h = d / 2, P = [[0, h], [hw, h], [hw, -h], [-hw, -h], [-hw, h], [0, h]], F = [0, 1, 2, 3, 0];
   const pts = [], face = [];
   NSEG.forEach((n, i) => {
     const [x0, z0] = P[i], [x1, z1] = P[i + 1];
@@ -104,20 +100,20 @@ function netPath(s) {
 }
 
 function buildNet(cube, mat) {
-  const s = cube.s, h = s / 2, { pts, face, nrm } = netPath(s), kS = .55;
+  const { w, h: H, d } = cube, hw = w / 2, hh = H / 2, hd = d / 2, e2 = Math.min(w, d), { pts, face, nrm } = netPath(w, d), kS = .55;
   const rest = (j, r) => {
-    const t = TR[r] * s, p = pts[j], n = nrm[j];
-    if (TR[r] <= 1) return V(p.x + n.x * .004, t - h, p.y + n.y * .004);
-    const q = t - s, lf = face[Math.min(j, NC - 2)] % 2 ? .006 : .011;
-    return V(p.x - n.x * q, h + lf, p.y - n.y * q);
+    const t = TR[r], p = pts[j], n = nrm[j];
+    if (t <= 1) return V(p.x + n.x * .004, t * H - hh, p.y + n.y * .004);
+    const q = (t - 1) * e2, lf = face[Math.min(j, NC - 2)] % 2 ? .006 : .011;
+    return V(p.x - n.x * q, hh + lf, p.y - n.y * q);
   };
   const uvOf = (v, f) => {
     let ix, iy;
     if (f === 0) { ix = v.x; iy = v.y; }
-    else if (f === 1) { ix = h + (h - v.z) * kS; iy = v.y; }
+    else if (f === 1) { ix = hw + (hd - v.z) * kS; iy = v.y; }
     else if (f === 2) { ix = -v.x; iy = v.y; }
-    else if (f === 3) { ix = -h - (h - v.z) * kS; iy = v.y; }
-    else { ix = v.x; iy = h + (h - v.z) * kS; }
+    else if (f === 3) { ix = -hw - (hd - v.z) * kS; iy = v.y; }
+    else { ix = v.x; iy = hh + (hd - v.z) * kS; }
     return [(cube.ix + ix) / WD + .5, (cube.iy + iy) / HT + .5];
   };
   const pos = [], uv = [], keys = [], side = [];
@@ -152,7 +148,7 @@ function chain(cube, p, s, lift, time, out) {
   }
 }
 function shapeNet(cube, time) {
-  const { pd, cur, keys, s } = cube, h = s / 2, f = S(Math.max(pd[0], pd[1]), 0, .22), ring = new Array(NC);
+  const { pd, cur, keys, w, h: H, d } = cube, hh = H / 2, e2 = Math.min(w, d), f = S(Math.max(pd[0], pd[1]), 0, .22), ring = new Array(NC);
   for (let r = 0; r < TR.length; r++) {
     const t = TR[r], top = t >= 1;
     for (let sd = 0; sd < 2; sd++) {
@@ -161,10 +157,10 @@ function shapeNet(cube, time) {
     }
     for (let j = 0; j < NC; j++) {
       const R = ring[j];
-      if (!top) { cur[r * NC + j].set(R.x, t * s - h, R.y); continue; }
+      if (!top) { cur[r * NC + j].set(R.x, t * H - hh, R.y); continue; }
       const a = ring[Math.max(0, j - 1)], b = ring[Math.min(NC - 1, j + 1)], tx = b.x - a.x, tz = b.y - a.y, L = Math.hypot(tx, tz) || 1;
-      const nx = -tz / L, nz = tx / L, q = (t - 1) * s, A = f * Math.PI / 2, lf = (1 - f) * (cube.face[Math.min(j, NC - 2)] % 2 ? .006 : .011);
-      cur[r * NC + j].set(R.x - nx * q * Math.cos(A), h + lf + q * Math.sin(A), R.y - nz * q * Math.cos(A));
+      const nx = -tz / L, nz = tx / L, q = (t - 1) * e2, A = f * Math.PI / 2, lf = (1 - f) * (cube.face[Math.min(j, NC - 2)] % 2 ? .006 : .011);
+      cur[r * NC + j].set(R.x - nx * q * Math.cos(A), hh + lf + q * Math.sin(A), R.y - nz * q * Math.cos(A));
     }
   }
   const arr = cube.mesh.geometry.attributes.position.array;
@@ -179,22 +175,50 @@ const noise3 = (x, y, z) => Math.sin(x * 3.1 + y * 1.7) * Math.cos(y * 2.3 - z *
 
 const G = 4, CS = 512, AW = G * CS;
 function canvas2() { const c = document.createElement('canvas'); c.width = c.height = AW; return [c, c.getContext('2d', { willReadFrequently: true })]; }
-function atlas(P, base, glyphs) {
+const WEIGHT = { '1x1': '100 g', '1x2': '250 g', '2x3': '500 g', '2x4': '1 KILO' };
+function fitText(gm, t, font, maxW, maxH) { gm.font = `${font.replace('#', 100)}`; const w = gm.measureText(t).width; const f = Math.min(maxH, 100 * maxW / w); gm.font = font.replace('#', f); return f; }
+function stamp(gm, sp) {
+  const W = CS, H = CS * sp.aspect, serif = "900 #px 'Noto Serif KR'", mono = "500 #px 'IBM Plex Mono'";
+  gm.scale(1, 1 / sp.aspect);
+  const rows = sp.word ? [['FINE GOLD', serif, .08, .62], [sp.word, serif, .26, .8], ['999.9', serif, .1, .5]] : [['GOLD', serif, .14, .62], [WEIGHT[sp.kind] || 'GOLD', serif, .11, .62], ['999.9', serif, .09, .5]];
+  const big = sp.aspect > 1.4 && W > 0;
+  let tot = rows.reduce((a, r) => a + r[2] * H * 1.25, 0) + H * .1 + (big ? W * .5 : 0), yy = -tot / 2;
+  if (big) { gm.lineWidth = W * .018; gm.beginPath(); gm.arc(0, yy + W * .22, W * .2, 0, Math.PI * 2); gm.stroke(); gm.beginPath(); gm.arc(0, yy + W * .22, W * .15, 0, Math.PI * 2); gm.stroke(); fitText(gm, P_CUR.en, serif, W * .2, W * .06); gm.fillText(P_CUR.en, 0, yy + W * .22); yy += W * .5; }
+  for (const [t, f, hgt, mw] of rows) { const fs = fitText(gm, t, f, W * mw, hgt * H); gm.fillText(t, 0, yy + fs * .62); yy += hgt * H * 1.25; }
+  const serial = `${P_CUR.k.toUpperCase()}${String(Math.floor(rnd() * 900000) + 100000)}`, fs = fitText(gm, serial, mono, W * .48, H * .055);
+  gm.lineWidth = W * .012; const bw = gm.measureText(serial).width + fs * 1.2, bh = fs * 1.5, yb = yy + bh * .6;
+  gm.beginPath(); gm.roundRect(-bw / 2, yb - bh / 2, bw, bh, bh * .35); gm.stroke(); gm.fillText(serial, 0, yb + fs * .04);
+}
+function scratches(g, gm, x, y) {
+  g.save(); g.beginPath(); g.rect(x, y, CS, CS); g.clip();
+  for (let k = 0; k < 10; k++) { const r = rnd() * CS * .6 + CS * .2, gr = g.createRadialGradient(x + rnd() * CS, y + rnd() * CS, 0, x + rnd() * CS, y + rnd() * CS, r); gr.addColorStop(0, `rgba(${rnd() < .5 ? '120,60,0' : '255,230,150'},.14)`); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.fillRect(x, y, CS, CS); }
+  g.restore();
+  gm.save(); gm.beginPath(); gm.rect(x, y, CS, CS); gm.clip(); gm.lineCap = 'round';
+  for (let k = 0; k < 45; k++) { const a = rnd() * Math.PI, l = 8 + rnd() * 80, px = x + rnd() * CS, py = y + rnd() * CS; gm.strokeStyle = `rgba(255,255,255,${.025 + rnd() * .05})`; gm.lineWidth = .5 + rnd() * .8; gm.beginPath(); gm.moveTo(px, py); gm.lineTo(px + Math.cos(a) * l, py + Math.sin(a) * l); gm.stroke(); }
+  gm.restore();
+}
+let P_CUR = null;
+function atlas(P, base, specs) {
+  P_CUR = P;
   const M = MATS[P.mat], [cc, g] = canvas2(), [mc, gm] = canvas2(), [sc, gs] = canvas2(), [lc, gl] = canvas2();
   gm.fillStyle = '#000'; gm.fillRect(0, 0, AW, AW);
   for (let i = 0; i < G * G; i++) {
     const x = (i % G) * CS, y = Math.floor(i / G) * CS, sz = 380 + rnd() * 120;
     g.drawImage(base, rnd() * (base.width - sz), rnd() * (base.height - sz), sz, sz, x, y, CS, CS);
     if (M.flat) { g.globalAlpha = M.flatMix; g.fillStyle = M.flat; g.fillRect(x, y, CS, CS); g.globalAlpha = 1; }
-    const txt = glyphs[i - 1];
-    if (!txt) continue;
-    const lines = txt.split(' '), lh = 1.08;
-    gm.save(); gm.translate(x + CS / 2 + (rnd() - .5) * 8, y + CS / 2 + 14); gm.rotate((rnd() - .5) * .04);
-    gm.textAlign = 'center'; gm.textBaseline = 'middle'; gm.fillStyle = '#fff';
-    gm.font = `900 100px 'Noto Sans KR'`;
-    const wmax = Math.max(...lines.map(l => gm.measureText(l).width)), fs = Math.min(260, 100 * CS * .8 / wmax, CS * .78 / (lines.length * lh));
-    gm.font = `900 ${fs}px 'Noto Sans KR'`;
-    lines.forEach((l, j) => gm.fillText(l, 0, (j - (lines.length - 1) / 2) * fs * lh));
+    if (M.bars) scratches(g, gm, x, y);
+    const sp = specs[i - 1];
+    if (!sp) continue;
+    gm.save(); gm.translate(x + CS / 2, y + CS / 2); gm.textAlign = 'center'; gm.textBaseline = 'middle'; gm.fillStyle = gm.strokeStyle = '#fff';
+    if (M.bars) stamp(gm, sp);
+    else {
+      const lines = sp.word.split(' '), lh = 1.08;
+      gm.translate((rnd() - .5) * 8, 14); gm.rotate((rnd() - .5) * .04);
+      gm.font = `900 100px 'Noto Sans KR'`;
+      const wmax = Math.max(...lines.map(l => gm.measureText(l).width)), fs = Math.min(260, 100 * CS * .8 / wmax, CS * .78 / (lines.length * lh));
+      gm.font = `900 ${fs}px 'Noto Sans KR'`;
+      lines.forEach((l, j) => gm.fillText(l, 0, (j - (lines.length - 1) / 2) * fs * lh));
+    }
     gm.restore();
   }
   gs.filter = `blur(${P.mat === 'stone' ? 4 : 3}px)`; gs.drawImage(mc, 0, 0); gl.filter = 'blur(13px)'; gl.drawImage(mc, 0, 0);
@@ -224,18 +248,19 @@ function atlas(P, base, glyphs) {
 }
 
 function buildBlock(cube, P, mat, cell) {
-  const M = MATS[P.mat], sz = cube.s * .92, g = new RoundedBoxGeometry(sz, sz, sz, M.seg, sz * M.radius);
+  const M = MATS[P.mat], bw = cube.w * .92, bh = cube.h * .92, bd = cube.d * .92, sz = Math.min(bw, bh, bd), g = new RoundedBoxGeometry(bw, bh, bd, M.seg, sz * M.radius);
   const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv, off = rnd() * 9;
   const sq = M.cuts ? V(1.08 + rnd() * .1, .76 + rnd() * .2, .95 + rnd() * .1) : V(1, 1, 1);
   const planes = Array.from({ length: M.cuts || 0 }, () => { const n = V(rnd() - .5, rnd() - .5, (rnd() - .5) * .6 - .25).normalize(); return [n, sz * (.38 + rnd() * .1)]; });
   const cu = c => [(c % G) / G, 1 - (Math.floor(c / G) + 1) / G];
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), nz = nor.getZ(i), front = nz > .5;
-    const [u0, v0] = cu(front ? cell : 0), fx = front ? x : Math.abs(nor.getX(i)) > .5 ? z : x, fy = Math.abs(nor.getY(i)) > .5 ? z : y;
-    uv.setXY(i, u0 + clamp(fx / sz + .5, .015, .985) / G, v0 + clamp(fy / sz + .5, .015, .985) / G);
+    const [u0, v0] = cu(front ? cell : 0), fx = front ? x / bw : Math.abs(nor.getX(i)) > .5 ? z / bd : x / bw, fy = Math.abs(nor.getY(i)) > .5 ? z / bd : y / bh;
+    uv.setXY(i, u0 + clamp(fx + .5, .015, .985) / G, v0 + clamp(fy + .5, .015, .985) / G);
     const fq = M.jag > .03 ? 1.5 : 2.4, d = (M.jag * noise3(x / sz * fq + off, y / sz * fq, z / sz * fq - off) + (M.cuts ? .012 * noise3(x / sz * 9 - off, y / sz * 9 + off, z / sz * 9) : 0)) * sz * (front ? .45 : 1);
     const q = V((x + nor.getX(i) * d) * sq.x, (y + nor.getY(i) * d) * sq.y, (z + nor.getZ(i) * d) * sq.z);
     for (const [n, o] of planes) { const e = q.dot(n) - o; if (e > 0) q.addScaledVector(n, -e); }
+    if (M.taper) { const f = clamp(z / bd + .5, 0, 1), ep = M.taper * sz * f; q.x *= 1 - ep / (bw / 2); q.y *= 1 - ep / (bh / 2); }
     pos.setXYZ(i, q.x, q.y, q.z);
   }
   g.computeVertexNormals(); g.computeBoundingBox();
@@ -243,48 +268,55 @@ function buildBlock(cube, P, mat, cell) {
   m.rotation.set((rnd() - .5) * .06, (rnd() - .5) * .08, (rnd() - .5) * .06); return m;
 }
 
-function packCubes(prof) {
+function packCubes(prof, bars) {
+  const SH = bars ? [[2, 4, .3], [2, 3, .25], [1, 2, .3], [1, 1, .15]] : [[4, 4, .12], [3, 3, .3], [2, 2, .38], [1, 1, .2]];
   const at = yn => { let r = prof[0]; for (const q of prof) if (q[0] <= yn) r = q; return r; };
   const inside = (x, y) => { const yn = .5 - y / HT; if (yn < prof[0][0] || yn > prof[prof.length - 1][0] + .01) return 0; const [, cx, hw] = at(yn); return Math.abs(x / WD + .5 - cx) < hw ? 1 : 0; };
   const NX = Math.ceil(WD / U), NY = Math.ceil(HT / U), x0 = -NX * U / 2, y0 = HT / 2;
   const cov = [], used = [];
   for (let r = 0; r < NY; r++) { cov.push([]); used.push([]); for (let c = 0; c < NX; c++) { let n = 0; for (let a = 0; a < 4; a++) for (let b = 0; b < 4; b++) n += inside(x0 + (c + (a + .5) / 4) * U, y0 - (r + (b + .5) / 4) * U); cov[r].push(n / 16); used[r].push(false); } }
-  const fits = (r, c, n) => {
-    if (r + n > NY || c + n > NX) return false; let s = 0;
-    for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) { if (used[r + a][c + b] || cov[r + a][c + b] < .15) return false; s += cov[r + a][c + b]; }
-    return s / (n * n) > .62;
+  const fits = (r, c, [w, h]) => {
+    if (r + h > NY || c + w > NX) return false; let s = 0;
+    for (let a = 0; a < h; a++) for (let b = 0; b < w; b++) { if (used[r + a][c + b] || cov[r + a][c + b] < .15) return false; s += cov[r + a][c + b]; }
+    return s / (w * h) > .62;
   };
   const cubes = [];
   for (let r = 0; r < NY; r++) for (let c = 0; c < NX; c++) {
     if (used[r][c] || cov[r][c] < .5) continue;
-    const q = rnd(), want = q < .12 ? 4 : q < .42 ? 3 : q < .8 ? 2 : 1;
-    let n = want; while (n > 1 && !fits(r, c, n)) n--;
-    if (!fits(r, c, n)) continue;
-    for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) used[r + a][c + b] = true;
-    cubes.push({ ix: x0 + (c + n / 2) * U, iy: y0 - (r + n / 2) * U, n, s: n * U * (.95 + rnd() * .04) });
+    let q = rnd(), k = 0; while (k < SH.length - 1 && q > SH[k][2]) { q -= SH[k][2]; k++; }
+    while (k < SH.length - 1 && !fits(r, c, SH[k])) k++;
+    const sh = SH[k]; if (!fits(r, c, sh)) continue;
+    for (let a = 0; a < sh[1]; a++) for (let b = 0; b < sh[0]; b++) used[r + a][c + b] = true;
+    const f = .95 + rnd() * .04, w = sh[0] * U * f, h = sh[1] * U * f;
+    cubes.push({ ix: x0 + (c + sh[0] / 2) * U, iy: y0 - (r + sh[1] / 2) * U, n: sh[0] * sh[1], kind: `${sh[0]}x${sh[1]}`, w, h, d: bars ? Math.min(w, h) * .6 : w, s: Math.max(w, h) });
   }
   return cubes;
 }
 
 function buildPerson(P, img, base) {
-  const grp = new THREE.Group(), cubes = packCubes(PROFILE[P.k]);
+  const grp = new THREE.Group(), cubes = packCubes(PROFILE[P.k], MATS[P.mat].bars);
   cubes.sort((a, b) => b.iy + b.n * U / 2 - (a.iy + a.n * U / 2) || a.ix - b.ix);
-  const texts = [P.core, P.en, ...P.words], cell = new Map();
+  const texts = [P.core, P.en, ...P.words], cell = new Map(), specs = [], bars = MATS[P.mat].bars;
   const big = [...cubes].sort((a, b) => b.n - a.n || b.iy - a.iy).slice(0, texts.length).sort((a, b) => b.iy - a.iy || a.ix - b.ix);
-  big.forEach((cb, j) => cell.set(cb, j + 1));
-  let spare = texts.length + 1;
-  cubes.forEach(cb => { if (!cell.has(cb)) { cell.set(cb, spare < G * G ? spare : 0); spare = spare + 1 < G * G ? spare + 1 : texts.length + 1; } });
+  big.forEach((cb, j) => { specs.push({ word: texts[j], aspect: cb.h / cb.w, kind: cb.kind }); cell.set(cb, specs.length); });
+  const byKind = {}, first = specs.length + 1;
+  let spare = first;
+  cubes.forEach(cb => {
+    if (cell.has(cb)) return;
+    if (bars) { if (!byKind[cb.kind] && specs.length < G * G - 1) { specs.push({ word: null, aspect: cb.h / cb.w, kind: cb.kind }); byKind[cb.kind] = specs.length; } cell.set(cb, byKind[cb.kind] || 0); }
+    else { cell.set(cb, spare < G * G ? spare : 0); spare = spare + 1 < G * G ? spare + 1 : first; }
+  });
   const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.needsUpdate = true;
-  const pm = paperMat(tex), bm = atlas(P, base, texts);
+  const pm = paperMat(tex), bm = atlas(P, base, specs);
   cubes.forEach((cb, k) => {
     const node = new THREE.Group();
-    node.position.set(cb.ix + (rnd() - .5) * .03, cb.iy + (rnd() - .5) * .02, -cb.s / 2 + (rnd() - .5) * .14 + (cb.n === 1 ? .05 : 0));
-    node.rotation.set((rnd() - .5) * .05, (rnd() - .5) * .22, (rnd() - .5) * .06);
+    node.position.set(cb.ix + (rnd() - .5) * .03, cb.iy + (rnd() - .5) * .02, -cb.d / 2 + (rnd() - .5) * (MATS[P.mat].bars ? .05 : .14) + (cb.n === 1 ? .05 : 0));
+    const rr = MATS[P.mat].bars ? .4 : 1; node.rotation.set((rnd() - .5) * .05 * rr, (rnd() - .5) * .22 * rr, (rnd() - .5) * .06 * rr);
     const net = buildNet(cb, pm); net.castShadow = net.receiveShadow = true;
     node.add(net, buildBlock(cb, P, bm, cell.get(cb)));
     cb.node = node; grp.add(node);
   });
-  const floor = Math.min(...cubes.map(c => c.node.position.y - c.s / 2)) - .01;
+  const floor = Math.min(...cubes.map(c => c.node.position.y - c.h / 2)) - .01;
   const fl = new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.ShadowMaterial({ opacity: .5 })); fl.rotation.x = -Math.PI / 2; fl.position.set(0, floor, -.4); fl.receiveShadow = true; grp.add(fl);
   return { P, grp, cubes, pm, ending: 0, floor };
 }
@@ -305,7 +337,7 @@ function dispose(o) { o.traverse(m => { if (m.geometry) m.geometry.dispose(); if
 async function load(i) {
   cur = i; const P = PEOPLE[i];
   [...ui.people.children].forEach((b, j) => b.classList.toggle('on', j === i)); ui.who.textContent = P.who;
-  await document.fonts.load(`900 150px 'Noto Sans KR'`, P.core + P.words.join('') + P.en);
+  await Promise.all([document.fonts.load(`900 150px 'Noto Sans KR'`, P.core + P.words.join('') + P.en), document.fonts.load(`900 100px 'Noto Serif KR'`, P.core + P.words.join('') + P.en + 'FINE GOLD 999.9 KILO'), document.fonts.load(`500 40px 'IBM Plex Mono'`, 'KR0123456789')]);
   const [img, base] = await Promise.all([loadImg(`bust-${P.k}.jpg`), loadImg(`mat-${P.mat}.jpg`)]);
   if (person) { world.remove(person.grp); dispose(person.grp); }
   seed = 11 + i * 31;
