@@ -1,5 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
-import { buildCircuit, paintCircuit } from './circuit.js?v=4';
+import { buildCircuit, paintCircuit } from './circuit.js?v=6';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -24,7 +24,7 @@ const GOLD = '#e7c36a', SILK = '#e8eef4';
 const MONO = '"Share Tech Mono", monospace', KR = '"Noto Sans KR", sans-serif';
 
 const cv = document.getElementById('c'), ctx = cv.getContext('2d');
-const img = new Image(); img.src = 'board.jpg?v=1';
+const img = new Image(); img.src = 'board.jpg?v=2';
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
@@ -38,10 +38,10 @@ function layout() {
   const IW = img.naturalWidth || 2100, IH = img.naturalHeight || 1409;
   const k = Math.min(ah / IH, Math.max(W / IW, (W - 90) / (.872 * IH))), bw = IW * k, bh = IH * k, bx = (W - bw) / 2, by = top + (ah - bh) / 2;
   const cx = bx + bw * .5, cy = by + bh * .504, R = bh * .436;
-  const pads = NOTES.map((_, i) => { const a = -Math.PI / 2 + (i + .5) / NOTES.length * Math.PI * 2; return { a, x: cx + Math.cos(a) * R, y: cy + Math.sin(a) * R }; });
+  const pads = C ? C.pads.map(p => ({ a: p.a, d: p.d, x: bx + p.u * bw, y: by + p.v * bh })) : [];
   const x0 = W < 640 ? 22 : 40, x1 = W - (W < 640 ? 22 : 230), sy = H - strip, ly = sy + 50;
   const socks = Array.from({ length: SLOTS }, (_, i) => ({ x: x0 + (i + .5) / SLOTS * (x1 - x0), y: ly + 34 }));
-  L = { strip, bx, by, bw, bh, cx, cy, R, pads, x0, x1, sy, ly, socks, pr: clamp(R * .07, 9, 15) };
+  L = { strip, bx, by, bw, bh, cx, cy, R, pads, x0, x1, sy, ly, socks, pr: clamp(R * .05, 7, 11) };
 }
 
 function resize() {
@@ -56,7 +56,7 @@ function fire(ni, si) {
   waves.push({ kind: 'out', t: 0, dur: .8, gain: n.type === 'thump' ? 1.2 : .9 });
 }
 
-function inWave(ni) { waves.push({ kind: 'in', t: 0, dur: LEAD, ang: L.pads[ni].a, gain: 1 }); padLit[ni] = .6; }
+function inWave(ni) { waves.push({ kind: 'in', t: 0, dur: LEAD, ang: L.pads[ni].a, from: L.pads[ni].d, gain: 1 }); padLit[ni] = .6; }
 
 function addChip(ni) {
   unlock(); sound(NOTES[ni], now() + LEAD); inWave(ni); queue.push({ at: T + LEAD, ni, si: -1 });
@@ -104,7 +104,7 @@ function partName() {
 function frame(t) {
   const dt = Math.min(.05, (t - last) / 1000); last = t; T += dt;
   requestAnimationFrame(frame);
-  if (!L) return;
+  if (!L || !L.pads.length) return;
   if (run) {
     run.t += dt;
     const u = run.t / run.dur;
@@ -125,18 +125,10 @@ function frame(t) {
   ctx.fillStyle = '#03162f'; ctx.fillRect(0, 0, W, H);
   if (img.complete && img.naturalWidth) {
     ctx.drawImage(img, L.bx, L.by, L.bw, L.bh);
-    if (beat > .01) {
-      ctx.save();
-      ctx.beginPath(); ctx.arc(L.cx, L.cy, L.R * .9, 0, Math.PI * 2); ctx.clip();
-      ctx.translate(L.cx, L.cy); ctx.scale(1 + .045 * beat, 1 + .045 * beat); ctx.translate(-L.cx, -L.cy);
-      ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = Math.min(1, .42 * beat);
-      ctx.drawImage(img, L.bx, L.by, L.bw, L.bh);
-      ctx.restore();
-    }
   }
 
-  if (C && waves.length) {
-    paintCircuit(C, waves, CASES[cs].col);
+  if (C && (waves.length || beat > .01)) {
+    paintCircuit(C, waves, CASES[cs].col, beat);
     ctx.save(); ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(C.oc, L.bx, L.by, L.bw, L.bh);
     ctx.globalAlpha = .5; ctx.drawImage(C.oc, L.bx - 1, L.by - 1, L.bw + 2, L.bh + 2);
@@ -149,7 +141,7 @@ function frame(t) {
     ctx.fillStyle = lit > .05 ? `rgb(${231 + 24 * lit},${195 + 50 * lit},${106 + 100 * lit})` : GOLD;
     ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
     ctx.fillStyle = '#071c38'; ctx.beginPath(); ctx.arc(p.x, p.y, r * .42, 0, Math.PI * 2); ctx.fill();
-    const lx = L.cx + Math.cos(p.a) * (L.R + r + 22), lyy = L.cy + Math.sin(p.a) * (L.R + r + 22);
+    const lx = p.x + Math.cos(p.a) * (r + 22), lyy = p.y + Math.sin(p.a) * (r + 18);
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillStyle = SILK; ctx.font = `700 ${clamp(L.R * .075, 13, 19)}px ${KR}`; ctx.fillText(n.k, lx, lyy - 6);
     ctx.globalAlpha = .55; ctx.font = `${clamp(L.R * .042, 9, 11)}px ${MONO}`; ctx.fillText(`U${i + 1} ${n.n}`, lx, lyy + 10); ctx.globalAlpha = 1;
@@ -215,7 +207,7 @@ addEventListener('keydown', e => {
   else if (e.key >= '1' && e.key <= '8') addChip(+e.key - 1);
 });
 addEventListener('resize', resize);
-img.onload = () => { layout(); C = buildCircuit(img); };
-if (img.complete && img.naturalWidth) C = buildCircuit(img);
+img.onload = () => { C = buildCircuit(img); layout(); };
+if (img.complete && img.naturalWidth) { C = buildCircuit(img); layout(); }
 document.fonts.load(`700 16px ${KR}`, '쿵두근띠링딩톡뽕').finally(() => { resize(); });
 requestAnimationFrame(frame);

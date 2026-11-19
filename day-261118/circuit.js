@@ -1,3 +1,5 @@
+const PAD_ANG = [-58, -28, 2, 32, 148, 178, 208, 238];
+
 export function buildCircuit(img) {
   const MW = 720, MH = Math.round(img.naturalHeight / img.naturalWidth * MW), N = MW * MH;
   const oc = document.createElement('canvas'); oc.width = MW; oc.height = MH;
@@ -36,10 +38,17 @@ export function buildCircuit(img) {
   octx.clearRect(0, 0, MW, MH);
   const od = octx.createImageData(MW, MH);
   for (const i of idx) { od.data[i * 4] = 255; od.data[i * 4 + 1] = 236; od.data[i * 4 + 2] = 178; }
-  return { oc, octx, od, idx: Int32Array.from(idx), d: Float32Array.from(dd), ang: Float32Array.from(ang), maxD, Dring };
+  const pads = PAD_ANG.map(deg => {
+    const a = deg * Math.PI / 180, tx = cx + Math.cos(a) * MH * .4, ty = cy + Math.sin(a) * MH * .4;
+    let best = -1, bd = 1e9;
+    for (let k = 0; k < idx.length; k++) { const i = idx[k], dx = i % MW - tx, dy = ((i / MW) | 0) - ty, e = dx * dx + dy * dy; if (e < bd) { bd = e; best = k; } }
+    const i = idx[best];
+    return { u: (i % MW) / MW, v: ((i / MW) | 0) / MH, a: ang[best], d: dd[best] };
+  });
+  return { oc, octx, od, idx: Int32Array.from(idx), d: Float32Array.from(dd), ang: Float32Array.from(ang), maxD, pads };
 }
 
-export function paintCircuit(C, waves, col) {
+export function paintCircuit(C, waves, col, beat = 0) {
   const { idx, d, ang, od, maxD } = C, data = od.data;
   if (C.col !== col) { C.col = col; for (const i of idx) { data[i * 4] = col[0]; data[i * 4 + 1] = col[1]; data[i * 4 + 2] = col[2]; } }
   for (let k = 0; k < idx.length; k++) {
@@ -50,13 +59,14 @@ export function paintCircuit(C, waves, col) {
       if (w.kind === 'in') {
         let da = ang[k] - w.ang; da = Math.abs(Math.atan2(Math.sin(da), Math.cos(da)));
         if (da > .62) continue;
-        const front = maxD * (1 - u);
+        const front = w.from * (1 - u);
         I += Math.exp(-(((dk - front) / 9) ** 2)) * (1 - da / .62) * w.gain;
       } else {
         const front = u * maxD * 1.05, x = (dk - front) / 12;
         I += (Math.exp(-x * x) + (dk < front ? .22 * Math.exp(-(front - dk) / 55) : 0)) * Math.pow(1 - u, .6) * w.gain;
       }
     }
+    if (beat > .01 && dk < 150) I += beat * .3 * (1 - dk / 300);
     data[idx[k] * 4 + 3] = I > 1 ? 255 : I * 255;
   }
   C.octx.putImageData(od, 0, 0);
