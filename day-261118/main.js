@@ -42,28 +42,30 @@ function layout() {
   const x0 = W < 640 ? 22 : 40, x1 = W - (W < 640 ? 22 : 230), sy = H - strip, ly = sy + 50;
   const socks = Array.from({ length: SLOTS }, (_, i) => ({ x: x0 + (i + .5) / SLOTS * (x1 - x0), y: ly + 34 }));
   L = { strip, bx, by, bw, bh, cx, cy, R, pads, x0, x1, sy, ly, socks, pr: clamp(R * .05, 7, 11) };
-  if (C) pads.forEach(p => { [p.lx, p.ly] = labelSpot(p); });
+  if (C) { const taken = []; pads.forEach(p => { [p.lx, p.ly] = labelSpot(p, taken); }); }
 }
 
-function labelSpot(p) {
-  const { busy, MW, MH } = C, fs = clamp(L.R * .07, 12, 16), bwid = fs * 2.6, bht = fs * 2;
+function labelSpot(p, taken) {
+  const { busy, MW, MH } = C, fs = clamp(L.R * .07, 12, 16), bwid = fs * 2.9, bht = fs * 2.2;
   const cover = (x, y) => {
     let n = 0;
-    for (let j = 0; j < 5; j++) for (let i = 0; i < 6; i++) {
-      const sx = x - bwid / 2 + bwid * i / 5, sy = y - bht / 2 + bht * j / 4;
+    for (let j = 0; j <= 10; j++) for (let i = 0; i <= 12; i++) {
+      const sx = x - bwid / 2 + bwid * i / 12, sy = y - bht / 2 + bht * j / 10;
       const u = Math.floor((sx - L.bx) / L.bw * MW), v = Math.floor((sy - L.by) / L.bh * MH);
-      if (u < 0 || v < 0 || u >= MW || v >= MH) { n += 2; continue; }
-      if (busy[v * MW + u]) n++;
+      if (u < 1 || v < 1 || u >= MW - 1 || v >= MH - 1) { n += 3; continue; }
+      if (busy[v * MW + u] || busy[v * MW + u + 1] || busy[v * MW + u - 1] || busy[(v + 1) * MW + u] || busy[(v - 1) * MW + u]) n++;
     }
+    for (const [tx, ty] of taken) if (Math.abs(tx - x) < bwid && Math.abs(ty - y) < bht) n += 50;
+    for (const q of L.pads) if (Math.abs(q.x - x) < bwid / 2 + L.pr + 2 && Math.abs(q.y - y) < bht / 2 + L.pr + 2) n += 50;
     return n;
   };
   let best = null, bs = 1e9;
-  for (let k = 0; k < 16; k++) {
-    const a = k / 16 * Math.PI * 2, rr = L.pr + fs * 1.9, x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr * .8;
-    let da = a - p.a; da = Math.abs(Math.atan2(Math.sin(da), Math.cos(da)));
-    const sc = cover(x, y) * 3 + da;
+  for (let ring = 0; ring < 7; ring++) for (let k = 0; k < 32; k++) {
+    const a = k / 32 * Math.PI * 2, rr = L.pr + fs * (1.6 + ring * .7), x = p.x + Math.cos(a) * rr, y = p.y + Math.sin(a) * rr * .85;
+    const sc = cover(x, y) * 10 + ring * 3;
     if (sc < bs) { bs = sc; best = [x, y]; }
   }
+  taken.push(best);
   return best;
 }
 
@@ -170,8 +172,13 @@ function frame(t) {
     const sg = ctx.createRadialGradient(p.x - r * .28, p.y - r * .32, r * .05, p.x, p.y, r * .8);
     sg.addColorStop(0, '#ffffff'); sg.addColorStop(.35, lit > .05 ? '#fff4d6' : '#d5dbe1'); sg.addColorStop(1, '#6f7884');
     ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(p.x, p.y, r * .74, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = 'rgba(226,230,228,.55)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(p.x, p.y, r + 4, 0, Math.PI * 2); ctx.stroke();
     const fs = clamp(L.R * .07, 12, 16), lx = p.lx ?? p.x, lyy = p.ly ?? p.y;
+    const ldx = lx - p.x, ldy = lyy - p.y, ld = Math.hypot(ldx, ldy);
+    if (ld > fs * 2.6) {
+      const ux = ldx / ld, uy = ldy / ld;
+      ctx.strokeStyle = 'rgba(226,230,228,.55)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(p.x + ux * (r + 3), p.y + uy * (r + 3)); ctx.lineTo(lx - ux * fs * 1.25, lyy - uy * fs * 1.05); ctx.stroke();
+    }
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.font = `500 ${fs}px ${KR}`;
     ctx.fillStyle = 'rgba(226,230,228,.22)'; ctx.fillText(n.k, lx + .6, lyy - fs * .35 + .6);
