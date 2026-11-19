@@ -1,4 +1,5 @@
 import { unlock, play as sound, now } from './audio.js';
+import { buildCircuit, paintCircuit } from './circuit.js?v=4';
 
 const NOTES = [
   { k: '쿵', n: 'HB', f: 0, type: 'thump' },
@@ -10,7 +11,15 @@ const NOTES = [
   { k: '톡', n: 'D6', f: 1174.7, type: 'tok' },
   { k: '뽕', n: 'FX', f: 900, type: 'pop' },
 ];
-const SLOTS = 5, STEP = .38;
+const SLOTS = 5, LEAD = .3;
+const CASES = [
+  { t: '심쿵', d: '길에서 댕냥이를 만났다', chips: [3, 0, 7, 4], step: .3, idle: .9, col: [255, 196, 214] },
+  { t: '이상형', d: '천년의 이상형을 만났다', chips: [0, 0, 1, 2, 5], step: .19, idle: .45, col: [255, 150, 130] },
+  { t: '힐링', d: '요가 매트 위, 느긋한 오후', chips: [1, 4, 2], step: .72, idle: 1.7, col: [170, 236, 205] },
+  { t: '이슈', d: '큰일났다, 이슈가 터졌다', chips: [6, 0, 6, 0, 6], step: .15, idle: .38, col: [255, 96, 84] },
+  { t: '찌릿', d: '심장이 찌릿, 아련한 밤', chips: [5, 3, 1], step: .55, idle: 1.3, col: [160, 200, 255] },
+];
+let cs = 0, STEP = CASES[0].step;
 const GOLD = '#e7c36a', SILK = '#e8eef4';
 const MONO = '"Share Tech Mono", monospace', KR = '"Noto Sans KR", sans-serif';
 
@@ -20,12 +29,12 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const ease = t => { t = clamp(t, 0, 1); return t * t * (3 - 2 * t); };
 
 let W = 0, H = 0, DPR = 1, L = null, last = performance.now(), T = 0, idle = 0;
-let chips = [1, 2], beat = 0, hover = -1, run = null, name = '', nameT = 0;
+let chips = CASES[0].chips.slice(), beat = 0, hover = -1, run = null, name = '', nameT = 0;
 const padLit = new Array(NOTES.length).fill(0), chipLit = new Array(SLOTS).fill(0);
-let pulses = [], stamps = [];
+let waves = [], queue = [], stamps = [], C = null;
 
 function layout() {
-  const strip = W < 640 ? 150 : 132, top = 44, ah = H - strip - top;
+  const strip = W < 640 ? 150 : 132, top = W < 640 ? 118 : 64, ah = H - strip - top;
   const IW = img.naturalWidth || 2100, IH = img.naturalHeight || 1409;
   const k = Math.min(ah / IH, Math.max(W / IW, (W - 90) / (.872 * IH))), bw = IW * k, bh = IH * k, bx = (W - bw) / 2, by = top + (ah - bh) / 2;
   const cx = bx + bw * .5, cy = by + bh * .504, R = bh * .436;
@@ -44,20 +53,22 @@ function fire(ni, si) {
   const n = NOTES[ni];
   beat = Math.max(beat, n.type === 'thump' ? 1.3 : .85);
   padLit[ni] = 1; if (si >= 0) chipLit[si] = 1;
-  pulses.push({ p: ni, t: 0 }); stamps.push({ ch: n.k, t: 0 });
+  stamps.push({ ch: n.k, t: 0 }); waves.push({ kind: 'out', t: 0, dur: .8, gain: n.type === 'thump' ? 1.2 : .9 });
 }
 
+function inWave(ni) { waves.push({ kind: 'in', t: 0, dur: LEAD, ang: L.pads[ni].a, gain: 1 }); padLit[ni] = .6; }
+
 function addChip(ni) {
-  unlock(); sound(NOTES[ni]); fire(ni, -1);
+  unlock(); sound(NOTES[ni], now() + LEAD); inWave(ni); queue.push({ at: T + LEAD, ni, si: -1 });
   if (chips.length < SLOTS) { chips.push(ni); name = ''; } else chipLit.fill(.6);
 }
 
 function startRun() {
   if (!chips.length) return;
   unlock();
-  const t0 = now() + .06, dur = SLOTS * STEP;
+  const t0 = now() + LEAD, dur = SLOTS * STEP;
   chips.forEach((ni, i) => sound(NOTES[ni], t0 + (i + .5) * STEP));
-  run = { t: -.06, dur, fired: new Set() };
+  run = { t: -LEAD, dur, started: new Set(), fired: new Set() };
   name = ''; stamps = [];
 }
 
@@ -78,16 +89,11 @@ function drawWave(xa, xb, style, lw) {
   ctx.strokeStyle = style; ctx.lineWidth = lw; ctx.stroke();
 }
 
-function padPath(p) {
-  const a = L.pads[p].a, mx = L.cx + Math.cos(a) * L.R * .58, my = L.cy + Math.sin(a) * L.R * .58;
-  return [[L.pads[p].x, L.pads[p].y], [mx, my], [L.cx + Math.cos(a) * L.R * .2, L.cy + Math.sin(a) * L.R * .2]];
-}
-
-function along(path, u) {
-  const segs = path.slice(1).map((p, i) => Math.hypot(p[0] - path[i][0], p[1] - path[i][1])), tot = segs.reduce((a, b) => a + b, 0);
-  let d = u * tot;
-  for (let i = 0; i < segs.length; i++) { if (d <= segs[i]) { const f = d / segs[i]; return [path[i][0] + (path[i + 1][0] - path[i][0]) * f, path[i][1] + (path[i + 1][1] - path[i][1]) * f]; } d -= segs[i]; }
-  return path[path.length - 1];
+function setCase(i) {
+  cs = i; STEP = CASES[i].step; chips = CASES[i].chips.slice(); name = ''; run = null; queue = [];
+  document.querySelectorAll('#cases button').forEach((b, j) => b.classList.toggle('on', j === i));
+  document.getElementById('cdesc').textContent = `CASE 0${i + 1} — ${CASES[i].d}`;
+  startRun();
 }
 
 function partName() {
@@ -102,13 +108,17 @@ function frame(t) {
   if (run) {
     run.t += dt;
     const u = run.t / run.dur;
-    chips.forEach((ni, i) => { if (!run.fired.has(i) && run.t >= (i + .5) * STEP) { run.fired.add(i); fire(ni, i); } });
+    chips.forEach((ni, i) => {
+      if (!run.started.has(i) && run.t >= (i + .5) * STEP - LEAD) { run.started.add(i); inWave(ni); }
+      if (!run.fired.has(i) && run.t >= (i + .5) * STEP) { run.fired.add(i); fire(ni, i); }
+    });
     if (u >= 1.08) { run = null; name = partName(); nameT = 0; }
-  } else if ((idle += dt) > 1.1) { idle = 0; beat = Math.max(beat, .22); }
+  } else if ((idle += dt) > CASES[cs].idle) { idle = 0; beat = Math.max(beat, .22); waves.push({ kind: 'out', t: 0, dur: .9, gain: .3 }); }
+  queue = queue.filter(q => { if (T >= q.at) { fire(q.ni, q.si); return false; } return true; });
   beat *= Math.exp(-4.5 * dt);
   for (let i = 0; i < padLit.length; i++) padLit[i] *= Math.exp(-3 * dt);
   for (let i = 0; i < SLOTS; i++) chipLit[i] *= Math.exp(-3 * dt);
-  pulses.forEach(p => p.t += dt); pulses = pulses.filter(p => p.t < .6);
+  waves.forEach(w => w.t += dt); waves = waves.filter(w => w.t < w.dur);
   stamps.forEach(s => s.t += dt); stamps = stamps.filter(s => s.t < .9);
   nameT += dt;
 
@@ -126,20 +136,19 @@ function frame(t) {
     }
   }
 
-  for (const p of pulses) {
-    const path = padPath(p.p), u = ease(p.t / .4), a = 1 - clamp((p.t - .3) / .3, 0, 1);
-    ctx.beginPath(); path.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y));
-    ctx.strokeStyle = `rgba(231,195,106,${.35 * a})`; ctx.lineWidth = 2; ctx.stroke();
-    const [hx, hy] = along(path, u);
-    ctx.fillStyle = `rgba(255,236,170,${a})`; ctx.shadowColor = GOLD; ctx.shadowBlur = 14;
-    ctx.beginPath(); ctx.arc(hx, hy, 3.5, 0, Math.PI * 2); ctx.fill(); ctx.shadowBlur = 0;
+  if (C && waves.length) {
+    paintCircuit(C, waves, CASES[cs].col);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    ctx.drawImage(C.oc, L.bx, L.by, L.bw, L.bh);
+    ctx.globalAlpha = .5; ctx.drawImage(C.oc, L.bx - 1, L.by - 1, L.bw + 2, L.bh + 2);
+    ctx.restore();
   }
 
   for (const s of stamps) {
     const a = s.t < .08 ? s.t / .08 : 1 - clamp((s.t - .2) / .7, 0, 1), sc = 1 + .18 * (1 - ease(s.t / .25));
     ctx.save(); ctx.translate(L.cx, L.cy); ctx.scale(sc, sc);
     ctx.font = `900 ${L.R * .62}px ${KR}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = `rgba(232,238,244,${.88 * a})`; ctx.fillText(s.ch, 0, L.R * .04);
+    const cc = CASES[cs].col; ctx.fillStyle = `rgba(${cc[0]},${cc[1]},${cc[2]},${.9 * a})`; ctx.fillText(s.ch, 0, L.R * .04);
     ctx.restore();
   }
 
@@ -162,7 +171,7 @@ function frame(t) {
   drawWave(L.x0, L.x1, 'rgba(231,195,106,.45)', 1.4);
   if (run) {
     const cx = L.x0 + clamp(run.t / run.dur, 0, 1) * (L.x1 - L.x0);
-    ctx.shadowColor = GOLD; ctx.shadowBlur = 10; drawWave(L.x0, cx, '#ffe7a6', 2.2); ctx.shadowBlur = 0;
+    const cc = `rgb(${CASES[cs].col.join(',')})`; ctx.shadowColor = cc; ctx.shadowBlur = 10; drawWave(L.x0, cx, cc, 2.2); ctx.shadowBlur = 0;
     const y = L.ly - wave(cx) * L.strip * .2;
     ctx.fillStyle = '#fff6d8'; ctx.beginPath(); ctx.arc(cx, y, 4, 0, Math.PI * 2); ctx.fill();
   }
@@ -205,6 +214,9 @@ cv.addEventListener('pointermove', e => {
   cv.style.cursor = h && (h.pad !== undefined || chips[h.sock] !== undefined) ? 'pointer' : 'default';
 });
 document.getElementById('play').onclick = startRun;
+CASES.forEach((c, i) => { const b = document.createElement('button'); b.textContent = `0${i + 1} ${c.t}`; b.onclick = () => setCase(i); document.getElementById('cases').append(b); });
+document.querySelectorAll('#cases button')[0].classList.add('on');
+document.getElementById('cdesc').textContent = `CASE 01 — ${CASES[0].d}`;
 document.getElementById('clear').onclick = () => { if (!run) { chips = []; name = ''; } };
 addEventListener('keydown', e => {
   if (e.key === ' ') { e.preventDefault(); startRun(); }
@@ -212,6 +224,7 @@ addEventListener('keydown', e => {
   else if (e.key >= '1' && e.key <= '8') addChip(+e.key - 1);
 });
 addEventListener('resize', resize);
-img.onload = layout;
+img.onload = () => { layout(); C = buildCircuit(img); };
+if (img.complete && img.naturalWidth) C = buildCircuit(img);
 document.fonts.load(`700 16px ${KR}`, '쿵두근띠링딩톡뽕').finally(() => { resize(); });
 requestAnimationFrame(frame);

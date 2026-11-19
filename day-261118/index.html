@@ -11,17 +11,23 @@
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
   #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; opacity: .8; z-index: 2; pointer-events: none; }
   #top a { color: inherit; text-decoration: none; pointer-events: auto; }
+  #sel { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; z-index: 3; }
+  #cases { display: flex; gap: 4px; }
+  #cases button { background: transparent; color: rgba(232,238,244,.7); border: 1px solid rgba(232,238,244,.25); font: 12px 'Share Tech Mono', 'Noto Sans KR', monospace; padding: 4px 9px; cursor: pointer; }
+  #cases button.on { color: #03162f; background: #e7c36a; border-color: #e7c36a; }
+  #cdesc { font: 11px 'Share Tech Mono', 'Noto Sans KR', monospace; letter-spacing: .08em; opacity: .7; }
   #ctl { position: fixed; right: 26px; bottom: 49px; display: flex; gap: 8px; z-index: 2; }
   #ctl button { background: transparent; color: #e8eef4; border: 1px solid rgba(232,238,244,.45); font: 13px 'Share Tech Mono', 'Noto Sans KR', monospace; letter-spacing: .1em; padding: 8px 14px; cursor: pointer; }
   #ctl button:hover { background: rgba(232,238,244,.1); }
   #ctl #play { border-color: #e7c36a; color: #f3d98f; }
-  @media (max-width: 639px) { #ctl { top: 40px; bottom: auto; right: 18px; } #ctl button { padding: 6px 10px; font-size: 12px; } }
+  @media (max-width: 639px) { #sel { top: 38px; width: calc(100% - 24px); } #cases button { padding: 4px 6px; font-size: 11px; } #ctl { top: 82px; bottom: auto; right: 18px; } #ctl button { padding: 6px 10px; font-size: 12px; } }
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
 <header id="top"><span>두근 회로 · HB-NOTIFIER REV.1</span><a href="../index.html">← INDEX</a></header>
+<nav id="sel"><div id="cases"></div><div id="cdesc"></div></nav>
 <div id="ctl"><button id="play">▶ PLAY</button><button id="clear">CLEAR</button></div>
-<script type="module" src="main.js?v=3"></script>
+<script type="module" src="main.js?v=5"></script>
 </body>
 </html>
