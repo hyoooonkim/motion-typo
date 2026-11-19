@@ -3,16 +3,16 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 20;
+const VER = 21;
 const PEOPLE = [
   { k: 'kr', who: '준호 · 서울', mat: 'gold', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
   { k: 'wa', who: '코피 · 아크라', mat: 'stone', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
-  { k: 'no', who: '잉리드 · 오슬로', mat: 'glass', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
+  { k: 'no', who: '잉리드 · 오슬로', mat: 'jelly', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
 ];
 const MATS = {
   stone: { rough: .9, metal: 0, radius: .2, jag: .07, cuts: 7, rock: true, shapes: [[4, 3, .22], [3, 3, .18], [4, 2, .16], [3, 2, .22], [2, 2, .16], [2, 1, .06]], tint: .55, hgt: .9, seg: 10, nrm: 3.2, ao: .6, inRough: .98 },
   gold: { rough: .16, metal: 1, radius: .07, jag: 0, seg: 4, nrm: 2.2, ao: .3, inRough: .42, hgt: .05, flat: '#f1b53a', flatMix: .8, envI: 1.25, studio: true, bars: true, taper: .1, phys: { clearcoat: .25, clearcoatRoughness: .08 } },
-  glass: { rough: .16, metal: 0, radius: .12, jag: 0, seg: 5, nrm: .9, ao: -.35, inRough: .85, phys: { transmission: .9, thickness: .9, ior: 1.5, attenuationColor: new THREE.Color('#8fd6cf'), attenuationDistance: 1.4 } },
+  jelly: { tex: 'glass', rough: .05, metal: 0, rock: true, jelly: true, shapes: [[4, 3, .2], [3, 3, .25], [3, 2, .2], [2, 2, .25], [2, 1, .1]], nrm: 1.2, ao: .7, inRough: .25, hgt: .005, flat: '#9ff5e2', flatMix: .97, phys: { transmission: 1, thickness: .55, ior: 1.33, attenuationColor: new THREE.Color('#5fe0c8'), attenuationDistance: 1.4, clearcoat: 1, clearcoatRoughness: .03, iridescence: .25, iridescenceIOR: 1.3, emissive: new THREE.Color('#1c9e88'), emissiveIntensity: .28, sheen: .6, sheenColor: new THREE.Color('#d8fff6') } },
 };
 
 
@@ -36,6 +36,7 @@ const key = new THREE.DirectionalLight(0xfff2e0, 2.6); key.position.set(-3, 4.5,
 key.castShadow = true; key.shadow.mapSize.set(2048, 2048); key.shadow.bias = -.0004; key.shadow.normalBias = .02; key.shadow.radius = 4;
 Object.assign(key.shadow.camera, { left: -2.6, right: 2.6, top: 2.6, bottom: -2.6, near: 1, far: 15 });
 const rim = new THREE.DirectionalLight(0x9fb6ff, 1.2); rim.position.set(4, 1, -3); scene.add(rim);
+const back = new THREE.DirectionalLight(0xe8fff8, 1.6); back.position.set(-1, 2, -5); scene.add(back);
 scene.add(new THREE.AmbientLight(0xffffff, .25));
 
 
@@ -254,17 +255,17 @@ function vnoise(x, y, z) {
   return L(L(L(c(0, 0, 0), c(1, 0, 0), sx), L(c(0, 1, 0), c(1, 1, 0), sx), sy), L(L(c(0, 0, 1), c(1, 0, 1), sx), L(c(0, 1, 1), c(1, 1, 1), sx), sy), sz) * 2 - 1;
 }
 const fbm = (x, y, z, o = 4) => { let a = 0, f = 1, w = .5; for (let i = 0; i < o; i++) { a += w * vnoise(x * f, y * f, z * f); f *= 2.03; w *= .5; } return a; };
-function buildRock(cube, mat, cell) {
-  const rx = cube.w * .5, ry = cube.h * .5, rz = cube.d * .47, g = new THREE.IcosahedronGeometry(1, 24), pos = g.attributes.position, uv = g.attributes.uv, o = rnd() * 50;
-  const cuts = Array.from({ length: 3 + Math.floor(rnd() * 4) }, () => [V(rnd() - .5, (rnd() - .5) * 1.4, rnd() - .75).normalize(), .78 + rnd() * .14]);
+function buildRock(cube, mat, cell, M) {
+  const J = M.jelly, rx = cube.w * .5, ry = cube.h * .5, rz = cube.d * (J ? .52 : .47), g = new THREE.IcosahedronGeometry(1, 24), pos = g.attributes.position, uv = g.attributes.uv, o = rnd() * 50;
+  const cuts = Array.from({ length: J ? 0 : 3 + Math.floor(rnd() * 4) }, () => [V(rnd() - .5, (rnd() - .5) * 1.4, rnd() - .75).normalize(), .78 + rnd() * .14]);
   const cu = c => [(c % G) / G, 1 - (Math.floor(c / G) + 1) / G], q = V(0, 0, 0);
   for (let i = 0; i < pos.count; i++) {
     q.set(pos.getX(i), pos.getY(i), pos.getZ(i)).normalize();
-    let r = 1 + .16 * fbm(q.x * 1.1 + o, q.y * 1.1, q.z * 1.1) + .045 * fbm(q.x * 4 + o, q.y * 4, q.z * 4) + .012 * fbm(q.x * 14, q.y * 14 + o, q.z * 14);
+    let r = J ? 1 + .24 * fbm(q.x * .85 + o, q.y * .85, q.z * .85, 3) + .012 * fbm(q.x * 2.4, q.y * 2.4 + o, q.z * 2.4, 2) : 1 + .16 * fbm(q.x * 1.1 + o, q.y * 1.1, q.z * 1.1) + .045 * fbm(q.x * 4 + o, q.y * 4, q.z * 4) + .012 * fbm(q.x * 14, q.y * 14 + o, q.z * 14);
     q.multiplyScalar(r);
     for (const [n, k] of cuts) { const e = q.dot(n) - k; if (e > 0) q.addScaledVector(n, -e * .92); }
-    if (q.y < -.72) q.y = -.72 - (q.y + .72) * .15;
-    if (q.z > .82) q.z = .82 + (q.z - .82) * .3;
+    if (J) { const sag = clamp((-q.y - .1) / .7, 0, 1); q.x *= 1 + .16 * sag; q.z *= 1 + .12 * sag; if (q.y < -.6) q.y = -.6 - (q.y + .6) * .1; if (q.z > .9) q.z = .9 + (q.z - .9) * .5; }
+    else { if (q.y < -.72) q.y = -.72 - (q.y + .72) * .15; if (q.z > .82) q.z = .82 + (q.z - .82) * .3; }
     q.set(q.x * rx, q.y * ry, q.z * rz);
     pos.setXYZ(i, q.x, q.y, q.z);
     const front = q.z > rz * .25, [u0, v0] = cu(front ? cell : 0);
@@ -272,12 +273,26 @@ function buildRock(cube, mat, cell) {
     uv.setXY(i, u0 + clamp(fx * (front ? 1.12 : 1) + .5, .015, .985) / G, v0 + clamp(fy * (front ? 1.12 : 1) + .5, .015, .985) / G);
   }
   g.computeVertexNormals(); g.computeBoundingBox();
-  const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; cube.block = m;
+  const m = new THREE.Mesh(g, J ? jellyMat(mat, cube) : mat); m.castShadow = m.receiveShadow = true; cube.block = m;
   m.rotation.set((rnd() - .5) * .1, (rnd() - .5) * .3, (rnd() - .5) * .14); return m;
+}
+function jellyMat(base, cube) {
+  const m = base.clone(), u = { uT: { value: 0 }, uJ: { value: .05 }, uS: { value: Math.min(cube.w, cube.h) } };
+  m.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, u);
+    sh.vertexShader = 'uniform float uT, uJ, uS;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float jw = sin(dot(position, vec3(7.1, 9.3, 5.7)) / uS + uT * 9.0) + .5 * sin(dot(position, vec3(-4.3, 6.1, 8.9)) / uS - uT * 13.0);
+      transformed += objectNormal * jw * uJ * uS * .05;
+      float sq = sin(uT * 10.0) * uJ;
+      transformed.y = (transformed.y + uS * .5) * (1.0 - sq * .1) - uS * .5;
+      transformed.xz *= 1.0 + sq * .06;`);
+  };
+  cube.ju = u; cube.jig = 0; cube.jph = Math.random() * 9;
+  return m;
 }
 
 function buildBlock(cube, P, mat, cell) {
-  if (MATS[P.mat].rock) return buildRock(cube, mat, cell);
+  if (MATS[P.mat].rock) return buildRock(cube, mat, cell, MATS[P.mat]);
   const M = MATS[P.mat], bw = cube.w * .92, bh = cube.h * .92, bd = cube.d * .92, sz = Math.min(bw, bh, bd), g = new RoundedBoxGeometry(bw, bh, bd, M.seg, sz * M.radius);
   const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv, off = rnd() * 9;
   const sq = M.cuts ? V(1.08 + rnd() * .1, .76 + rnd() * .2, .95 + rnd() * .1) : V(1, 1, 1);
@@ -368,7 +383,7 @@ async function load(i) {
   cur = i; const P = PEOPLE[i];
   [...ui.people.children].forEach((b, j) => b.classList.toggle('on', j === i)); ui.who.textContent = P.who;
   await Promise.all([document.fonts.load(`900 150px 'Noto Sans KR'`, P.core + P.words.join('') + P.en), document.fonts.load(`900 100px 'Noto Serif KR'`, P.core + P.words.join('') + P.en + 'FINE GOLD 999.9 KILO'), document.fonts.load(`500 40px 'IBM Plex Mono'`, 'KR0123456789')]);
-  const [img, base] = await Promise.all([loadImg(`bust-${P.k}.jpg`), loadImg(`mat-${P.mat}.jpg`)]);
+  const [img, base] = await Promise.all([loadImg(`bust-${P.k}.jpg`), loadImg(`mat-${MATS[P.mat].tex || P.mat}.jpg`)]);
   if (person) { world.remove(person.grp); dispose(person.grp); }
   seed = 11 + i * 31;
   person = buildPerson(P, img, base); world.add(person.grp);
@@ -393,6 +408,21 @@ function finale(p) {
   p.pm.transparent = true; p.pm.depthWrite = false; p.pm.needsUpdate = true;
 }
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function poke(e) {
+  if (!person || !person.ending || !MATS[person.P.mat].jelly) return false;
+  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
+  const h = ray.intersectObjects(person.cubes.map(c => c.block), false)[0];
+  if (!h) return false;
+  const c = person.cubes.find(c => c.block === h.object); c.jig = 1;
+  for (const o of person.cubes) if (o !== c && Math.hypot(o.node.position.x - c.node.position.x, o.node.position.y - c.node.position.y) < (o.s + c.s) * .7) o.jig = Math.max(o.jig, .45);
+  boing(c.s); return true;
+}
+function boing(s) {
+  if (!ac) rustle(0);
+  const o = ac.createOscillator(), g = ac.createGain(), t = ac.currentTime, f = 260 / (.6 + s);
+  o.type = 'sine'; o.frequency.setValueAtTime(f * 1.6, t); o.frequency.exponentialRampToValueAtTime(f * .7, t + .25);
+  g.gain.setValueAtTime(.18, t); g.gain.exponentialRampToValueAtTime(.001, t + .35); o.connect(g); g.connect(ac.destination); o.start(t); o.stop(t + .4);
+}
 function pick(e) {
   if (!person || person.ending) return null;
   ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
@@ -410,6 +440,7 @@ function rub({ p, c, s }) {
 let mode = null, lx = 0, ly = 0, idle = 0, lastRub = 0;
 cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId); lx = e.clientX; ly = e.clientY; idle = 0;
+  if (poke(e)) { mode = 'poke'; return; }
   const h = pick(e); mode = h ? 'peel' : 'turn'; if (h) rub(h);
 });
 cv.addEventListener('pointermove', e => {
@@ -434,11 +465,12 @@ renderer.setAnimationLoop(() => {
       if (p.ending) { c.mesh.position.y = -.3 * fade * fade; c.mesh.visible = fade < 1; c.mesh.castShadow = fade < .5; }
     }
     if (p.ending) p.pm.opacity = 1 - fade;
+    for (const c of p.cubes) if (c.ju) { c.jig *= Math.exp(-dt * 2.2); c.ju.uJ.value = .06 + c.jig; c.ju.uT.value = time + c.jph; }
     if (t > 1.3) {
       if (!p.settled) settle(p);
       for (const c of p.cubes) {
         const n = c.node;
-        if (n.position.y > c.ty) { c.vy = (c.vy || 0) + 9 * dt; n.position.y = Math.max(c.ty, n.position.y - c.vy * dt); if (n.position.y === c.ty && c.vy > .4) { rustle(.08); c.vy = 0; } }
+        if (n.position.y > c.ty) { c.vy = (c.vy || 0) + 9 * dt; n.position.y = Math.max(c.ty, n.position.y - c.vy * dt); if (n.position.y === c.ty && c.vy > .4) { if (c.ju) { c.jig = Math.min(1, .35 + c.vy * .4); } else rustle(.08); c.vy = 0; } }
         else n.position.y += (c.ty - n.position.y) * k;
       }
     }
