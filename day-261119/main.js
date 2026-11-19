@@ -3,17 +3,17 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
 import { PROFILE } from './bust.js?v=1';
 
-const VER = 17;
+const VER = 18;
 const PEOPLE = [
-  { k: 'kr', who: '준호 · 서울', mat: 'gold', words: ['승진', '인정', '연봉', '더빨리', '증명'], core: '성공', en: 'SUCCESS' },
-  { k: 'wa', who: '코피 · 아크라', mat: 'stone', words: ['이름', '약속', '가문', '부끄럼없이', '지킨다'], core: '명예', en: 'HONOR' },
+  { k: 'kr', who: '준호 · 서울', mat: 'gold', words: ['승진', '인정', '연봉', '더 빨리', '증명'], core: '성공', en: 'SUCCESS' },
+  { k: 'wa', who: '코피 · 아크라', mat: 'stone', words: ['이름', '약속', '가문', '부끄럼 없이', '지킨다'], core: '명예', en: 'HONOR' },
   { k: 'la', who: '루시아 · 보고타', mat: 'wax', words: ['그리움', '편지', '너', '다시', '안아줘'], core: '사랑', en: 'LOVE' },
   { k: 'no', who: '잉리드 · 오슬로', mat: 'glass', words: ['고요', '숲', '혼자', '멀리', '바람'], core: '자유', en: 'FREEDOM' },
   { k: 'in', who: '라젠드라 · 자이푸르', mat: 'wood', words: ['손주', '밥상', '집', '함께', '돌아와'], core: '가족', en: 'FAMILY' },
 ];
 const MATS = {
-  stone: { rough: .93, metal: 0, radius: .36, jag: .1, tint: .78, seg: 7, nrm: 2.2, ao: .55, inRough: .98 },
-  gold: { rough: .2, metal: 1, radius: .05, jag: 0, seg: 4, nrm: 1.4, ao: .4, inRough: .55 },
+  stone: { rough: .9, metal: 0, radius: .2, jag: .07, cuts: 7, tint: .55, hgt: .9, seg: 10, nrm: 3.2, ao: .6, inRough: .98 },
+  gold: { rough: .13, metal: 1, radius: .03, jag: 0, seg: 4, nrm: 1.6, ao: .35, inRough: .5, hgt: .05, flat: '#e6b04a', flatMix: .85, envI: 1.15, studio: true, phys: { clearcoat: .25, clearcoatRoughness: .08 } },
   wood: { rough: .62, metal: 0, radius: .05, jag: .004, seg: 4, nrm: 1.6, ao: .5, inRough: .8 },
   wax: { rough: .48, metal: 0, radius: .2, jag: .012, seg: 6, nrm: 1.2, ao: .3, inRough: .62, phys: { transmission: .18, thickness: 1.2, attenuationColor: new THREE.Color('#e88a9c'), attenuationDistance: .6, sheen: .4, sheenColor: new THREE.Color('#ffd0d8') } },
   glass: { rough: .16, metal: 0, radius: .12, jag: 0, seg: 5, nrm: .9, ao: -.35, inRough: .85, phys: { transmission: .9, thickness: .9, ior: 1.5, attenuationColor: new THREE.Color('#8fd6cf'), attenuationDistance: 1.4 } },
@@ -26,7 +26,14 @@ renderer.setPixelRatio(Math.min(2, devicePixelRatio));
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 const scene = new THREE.Scene();
 scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), .04).texture;
-scene.environmentIntensity = .55;
+scene.environmentIntensity = .7;
+const STUDIO = (() => {
+  const sc = new THREE.Scene(), box = (w, h, x, y, z, c, i) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshBasicMaterial({ color: new THREE.Color(c).multiplyScalar(i), side: THREE.DoubleSide })); m.position.set(x, y, z); m.lookAt(0, 0, 0); sc.add(m); };
+  sc.background = new THREE.Color(.015, .014, .012);
+  box(6, 3, 0, 6, 1, '#fff', 5); box(1.2, 6, -5, 1, 2, '#fff6e8', 6); box(1.2, 6, 5, .5, -1, '#ffe2b0', 3.5);
+  box(8, 1, 0, -1.5, 5, '#fff', 1.6); box(3, 3, 2, 2, 5, '#fff', 2.6); box(12, 5, -1, 3.5, 6, '#fff3dc', 1.3); box(10, 2, 0, -5, 0, '#3a2a18', 1);
+  return new THREE.PMREMGenerator(renderer).fromScene(sc, .02).texture;
+})();
 const camera = new THREE.PerspectiveCamera(28, 1, .1, 50);
 renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 const key = new THREE.DirectionalLight(0xfff2e0, 2.6); key.position.set(-3, 4.5, 5); scene.add(key);
@@ -170,7 +177,7 @@ let seed = 1;
 const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
 const noise3 = (x, y, z) => Math.sin(x * 3.1 + y * 1.7) * Math.cos(y * 2.3 - z * 1.9) + .5 * Math.sin(z * 4.7 + x * 2.9) + .12 * Math.sin(x * 7.3 - z * 6.1 + y * 5.3);
 
-const G = 8, CS = 256, AW = G * CS;
+const G = 4, CS = 512, AW = G * CS;
 function canvas2() { const c = document.createElement('canvas'); c.width = c.height = AW; return [c, c.getContext('2d', { willReadFrequently: true })]; }
 function atlas(P, base, glyphs) {
   const M = MATS[P.mat], [cc, g] = canvas2(), [mc, gm] = canvas2(), [sc, gs] = canvas2(), [lc, gl] = canvas2();
@@ -178,25 +185,31 @@ function atlas(P, base, glyphs) {
   for (let i = 0; i < G * G; i++) {
     const x = (i % G) * CS, y = Math.floor(i / G) * CS, sz = 380 + rnd() * 120;
     g.drawImage(base, rnd() * (base.width - sz), rnd() * (base.height - sz), sz, sz, x, y, CS, CS);
-    const ch = glyphs[i - 1];
-    if (!ch) continue;
-    const fs = /[가-힣]/.test(ch) ? 150 : 170, jx = (rnd() - .5) * 6, jy = (rnd() - .5) * 6;
-    gm.save(); gm.translate(x + CS / 2 + jx, y + CS / 2 + 8 + jy); gm.rotate((rnd() - .5) * .05);
-    gm.font = `900 ${fs}px 'Noto Sans KR'`; gm.textAlign = 'center'; gm.textBaseline = 'middle'; gm.fillStyle = '#fff'; gm.fillText(ch, 0, 0); gm.restore();
+    if (M.flat) { g.globalAlpha = M.flatMix; g.fillStyle = M.flat; g.fillRect(x, y, CS, CS); g.globalAlpha = 1; }
+    const txt = glyphs[i - 1];
+    if (!txt) continue;
+    const lines = txt.split(' '), lh = 1.08;
+    gm.save(); gm.translate(x + CS / 2 + (rnd() - .5) * 8, y + CS / 2 + 14); gm.rotate((rnd() - .5) * .04);
+    gm.textAlign = 'center'; gm.textBaseline = 'middle'; gm.fillStyle = '#fff';
+    gm.font = `900 100px 'Noto Sans KR'`;
+    const wmax = Math.max(...lines.map(l => gm.measureText(l).width)), fs = Math.min(260, 100 * CS * .8 / wmax, CS * .78 / (lines.length * lh));
+    gm.font = `900 ${fs}px 'Noto Sans KR'`;
+    lines.forEach((l, j) => gm.fillText(l, 0, (j - (lines.length - 1) / 2) * fs * lh));
+    gm.restore();
   }
-  gs.filter = `blur(${P.mat === 'stone' ? 2.2 : 1.6}px)`; gs.drawImage(mc, 0, 0); gl.filter = 'blur(7px)'; gl.drawImage(mc, 0, 0);
+  gs.filter = `blur(${P.mat === 'stone' ? 4 : 3}px)`; gs.drawImage(mc, 0, 0); gl.filter = 'blur(13px)'; gl.drawImage(mc, 0, 0);
   const col = g.getImageData(0, 0, AW, AW), m = gs.getImageData(0, 0, AW, AW).data, ml = gl.getImageData(0, 0, AW, AW).data, cd = col.data;
   const H = new Float32Array(AW * AW);
   for (let i = 0, n = AW * AW; i < n; i++) {
     const lum = (cd[i * 4] * .3 + cd[i * 4 + 1] * .59 + cd[i * 4 + 2] * .11) / 255;
     let mk = m[i * 4] / 255;
     if (P.mat === 'stone' && mk > .05 && mk < .95) mk = clamp(mk + (Math.random() - .5) * .35, 0, 1);
-    H[i] = lum * .25 - mk * .9;
+    H[i] = lum * (M.hgt ?? .25) - mk * .9;
   }
   const [nc, gn] = canvas2(), nd = gn.createImageData(AW, AW), [rc, gr] = canvas2(), rd = gr.createImageData(AW, AW);
   for (let y = 0; y < AW; y++) for (let x = 0; x < AW; x++) {
     const i = y * AW + x, l = H[y * AW + Math.max(0, x - 1)], r = H[y * AW + Math.min(AW - 1, x + 1)], u = H[Math.max(0, y - 1) * AW + x], d = H[Math.min(AW - 1, y + 1) * AW + x];
-    let nx = (l - r) * M.nrm * 6, ny = (d - u) * M.nrm * 6, nz = 1; const L = Math.hypot(nx, ny, nz); nx /= L; ny /= L; nz /= L;
+    let nx = (l - r) * M.nrm * 9, ny = (d - u) * M.nrm * 9, nz = 1; const L = Math.hypot(nx, ny, nz); nx /= L; ny /= L; nz /= L;
     nd.data[i * 4] = (nx * .5 + .5) * 255; nd.data[i * 4 + 1] = (ny * .5 + .5) * 255; nd.data[i * 4 + 2] = (nz * .5 + .5) * 255; nd.data[i * 4 + 3] = 255;
     const mk = m[i * 4] / 255, ao = ml[i * 4] / 255 * .6 + mk * .4, lum = (cd[i * 4] + cd[i * 4 + 1] + cd[i * 4 + 2]) / 765;
     const k = (M.ao >= 0 ? 1 - M.ao * ao : 1) * (M.tint || 1), add = M.ao < 0 ? -M.ao * mk * 255 : 0;
@@ -206,24 +219,27 @@ function atlas(P, base, glyphs) {
   }
   g.putImageData(col, 0, 0); gn.putImageData(nd, 0, 0); gr.putImageData(rd, 0, 0);
   const T = (c, srgb) => { const t = new THREE.CanvasTexture(c); if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; return t; };
-  const mat = new THREE.MeshPhysicalMaterial({ map: T(cc, true), normalMap: T(nc), normalScale: new THREE.Vector2(1, 1), roughnessMap: T(rc), roughness: 1, metalness: M.metal, envMapIntensity: M.metal ? 1.4 : 1, ...(M.phys || {}) });
+  const mat = new THREE.MeshPhysicalMaterial({ map: T(cc, true), normalMap: T(nc), normalScale: new THREE.Vector2(1, 1), roughnessMap: T(rc), roughness: 1, metalness: M.metal, envMapIntensity: M.envI || 1, ...(M.studio ? { envMap: STUDIO } : {}), ...(M.phys || {}) });
   return mat;
 }
 
 function buildBlock(cube, P, mat, cell) {
   const M = MATS[P.mat], sz = cube.s * .92, g = new RoundedBoxGeometry(sz, sz, sz, M.seg, sz * M.radius);
   const pos = g.attributes.position, nor = g.attributes.normal, uv = g.attributes.uv, off = rnd() * 9;
-  const sq = M.jag > .03 ? V(1 + (rnd() - .5) * .14, .84 + rnd() * .14, .88 + rnd() * .1) : V(1, 1, 1);
+  const sq = M.cuts ? V(1.08 + rnd() * .1, .76 + rnd() * .2, .95 + rnd() * .1) : V(1, 1, 1);
+  const planes = Array.from({ length: M.cuts || 0 }, () => { const n = V(rnd() - .5, rnd() - .5, (rnd() - .5) * .6 - .25).normalize(); return [n, sz * (.38 + rnd() * .1)]; });
   const cu = c => [(c % G) / G, 1 - (Math.floor(c / G) + 1) / G];
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), nz = nor.getZ(i), front = nz > .5;
     const [u0, v0] = cu(front ? cell : 0), fx = front ? x : Math.abs(nor.getX(i)) > .5 ? z : x, fy = Math.abs(nor.getY(i)) > .5 ? z : y;
     uv.setXY(i, u0 + clamp(fx / sz + .5, .015, .985) / G, v0 + clamp(fy / sz + .5, .015, .985) / G);
-    const fq = M.jag > .03 ? 1.5 : 2.4, d = M.jag * sz * noise3(x / sz * fq + off, y / sz * fq, z / sz * fq - off) * (front ? .45 : 1);
-    pos.setXYZ(i, (x + nor.getX(i) * d) * sq.x, (y + nor.getY(i) * d) * sq.y, (z + nor.getZ(i) * d) * sq.z);
+    const fq = M.jag > .03 ? 1.5 : 2.4, d = (M.jag * noise3(x / sz * fq + off, y / sz * fq, z / sz * fq - off) + (M.cuts ? .012 * noise3(x / sz * 9 - off, y / sz * 9 + off, z / sz * 9) : 0)) * sz * (front ? .45 : 1);
+    const q = V((x + nor.getX(i) * d) * sq.x, (y + nor.getY(i) * d) * sq.y, (z + nor.getZ(i) * d) * sq.z);
+    for (const [n, o] of planes) { const e = q.dot(n) - o; if (e > 0) q.addScaledVector(n, -e); }
+    pos.setXYZ(i, q.x, q.y, q.z);
   }
-  g.computeVertexNormals();
-  const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true;
+  g.computeVertexNormals(); g.computeBoundingBox();
+  const m = new THREE.Mesh(g, mat); m.castShadow = m.receiveShadow = true; cube.block = m;
   m.rotation.set((rnd() - .5) * .06, (rnd() - .5) * .08, (rnd() - .5) * .06); return m;
 }
 
@@ -253,18 +269,24 @@ function packCubes(prof) {
 function buildPerson(P, img, base) {
   const grp = new THREE.Group(), cubes = packCubes(PROFILE[P.k]);
   cubes.sort((a, b) => b.iy + b.n * U / 2 - (a.iy + a.n * U / 2) || a.ix - b.ix);
-  const glyphs = [...(P.core + P.en + P.words.join('') + P.core + P.en)].filter(ch => ch.trim());
+  const texts = [P.core, P.en, ...P.words], cell = new Map();
+  const big = [...cubes].sort((a, b) => b.n - a.n || b.iy - a.iy).slice(0, texts.length).sort((a, b) => b.iy - a.iy || a.ix - b.ix);
+  big.forEach((cb, j) => cell.set(cb, j + 1));
+  let spare = texts.length + 1;
+  cubes.forEach(cb => { if (!cell.has(cb)) { cell.set(cb, spare < G * G ? spare : 0); spare = spare + 1 < G * G ? spare + 1 : texts.length + 1; } });
   const tex = new THREE.Texture(img); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8; tex.needsUpdate = true;
-  const pm = paperMat(tex), bm = atlas(P, base, glyphs.slice(0, Math.min(cubes.length, G * G - 1)));
+  const pm = paperMat(tex), bm = atlas(P, base, texts);
   cubes.forEach((cb, k) => {
     const node = new THREE.Group();
     node.position.set(cb.ix + (rnd() - .5) * .03, cb.iy + (rnd() - .5) * .02, -cb.s / 2 + (rnd() - .5) * .14 + (cb.n === 1 ? .05 : 0));
     node.rotation.set((rnd() - .5) * .05, (rnd() - .5) * .22, (rnd() - .5) * .06);
     const net = buildNet(cb, pm); net.castShadow = net.receiveShadow = true;
-    node.add(net, buildBlock(cb, P, bm, k < G * G - 1 ? k + 1 : 0));
+    node.add(net, buildBlock(cb, P, bm, cell.get(cb)));
     cb.node = node; grp.add(node);
   });
-  return { P, grp, cubes, pm, ending: 0 };
+  const floor = Math.min(...cubes.map(c => c.node.position.y - c.s / 2)) - .01;
+  const fl = new THREE.Mesh(new THREE.PlaneGeometry(9, 5), new THREE.ShadowMaterial({ opacity: .5 })); fl.rotation.x = -Math.PI / 2; fl.position.set(0, floor, -.4); fl.receiveShadow = true; grp.add(fl);
+  return { P, grp, cubes, pm, ending: 0, floor };
 }
 
 const world = new THREE.Group(); scene.add(world);
@@ -292,6 +314,17 @@ async function load(i) {
 PEOPLE.forEach((P, i) => { const b = document.createElement('button'); b.textContent = P.who.split(' · ')[1]; b.onclick = () => load(i); ui.people.append(b); });
 document.getElementById('again').onclick = () => load(cur);
 
+function settle(p) {
+  p.settled = true;
+  const bs = p.cubes.map(c => { const bb = c.block.geometry.boundingBox, n = c.node; return { c, x: n.position.x, z: n.position.z, hx: (bb.max.x - bb.min.x) / 2, hz: (bb.max.z - bb.min.z) / 2, lo: bb.min.y + c.block.position.y, hi: bb.max.y + c.block.position.y, y: n.position.y }; });
+  bs.sort((a, b) => a.y + a.lo - (b.y + b.lo));
+  const placed = [];
+  for (const b of bs) {
+    let rest = p.floor;
+    for (const q of placed) if (Math.abs(b.x - q.x) < (b.hx + q.hx) * .82 && Math.abs(b.z - q.z) < (b.hz + q.hz) * .95) rest = Math.max(rest, q.top);
+    b.c.ty = rest - b.lo + .003; b.top = b.c.ty + b.hi; placed.push(b);
+  }
+}
 const peeled = p => p.cubes.reduce((a, c) => a + c.p[0] + c.p[1], 0) / (p.cubes.length * 2);
 function finale(p) {
   p.ending = clock.elapsedTime; p.cubes.forEach(c => c.p[0] = c.p[1] = 1);
@@ -339,6 +372,14 @@ renderer.setAnimationLoop(() => {
       if (p.ending) { c.mesh.position.y = -.3 * fade * fade; c.mesh.visible = fade < 1; c.mesh.castShadow = fade < .5; }
     }
     if (p.ending) p.pm.opacity = 1 - fade;
+    if (t > 1.3) {
+      if (!p.settled) settle(p);
+      for (const c of p.cubes) {
+        const n = c.node;
+        if (n.position.y > c.ty) { c.vy = (c.vy || 0) + 9 * dt; n.position.y = Math.max(c.ty, n.position.y - c.vy * dt); if (n.position.y === c.ty && c.vy > .4) { rustle(.08); c.vy = 0; } }
+        else n.position.y += (c.ty - n.position.y) * k;
+      }
+    }
   }
   renderer.render(scene, camera);
 });
