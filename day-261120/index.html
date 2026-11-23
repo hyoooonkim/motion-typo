@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261120 — 손과 기계의 오차</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@500;900&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #efeadf; color: #1b2a44; font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; touch-action: none; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; z-index: 2; pointer-events: none; }
+  #top a { color: inherit; text-decoration: none; pointer-events: auto; }
+  #words { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); display: flex; gap: 4px; z-index: 3; }
+  #words button, #redraw { background: transparent; color: #1b2a44; border: 1px solid rgba(27,42,68,.35); font: 12px 'IBM Plex Mono', 'Noto Sans KR', monospace; padding: 4px 10px; cursor: pointer; }
+  #words button.on { color: #efeadf; background: #1b2a44; border-color: #1b2a44; }
+  #redraw { position: fixed; right: 18px; top: 44px; z-index: 3; letter-spacing: .08em; }
+  @media (max-width: 639px) { #words { top: 38px; } #redraw { top: 72px; } }
+</style>
+</head>
+<body>
+<header id="top"><span>손과 기계의 오차 · TOLERANCE</span><a href="../index.html">← INDEX</a></header>
+<nav id="words"></nav>
+<button id="redraw">↻ 다시 그리기</button>
+<script type="module" src="main.js?v=1"></script>
+</body>
+</html>
