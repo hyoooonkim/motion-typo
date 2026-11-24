@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261124 — 전남친을 마주칠 확률</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;900&display=swap">
+<style>
+  :root { --bg: #f1f0eb; --ink: #1c1c1c; --mute: #8a877f; --line: rgba(28,28,28,.16); --him: #e2552f; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { position: fixed; z-index: 2; background: rgba(241,240,235,.9); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; z-index: 3; }
+  #top a { color: inherit; text-decoration: none; }
+  .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
+  #calc { left: 18px; top: 44px; padding: 14px 16px 12px; width: 300px; border: 1px solid var(--line); }
+  #calc h1 { margin: 0 0 12px; font: 500 15px 'Noto Sans KR', sans-serif; letter-spacing: -.01em; }
+  #pday { font: 600 40px/1.05 'IBM Plex Mono', monospace; letter-spacing: -.03em; margin: 4px 0 6px; }
+  #every { font: 500 14px 'Noto Sans KR', monospace; }
+  #life { font-size: 12px; color: var(--mute); margin-top: 4px; }
+  #formula { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 10.5px; line-height: 1.6; color: var(--mute); }
+  #ctl { left: 18px; bottom: 18px; padding: 12px 16px 14px; width: 300px; border: 1px solid var(--line); font-size: 12px; }
+  .row { margin-bottom: 11px; }
+  .row .h { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .seg { display: flex; }
+  .seg button, .act button { flex: 1; background: transparent; color: var(--ink); border: 1px solid var(--line); margin-left: -1px; font: 12px 'IBM Plex Mono', 'Noto Sans KR', monospace; padding: 6px 0; cursor: pointer; }
+  .seg button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  input[type=range] { width: 100%; margin: 0; accent-color: var(--ink); }
+  .act { display: flex; gap: 6px; margin-top: 4px; }
+  .act button { margin: 0; padding: 9px 0; font-weight: 500; }
+  .act button#until { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  #log { right: 18px; top: 44px; width: 290px; padding: 12px 14px; border: 1px solid var(--line); font-size: 11.5px; }
+  #days { list-style: none; margin: 8px 0 0; padding: 0; }
+  #days li { display: grid; grid-template-columns: 68px 50px 1fr; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; }
+  #days li .t { font-family: 'Noto Sans KR', sans-serif; color: #4a4843; }
+  #days li .d { text-align: right; }
+  #days li.meet { color: var(--him); } #days li.meet .t { color: var(--him); font-weight: 500; }
+  #days li.sep { display: block; text-align: center; color: var(--mute); font-size: 10.5px; }
+  #hud { right: 18px; bottom: 18px; padding: 10px 14px; border: 1px solid var(--line); font-size: 12px; text-align: right; line-height: 1.6; min-width: 230px; }
+  #hud b { font-weight: 600; }
+  @media (max-width: 639px) {
+    #top { font-size: 10px; }
+    #calc { left: 10px; right: 10px; top: 36px; width: auto; padding: 10px 12px; }
+    #calc h1 { font-size: 13px; margin-bottom: 4px; }
+    #pday { font-size: 28px; margin: 2px 0 3px; }
+    #every { font-size: 12px; } #formula { display: none; }
+    #ctl { left: 10px; right: 10px; bottom: 10px; width: auto; padding: 10px 12px; }
+    .row { margin-bottom: 8px; }
+    #log { display: none; }
+    #hud { right: 10px; bottom: auto; top: 186px; min-width: 0; font-size: 10.5px; padding: 6px 9px; }
+  }
+</style>
+</head>
+<body>
+<header id="top"><span>우연 · COINCIDENCE</span><a href="../index.html">← INDEX</a></header>
+<section id="calc" class="panel">
+  <h1>길에서 전남친을 마주칠 확률</h1>
+  <div class="k">오늘 마주칠 확률</div>
+  <div id="pday">—</div>
+  <div id="every">—</div>
+  <div id="life">—</div>
+  <div id="formula">—</div>
+</section>
+<aside id="log" class="panel"><div class="k">기록</div><ol id="days"></ol></aside>
+<section id="ctl" class="panel">
+  <div class="row"><div class="h"><span class="k">사는 곳</span></div><div class="seg" id="place"></div></div>
+  <div class="row"><div class="h"><span class="k">하루 외출 시간</span><span id="hoursV"></span></div><input id="hours" type="range" min="0.5" max="6" step="0.5" value="2"></div>
+  <div class="row"><div class="h"><span class="k">알아보는 거리</span><span id="rV"></span></div><input id="r" type="range" min="2" max="15" step="1" value="5"></div>
+  <div class="act"><button id="walk">하루 걷기</button><button id="until">만날 때까지</button></div>
+</section>
+<div id="hud" class="panel">—</div>
+<script type="module" src="main.js?v=1"></script>
+</body>
+</html>
