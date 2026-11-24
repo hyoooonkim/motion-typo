@@ -1,7 +1,8 @@
 const $ = s => document.querySelector(s);
 const cv = document.createElement('canvas');
 document.body.prepend(cv);
-const cx = cv.getContext('2d');
+let cx = cv.getContext('2d');
+const main = cx;
 let W = 0, H = 0, DPR = 1;
 
 const PLACES = [
@@ -10,6 +11,19 @@ const PLACES = [
   { k: '같은 도시', A: 90, f: .2 },
   { k: '다른 도시', A: 90, f: .004 },
 ];
+const MPP = 0.23666, OX = 1050, OY = 1115, TX0 = 447065, TY0 = 203029, NT = 6, EX = 2.8;
+const toW = (px, py) => ({ x: (px - OX) * MPP, y: (py - OY) * MPP });
+const POLY = [[820, 850], [1230, 850], [1262, 1000], [1290, 1300], [1240, 1380], [900, 1380], [840, 1250], [810, 1000]].map(([a, b]) => toW(a, b));
+const PW = (1290 - 810) * MPP, PH = (1380 - 850) * MPP;
+function inside(x, y) {
+  let c = false;
+  for (let i = 0, j = POLY.length - 1; i < POLY.length; j = i++) {
+    const a = POLY[i], b = POLY[j];
+    if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) c = !c;
+  }
+  return c;
+}
+function randIn(m = 0) { for (;;) { const x = (Math.random() - .5) * PW, y = (Math.random() - .5) * PH; if (inside(x, y) && (!m || [0, 1, 2, 3].every(i => inside(x + Math.cos(i * 1.57) * m, y + Math.sin(i * 1.57) * m)))) return { x, y }; } }
 const HAUNTS = [{ k: '없음', m: 1 }, { k: '한두 곳', m: 1.6 }, { k: '많음', m: 2.6 }];
 const V = 5.7, WALK = 1.35, WIN = 60, DT = .5, PLAY = 11, STREET = .4, LIFE = 50;
 const KEY = 'day261124-routine';
@@ -65,11 +79,15 @@ function updateCalc() {
   $('#mprev').innerHTML = previewText();
 }
 
-function walker(x, y, h, sp) { return { x, y, h: h ?? Math.random() * Math.PI * 2, tv: (Math.random() - .5) * .2, sp: sp ?? WALK }; }
+function walker(x, y, h, sp, bound) { return { x, y, h: h ?? Math.random() * Math.PI * 2, tv: (Math.random() - .5) * .2, sp: sp ?? WALK, bound }; }
 function step(w, dt) {
   w.tv += (Math.random() - .5) * .5 * dt;
   w.tv = Math.max(-.3, Math.min(.3, w.tv * Math.pow(.97, dt * 10)));
   w.h += w.tv * dt;
+  if (w.bound && !inside(w.x + Math.cos(w.h) * 5, w.y + Math.sin(w.h) * 5)) {
+    const d = ((Math.atan2(-w.y, -w.x) - w.h) % (Math.PI * 2) + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+    w.h += Math.sign(d) * Math.min(Math.abs(d), 1.4 * dt); w.tv *= .6;
+  }
   w.x += Math.cos(w.h) * w.sp * dt; w.y += Math.sin(w.h) * w.sp * dt;
 }
 function trace(w, secs) {
@@ -84,8 +102,9 @@ function closest(me, him) {
   return { d: best, k };
 }
 function himPath(me, k, P, h) {
-  const back = trace(walker(P.x, P.y, h + Math.PI), k * DT).reverse().map(p => ({ ...p, h: p.h + Math.PI }));
-  const fwd = trace(walker(P.x, P.y, h), (me.length - 1 - k) * DT);
+  const b = inside(P.x, P.y);
+  const back = trace(walker(P.x, P.y, h + Math.PI, WALK, b), k * DT).reverse().map(p => ({ ...p, h: p.h + Math.PI }));
+  const fwd = trace(walker(P.x, P.y, h, WALK, b), (me.length - 1 - k) * DT);
   return back.concat(fwd.slice(1));
 }
 function sampleD(L) {
@@ -106,7 +125,7 @@ const ENDINGS = ['둘 다 못 본 척했다.', '눈이 마주쳤다. 3초.', '�
 
 function makeDay(n, force) {
   const s = force ? { meet: true, d: st.r * (.25 + .6 * Math.random()) } : sampleD(lam());
-  const me = trace(walker((Math.random() - .5) * 20, (Math.random() - .5) * 20), WIN);
+  const s0 = randIn(18), me = trace(walker(s0.x, s0.y, undefined, WALK, true), WIN);
   let k = Math.round((WIN / 2 + (Math.random() - .5) * 16) / DT);
   const a = me[k], hm = Math.atan2(me[k + 1].y - a.y, me[k + 1].x - a.x);
   let him = null, d = s.d;
@@ -134,35 +153,29 @@ function makeDay(n, force) {
 let mode = 'idle', day = null, simT = 0, finT = 0, dayN = 0, ff = null, groups = [], frameNo = 227000, blobId = 0;
 const cam = { x: 0, y: 0, s: 1, base: 1 };
 const mobile = () => W < 640;
-const baseScale = () => Math.min(W, H * 1.1) / (mobile() ? 26 : 44);
+const baseScale = () => Math.min(W / (PW * (mobile() ? 1.02 : 1.55)), H / (PH * 1.04));
 const viewHalf = () => ({ hw: W / 2 / cam.base + 14, hh: H / 2 / cam.base + 14 });
 const COLS = ['#d8d3ca', '#4b5d7e', '#b4433a', '#ecebe6', '#5b6470', '#7d93b0', '#cdb68c', '#6c7d58', '#b9587a', '#2f6f8f', '#e0a64b'];
 function spawnGroup(outside) {
-  const { hw, hh } = viewHalf();
-  let x, y;
-  for (let i = 0; i < 12; i++) {
-    x = cam.x + (Math.random() * 2 - 1) * hw; y = cam.y + (Math.random() * 2 - 1) * hh;
-    if (!outside || Math.abs(x - cam.x) > hw - 14 || Math.abs(y - cam.y) > hh - 14) break;
-  }
+  const { x, y } = randIn(2);
   const n = Math.random() < .68 ? 1 : Math.random() < .75 ? 2 : 3;
-  const mem = Array.from({ length: n }, (_, i) => ({ id: blobId++ % 40, col: pick(COLS), tr: Math.random() < .42, lb: Math.random() < .22, off: (i - (n - 1) / 2) * .62, ph: Math.random() * 6 }));
-  const w = walker(x, y, undefined, 1 + Math.random() * .6);
+  const mem = Array.from({ length: n }, (_, i) => ({ id: blobId++ % 40, col: pick(COLS), tr: Math.random() < .42, lb: Math.random() < .22, off: (i - (n - 1) / 2) * 1.5, ph: Math.random() * 6, spr: pick(CROWD_SPR) }));
+  const w = walker(x, y, undefined, 1 + Math.random() * .6, true);
   if (Math.random() < .12) w.sp = 0;
   return { w, mem };
 }
-function spawnCrowd() { groups = Array.from({ length: mobile() ? 120 : 170 }, () => spawnGroup(false)); }
+function spawnCrowd() { groups = Array.from({ length: mobile() ? 120 : 150 }, () => spawnGroup(false)); }
 function moveCrowd(dts) {
-  const { hw, hh } = viewHalf();
   for (let i = 0; i < groups.length; i++) {
     const g = groups[i];
     for (let t = dts; t > 0; t -= .5) step(g.w, Math.min(.5, t));
-    if (Math.abs(g.w.x - cam.x) > hw || Math.abs(g.w.y - cam.y) > hh) groups[i] = spawnGroup(true);
+    if (Math.abs(g.w.x) > PW || Math.abs(g.w.y) > PH) groups[i] = spawnGroup(true);
   }
 }
 
 function startDay(d) {
   day = d; simT = 0; finT = 0; mode = 'play';
-  cam.x = d.me[0].x; cam.y = d.me[0].y; cam.s = cam.base;
+  cam.x = 0; cam.y = 0; cam.s = cam.base;
   spawnCrowd();
   $('#walk').disabled = false; updateCalc();
 }
@@ -191,7 +204,8 @@ const lerpP = (arr, t) => { const f = Math.min(arr.length - 1, t / DT), i = Math
 const inView = p => p.x > 20 && p.x < W - 20 && p.y > 20 && p.y < H - 20;
 
 function floor() {
-  cx.fillStyle = '#101314'; cx.fillRect(0, 0, W, H);
+  cx.fillStyle = '#0b0e0f'; cx.fillRect(0, 0, W, H);
+  if (ground.ok) { cx.globalAlpha = .2; drawGround(); cx.globalAlpha = 1; cx.fillStyle = 'rgba(10,40,42,.25)'; cx.fillRect(0, 0, W, H); }
   const x0 = cam.x - W / 2 / cam.s, y0 = cam.y - H / 2 / cam.s;
   const grid = (g, a) => {
     if (g * cam.s < 9) return;
@@ -203,7 +217,7 @@ function floor() {
   grid(1.5, .028); grid(9, .06);
 }
 function person(p, h, col, ph, moving) {
-  const s = cam.s, q = S(p);
+  const s = cam.s * EX, q = S(p);
   cx.save(); cx.translate(q.x, q.y);
   cx.fillStyle = 'rgba(0,0,0,.55)'; cx.beginPath(); cx.ellipse(.2 * s, .26 * s, .28 * s, .17 * s, h + Math.PI / 2, 0, 7); cx.fill();
   cx.rotate(h);
@@ -215,7 +229,7 @@ function person(p, h, col, ph, moving) {
   cx.restore();
 }
 function box(p, side, col, alpha, lw, label) {
-  const q = S(p), b = Math.max(9, side * cam.s);
+  const q = S(p), b = Math.max(9, side * cam.s * EX * .75);
   cx.globalAlpha = alpha; cx.strokeStyle = col; cx.lineWidth = lw;
   cx.strokeRect(Math.round(q.x - b / 2) + .5, Math.round(q.y - b / 2) + .5, Math.round(b), Math.round(b));
   if (label) { cx.fillStyle = col; cx.font = `${lw > 1 ? 500 : 400} ${lw > 1 ? 11 : 8.5}px 'IBM Plex Mono', 'Noto Sans KR', monospace`; cx.textAlign = 'left'; cx.textBaseline = 'bottom'; cx.fillText(label, q.x - b / 2, q.y - b / 2 - 2); }
@@ -239,7 +253,7 @@ function network(pts, alpha) {
     for (let j = 0; j < pts.length; j++) {
       if (i === j) continue;
       const d = (a.x - pts[j].x) ** 2 + (a.y - pts[j].y) ** 2;
-      if (d < 260 && d > .5) near.push([d, j]);
+      if (d < 400 && d > .5) near.push([d, j]);
     }
     near.sort((p, q) => p[0] - q[0]);
     for (const [, j] of near.slice(0, 3)) {
@@ -297,10 +311,12 @@ function drawDay() {
     } else ringArrow(sm, Math.atan2(sh.y - sm.y, sh.x - sm.x), `['${nmHim()}:id'] ${fmtD(cur)}`);
     if (past && !day.meet) {
       const a = S(day.me[day.k]), b = S(day.him[day.k]);
+      if (inView(b)) {
       cx.strokeStyle = HIM; cx.lineWidth = 1; cx.setLineDash([3, 3]); cx.beginPath(); cx.moveTo(a.x, a.y); cx.lineTo(b.x, b.y); cx.stroke(); cx.setLineDash([]);
       [a, b].forEach(p => { cx.beginPath(); cx.arc(p.x, p.y, 5, 0, 7); cx.stroke(); });
       cx.fillStyle = HIM; cx.font = `500 11px 'IBM Plex Mono', monospace`; cx.textAlign = 'left'; cx.textBaseline = 'top';
       cx.fillText(`MIN ${fmtD(day.d)} · ${clock(day.t0 + day.k * DT)}`, Math.max(a.x, b.x) + 10, Math.max(a.y, b.y) + 6);
+      }
     }
   } else ringArrow(sm, day.ang, `['${nmHim()}:id'] ${fmtD(day.d)}`);
   person(me, me.h, '#f4f6f5', clockT * 5.5, moving);
@@ -344,6 +360,130 @@ function drawFF() {
 }
 function quietDay() { let s; do s = sampleD(lam()); while (s.meet); return s; }
 
+const SPR = [[0,49],[51,45],[98,47],[147,45],[194,61],[257,50],[309,48],[359,51],[412,54],[468,48],[518,51],[571,49],[622,51],[675,45],[722,50],[774,51],[827,43],[872,44],[918,48],[968,44],[1014,49],[1065,51],[1118,51],[1171,50],[1223,48],[1273,47],[1322,49],[1373,47],[1422,48],[1472,48],[1522,51],[1575,50],[1627,45],[1674,38],[1714,47],[1763,42],[1807,47],[1856,51],[1909,45],[1956,41],[1999,41],[2042,41],[2085,49],[2136,45],[2183,41],[2226,49],[2277,46],[2325,45]];
+const ME_SPR = 35, HIM_SPR = 34, CROWD_SPR = SPR.map((_, i) => i).filter(i => i !== ME_SPR && i !== HIM_SPR);
+const SPR_H = 96, SPR_M = 3.6, SDX = -.5, SDY = -.58;
+const atlas = new Image(), dark = document.createElement('canvas');
+atlas.onload = () => { dark.width = atlas.width; dark.height = atlas.height; const d = dark.getContext('2d'); d.drawImage(atlas, 0, 0); d.globalCompositeOperation = 'source-in'; d.fillStyle = '#000'; d.fillRect(0, 0, dark.width, dark.height); atlas.ok = true; };
+atlas.src = 'people.webp';
+
+const ground = { c: document.createElement('canvas'), ok: false, lum: null, n: 192 };
+ground.c.width = ground.c.height = 256 * NT;
+{
+  const g = ground.c.getContext('2d');
+  let left = NT * NT;
+  const done = () => {
+    if (--left) return;
+    ground.ok = true;
+    try { const s = document.createElement('canvas'); s.width = s.height = ground.n; const sc = s.getContext('2d'); sc.drawImage(ground.c, 0, 0, ground.n, ground.n); const d = sc.getImageData(0, 0, ground.n, ground.n).data; ground.lum = new Float32Array(ground.n * ground.n); for (let i = 0; i < ground.lum.length; i++) ground.lum[i] = (d[i * 4] * .3 + d[i * 4 + 1] * .59 + d[i * 4 + 2] * .11) / 255; } catch {}
+  };
+  for (let j = 0; j < NT; j++) for (let i = 0; i < NT; i++) {
+    const im = new Image(); im.crossOrigin = 'anonymous';
+    im.onload = () => { g.drawImage(im, i * 256, j * 256); done(); };
+    im.onerror = done;
+    im.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/19/${TY0 + j}/${TX0 + i}`;
+  }
+}
+function drawGround() {
+  const p = S(toW(0, 0)), sz = 256 * NT * MPP * cam.s;
+  cx.drawImage(ground.c, p.x, p.y, sz, sz);
+}
+function lumAt(p) {
+  if (!ground.lum) return .5;
+  const gx = Math.floor((p.x / MPP + OX) / (256 * NT) * ground.n), gy = Math.floor((p.y / MPP + OY) / (256 * NT) * ground.n);
+  return gx < 0 || gy < 0 || gx >= ground.n || gy >= ground.n ? .5 : ground.lum[gy * ground.n + gx];
+}
+function sprite(i, p, h, ph, moving) {
+  const r = SPR[i], dh = SPR_M * cam.s, dw = dh * r[1] / SPR_H, q = S(p);
+  if (q.x < -dh || q.x > W + dh || q.y < -dh || q.y > H + dh) return;
+  const sh = Math.max(0, Math.min(.32, (.3 - lumAt(p)) / .25));
+  cx.save(); cx.translate(q.x + SDX * dh * .32, q.y + SDY * dh * .32); cx.rotate(h + Math.PI / 2);
+  cx.globalAlpha = .4 * (1 - sh * 1.5); if (cx.globalAlpha > 0) cx.drawImage(dark, r[0], 0, r[1], SPR_H, -dw / 2, -dh * .42, dw, dh * 1.1);
+  cx.restore();
+  cx.save(); cx.translate(q.x, q.y); cx.rotate(h + Math.PI / 2);
+  if (moving) cx.scale(1, 1 + Math.sin(ph) * .035);
+  cx.globalAlpha = 1; cx.drawImage(atlas, r[0], 0, r[1], SPR_H, -dw / 2, -dh * .42, dw, dh);
+  if (sh > 0) { cx.globalAlpha = sh; cx.drawImage(dark, r[0], 0, r[1], SPR_H, -dw / 2, -dh * .42, dw, dh); }
+  cx.restore(); cx.globalAlpha = 1;
+}
+function dayPos() {
+  if (!day) return {};
+  const t = mode === 'final' ? day.k * DT : simT;
+  const me = lerpP(day.me, t), hp = day.him ? lerpP(day.him, t) : null;
+  return { t, me, hp, cur: hp ? dist(me, hp) : day.d, past: t >= day.k * DT };
+}
+function drawPhoto() {
+  cx.fillStyle = '#2b2e2d'; cx.fillRect(0, 0, W, H);
+  if (ground.ok) drawGround();
+  if (!atlas.ok) return;
+  const pts = crowdPts();
+  for (const p of pts) sprite(p.m.spr, p, p.h, clockT * 5.5 + p.m.ph, p.moving);
+  const { me, hp } = dayPos();
+  if (hp) sprite(HIM_SPR, hp, hp.h, clockT * 5.5 + 1, mode !== 'final');
+  if (me) sprite(ME_SPR, me, me.h, clockT * 5.5, mode !== 'final');
+  const g = cx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
+  g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.45)'); cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+  const c = day ? clock(day.t0 + dayPos().t) : '--:--:--';
+  cx.font = `500 ${mobile() ? 10 : 11}px 'IBM Plex Mono', 'Noto Sans KR', monospace`; cx.textAlign = 'center'; cx.textBaseline = 'bottom';
+  cx.fillStyle = 'rgba(0,0,0,.5)'; const txt = `REC  CAM-03 · 서울광장 · 37.5663°N 126.9779°E · ${c}`;
+  const y = mobile() ? H - 188 : H - 26;
+  cx.fillText(txt, W / 2 + 1, y + 1); cx.fillStyle = '#f2f2ee'; cx.fillText(txt, W / 2, y);
+  if (Math.floor(clockT * 1.5) % 2 === 0) { cx.fillStyle = '#ff3b30'; cx.beginPath(); cx.arc(W / 2 - cx.measureText(txt).width / 2 - 9, y - 6, 3.5, 0, 7); cx.fill(); }
+}
+function hudOnly() {
+  if (!day) return;
+  const { t, cur, past } = dayPos();
+  $('#hud').innerHTML = `<b>D+${comma(day.n)}</b> · ${dateOf(day.n)} · ${clock(day.t0 + t)}<br>지금 거리 ${fmtD(cur)} · 최단 ${past ? fmtD(day.d) : '—'}`;
+}
+
+const bufA = document.createElement('canvas'), bufB = document.createElement('canvas'), tmp1 = document.createElement('canvas'), tmp2 = document.createElement('canvas');
+const actx = bufA.getContext('2d'), bctx = bufB.getContext('2d'), t1 = tmp1.getContext('2d'), t2 = tmp2.getContext('2d');
+const noiseC = document.createElement('canvas'); noiseC.width = 160; noiseC.height = 100;
+const nctx = noiseC.getContext('2d'), nimg = nctx.createImageData(160, 100);
+const scanC = document.createElement('canvas'); scanC.width = 1; scanC.height = 3;
+{ const s = scanC.getContext('2d'); s.fillStyle = 'rgba(0,0,0,.55)'; s.fillRect(0, 2, 1, 1); }
+const scanPat = main.createPattern(scanC, 'repeat');
+function scan(a) { main.globalAlpha = a; main.fillStyle = scanPat; main.fillRect(0, 0, cv.width, cv.height); main.globalAlpha = 1; }
+function glitch(src, dst, g) {
+  const C = cv.width, Hh = cv.height, k = Math.sin(g * Math.PI);
+  main.drawImage(Math.random() < g ? dst : src, 0, 0);
+  const n = 5 + Math.floor(k * 18);
+  for (let i = 0; i < n; i++) {
+    const y = Math.random() * Hh, h = (2 + Math.random() * 70) * DPR, off = (Math.random() - .5) * k * 180 * DPR;
+    main.drawImage(Math.random() < g ? dst : src, 0, y, C, h, off, y, C, h);
+  }
+  if (k > .15) {
+    for (const [t, col] of [[t1, '#f00'], [t2, '#0ff']]) { t.globalCompositeOperation = 'copy'; t.drawImage(cv, 0, 0); t.globalCompositeOperation = 'multiply'; t.fillStyle = col; t.fillRect(0, 0, C, Hh); t.globalCompositeOperation = 'source-over'; }
+    const dx = k * 12 * DPR * (.5 + Math.random());
+    main.fillStyle = '#000'; main.fillRect(0, 0, C, Hh);
+    main.globalCompositeOperation = 'lighter'; main.drawImage(tmp1, dx, 0); main.drawImage(tmp2, -dx, 0); main.globalCompositeOperation = 'source-over';
+  }
+  const d = nimg.data;
+  for (let i = 0; i < d.length; i += 4) { const v = Math.random() * 255; d[i] = d[i + 1] = d[i + 2] = v; d[i + 3] = 255; }
+  nctx.putImageData(nimg, 0, 0);
+  main.globalAlpha = .26 * k; main.imageSmoothingEnabled = false; main.drawImage(noiseC, 0, 0, C, Hh); main.imageSmoothingEnabled = true;
+  main.globalAlpha = 1;
+  for (let i = 0; i < 3; i++) { main.fillStyle = `rgba(${Math.random() < .5 ? '95,242,230' : '255,255,255'},${.5 * k})`; main.fillRect(0, Math.random() * Hh, C, (1 + Math.random() * 3) * DPR); }
+  scan(.35 * k);
+}
+const vis = { cur: 'photo', t: 0, g: -1, to: 'digital' };
+const startG = to => { vis.g = 0; vis.to = to; };
+function render(dt) {
+  const force = mode === 'ff' || mode === 'final';
+  vis.t += dt;
+  if (vis.g >= 0) { vis.g += dt / .65; if (vis.g >= 1) { vis.cur = vis.to; vis.g = -1; vis.t = 0; } }
+  else if (force) { if (vis.cur === 'photo') startG('digital'); }
+  else if (vis.cur === 'photo' && vis.t > 5.5) startG('digital');
+  else if (vis.cur === 'digital' && vis.t > 3.4) startG('photo');
+  const gl = vis.g >= 0, needA = gl || vis.cur === 'photo', needB = gl || vis.cur === 'digital';
+  if (needA) { cx = actx; cx.setTransform(DPR, 0, 0, DPR, 0, 0); drawPhoto(); }
+  if (needB) { cx = bctx; cx.setTransform(DPR, 0, 0, DPR, 0, 0); if (mode === 'ff') drawFF(); else if (day) drawDay(); else { floor(); drawCrowd(1); } }
+  cx = main; cx.setTransform(1, 0, 0, 1, 0, 0);
+  if (!gl) { cx.drawImage(vis.cur === 'photo' ? bufA : bufB, 0, 0); if (vis.cur === 'digital') scan(.12); }
+  else glitch(vis.to === 'digital' ? bufA : bufB, vis.to === 'digital' ? bufB : bufA, vis.g);
+  if (!needB) hudOnly();
+}
+
 let last = performance.now(), camFrom = null;
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
@@ -365,8 +505,6 @@ function frame(now) {
     const prev = simT, sd = dt * WIN / PLAY;
     simT = Math.min(WIN, simT + sd); clockT += sd;
     moveCrowd(sd);
-    const mp = lerpP(day.me, simT), fk = Math.min(1, dt * 2.5);
-    cam.x += (mp.x - cam.x) * fk; cam.y += (mp.y - cam.y) * fk;
     const tk = day.k * DT;
     if (day.meet && simT >= tk) { mode = 'final'; finT = 0; camFrom = { x: cam.x, y: cam.y, s: cam.s }; addLog(day.n, day.d, day.end, 'meet'); }
     else if (!day.meet && prev < tk && simT >= tk) addLog(day.n, day.d, day.note);
@@ -380,14 +518,13 @@ function frame(now) {
     cam.s = camFrom.s + (ts - camFrom.s) * e;
     cam.x = camFrom.x + (tx - camFrom.x) * e; cam.y = camFrom.y + (ty - H * .07 / ts - camFrom.y) * e;
   } else { moveCrowd(dt); clockT += dt; }
-  cx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  if (mode === 'ff') drawFF(); else if (day) drawDay(); else { floor(); drawCrowd(1); }
+  render(dt);
   requestAnimationFrame(frame);
 }
 
 function resize() {
   DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
-  cv.width = W * DPR; cv.height = H * DPR;
+  for (const c of [cv, bufA, bufB, tmp1, tmp2]) { c.width = W * DPR; c.height = H * DPR; }
   const k = cam.s / cam.base || 1; cam.base = baseScale(); cam.s = cam.base * k;
 }
 addEventListener('resize', resize);
