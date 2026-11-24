@@ -253,23 +253,18 @@ function layout() {
   DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
   wc.width = W * DPR; wc.height = H * DPR;
   if (mobile()) {
-    RAD = Math.min(W * .82, H * .4); C = { x: W / 2, y: H + RAD * .04 }; WIN = -Math.PI / 2 - .1; HW = .22;
+    RAD = Math.min(W * .82, H * .4); C = { x: W / 2, y: H + RAD * .04 }; WIN = -Math.PI / 2; HW = .26;
   } else {
-    RAD = Math.min(W * .32, H * .56); C = { x: W + RAD * .12, y: H * .56 }; WIN = -Math.PI * .83; HW = .2;
+    RAD = Math.min(W * .34, H * .6); C = { x: W - RAD * .42, y: H * .5 + RAD * .55 }; WIN = -Math.PI / 2; HW = .26;
   }
-  R0 = RAD * .3; RW = (RAD * .9 - R0) / RINGS.length; placeWins();
+  R0 = RAD * .3; RW = (RAD * .9 - R0) / RINGS.length;
   const pc = $('#poster');
   let ph = mobile() ? Math.min(H * .58, (W - 40) * 4 / 3) : Math.min(H * .78, W * .34 * 4 / 3);
-  const top = mobile() ? 44 : (H - ph) / 2, left = mobile() ? (W - ph * .75) / 2 : Math.max(290, (W - RAD * .88 - ph * .75) / 2 + 60);
+  const top = mobile() ? 44 : (H - ph) / 2, left = mobile() ? (W - ph * .75) / 2 : Math.max(290, (W - RAD * 1.42 - ph * .75) / 2 + 80);
   Object.assign(pc.style, { height: `${ph}px`, width: `${ph * .75}px`, left: `${left}px`, top: `${Math.max(40, top)}px` });
 }
 const ringR = i => [RAD * .9 - (i + 1) * RW, RAD * .9 - i * RW];
-let WINS = [];
-function placeWins() { const mid = i => (ringR(i)[0] + ringR(i)[1]) / 2, step = mobile() ? -16 : 24; let a = 0; WINS = RINGS.map((_, i) => { const v = a; a += step / mid(i); return v; }); const c0 = (WINS[0] + WINS[WINS.length - 1]) / 2; WINS = WINS.map(v => WIN + v - c0); }
-const winA = i => WINS[i];
-const winHalf = i => Math.min(SPAN * .62, (mobile() ? 44 : 54) / ((ringR(i)[0] + ringR(i)[1]) / 2));
-function winPath(c, i) { const [r0, r1] = ringR(i), wa = winA(i), m = (r0 + r1) / 2, hw = winHalf(i) * m, nx = Math.cos(wa), ny = Math.sin(wa), tx = -ny, ty = nx, a = r1 - RW * .1, b = r0 + RW * .1; c.beginPath(); c.moveTo(C.x + nx * a - tx * hw, C.y + ny * a - ty * hw); c.lineTo(C.x + nx * a + tx * hw, C.y + ny * a + ty * hw); c.lineTo(C.x + nx * b + tx * hw, C.y + ny * b + ty * hw); c.lineTo(C.x + nx * b - tx * hw, C.y + ny * b - ty * hw); c.closePath(); }
-const under = r => { const t = ((winA(RINGS.indexOf(r)) - r.a) % TAU + TAU) % TAU; return Math.floor(t / SPAN) % N; };
+const under = r => { const t = ((WIN - r.a) % TAU + TAU) % TAU; return Math.floor(t / SPAN) % N; };
 
 function sector(c, r0, r1, a0, a1, keep) { if (!keep) c.beginPath(); c.moveTo(C.x + Math.cos(a0) * r1, C.y + Math.sin(a0) * r1); c.arc(C.x, C.y, r1, a0, a1); c.arc(C.x, C.y, r0, a1, a0, true); c.closePath(); }
 function fitSize(c, txt, size, maxW, weight) {
@@ -287,25 +282,22 @@ function drawWheel() {
   c.clearRect(0, 0, W, H);
   c.save(); c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 40; c.shadowOffsetY = 10;
   c.fillStyle = PAPER; c.beginPath(); c.arc(C.x, C.y, RAD, 0, TAU); c.fill(); c.restore();
+  const top = ringR(0)[1], bot = ringR(RINGS.length - 1)[0];
   RINGS.forEach((rg, i) => {
-    const [r0, r1] = ringR(i), m = (r0 + r1) / 2, wa = winA(i), half = winHalf(i);
-    c.save(); winPath(c, i); c.clip();
+    const [r0, r1] = ringR(i), m = (r0 + r1) / 2;
+    c.save(); sector(c, r0, r1, WIN - HW, WIN + HW); c.clip();
     c.fillStyle = UNDER; c.fillRect(0, 0, W, H);
     if (rg.value !== null || rg.spinning) {
       for (let k = 0; k < N; k++) {
         const a0 = rg.a + k * SPAN, mid = a0 + SPAN / 2;
-        const dd = Math.abs(((mid - wa) % TAU + TAU * 1.5) % TAU - Math.PI);
-        if (dd > half + SPAN) continue;
-        c.strokeStyle = 'rgba(0,0,0,.2)'; c.lineWidth = 1;
+        const dd = Math.abs(((mid - WIN) % TAU + TAU * 1.5) % TAU - Math.PI);
+        if (dd > HW + SPAN) continue;
+        c.strokeStyle = 'rgba(0,0,0,.18)'; c.lineWidth = 1;
         c.beginPath(); c.moveTo(C.x + Math.cos(a0) * r0, C.y + Math.sin(a0) * r0); c.lineTo(C.x + Math.cos(a0) * r1, C.y + Math.sin(a0) * r1); c.stroke();
-        radialText(c, rg.names[rg.cells[k]], m, mid, Math.min(17, RW * .46), '#161616', 500, undefined, SPAN * m * .86);
+        const al = Math.max(0, Math.min(1, 1 - (dd - SPAN * .3) / (SPAN * .35)));
+        if (al > 0) { c.globalAlpha = al; radialText(c, rg.names[rg.cells[k]], m, mid, Math.min(18, RW * .46), '#161616', 500, undefined, SPAN * m * .86); c.globalAlpha = 1; }
       }
     }
-    const nx = Math.cos(wa), ny = Math.sin(wa), tx = -ny, ty = nx;
-    const g = c.createLinearGradient(C.x + nx * r1, C.y + ny * r1, C.x + nx * (r1 - RW * .28), C.y + ny * (r1 - RW * .28));
-    g.addColorStop(0, 'rgba(0,0,0,.32)'); g.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = g; c.fillRect(0, 0, W, H);
-    const e = c.createLinearGradient(C.x + nx * m - tx * half * m, C.y + ny * m - ty * half * m, C.x + nx * m - tx * (half * m - 8), C.y + ny * m - ty * (half * m - 8));
-    e.addColorStop(0, 'rgba(0,0,0,.18)'); e.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = e; c.fillRect(0, 0, W, H);
     c.restore();
   });
   c.save(); c.beginPath(); c.arc(C.x, C.y, RAD, 0, TAU); c.clip();
@@ -314,17 +306,22 @@ function drawWheel() {
   const lg = c.createRadialGradient(C.x - RAD * .4, C.y - RAD * .5, RAD * .1, C.x, C.y, RAD * 1.05);
   lg.addColorStop(0, 'rgba(255,255,255,.18)'); lg.addColorStop(1, 'rgba(0,0,0,.07)'); c.fillStyle = lg; c.fillRect(0, 0, W, H);
   c.restore();
+  c.save(); sector(c, bot, top, WIN - HW, WIN + HW); c.clip();
+  c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = 9; c.shadowOffsetX = 2; c.shadowOffsetY = 3;
+  c.beginPath(); c.rect(-W, -H, W * 3, H * 3); sector(c, bot, top, WIN - HW, WIN + HW, true); c.fillStyle = '#000'; c.fill('evenodd');
+  c.restore();
+  c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 1; sector(c, bot, top, WIN - HW, WIN + HW); c.stroke();
   RINGS.forEach((rg, i) => {
-    const [r0, r1] = ringR(i), wa = winA(i), half = winHalf(i), lr = r1 + RW * .02;
-    c.strokeStyle = 'rgba(0,0,0,.22)'; c.lineWidth = 1; winPath(c, i); c.stroke();
-    const m = (r0 + r1) / 2, la = wa - half - 8 / m;
-    c.save(); c.translate(C.x + Math.cos(la) * m, C.y + Math.sin(la) * m); c.rotate(wa + Math.PI / 2);
-    c.fillStyle = i === active ? '#000' : '#2b2b2b'; c.font = `${i === active ? 600 : 400} ${Math.max(9, Math.min(12, RW * .27))}px 'IBM Plex Mono', 'Noto Sans KR', monospace`;
+    const [r0, r1] = ringR(i), m = (r0 + r1) / 2;
+    if (i) { const ext = 16 / r1; c.strokeStyle = 'rgba(0,0,0,.45)'; c.lineWidth = 1; c.beginPath(); c.arc(C.x, C.y, r1, WIN - HW - ext, WIN + HW + ext); c.stroke(); }
+    const la = WIN - HW - 10 / m;
+    c.save(); c.translate(C.x + Math.cos(la) * m, C.y + Math.sin(la) * m); c.rotate(la + Math.PI / 2);
+    c.fillStyle = i === active ? '#000' : '#3a3a3a'; c.font = `${i === active ? 700 : 600} ${Math.max(10, Math.min(14, RW * .32))}px 'Noto Sans KR', sans-serif`;
     c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText(rg.k, 0, 0);
-    if (i === active && !rg.spinning) { const w = c.measureText(rg.k).width; c.beginPath(); c.moveTo(-w - 12, -4); c.lineTo(-w - 5, 0); c.lineTo(-w - 12, 4); c.fill(); }
+    if (i === active && !rg.spinning) { const w = c.measureText(rg.k).width; c.beginPath(); c.moveTo(-w - 13, -4); c.lineTo(-w - 6, 0); c.lineTo(-w - 13, 4); c.fill(); }
     c.restore();
   });
-  const ar = RAD * .955, a0 = WIN - .55, a1 = WIN + .55;
+  const ar = RAD * .955, a0 = WIN + HW + .35, a1 = WIN + HW + 1.15;
   c.strokeStyle = '#1a1a1a'; c.lineWidth = 1; c.beginPath(); c.arc(C.x, C.y, ar, a0, a1); c.stroke();
   [[a0, 1], [a1, -1]].forEach(([a, s]) => { const x = C.x + Math.cos(a) * ar, y = C.y + Math.sin(a) * ar, tx = -Math.sin(a) * s, ty = Math.cos(a) * s; c.beginPath(); c.moveTo(x, y); c.lineTo(x - tx * 9 + Math.cos(a) * 3.5, y - ty * 9 + Math.sin(a) * 3.5); c.lineTo(x - tx * 9 - Math.cos(a) * 3.5, y - ty * 9 - Math.sin(a) * 3.5); c.closePath(); c.fillStyle = '#1a1a1a'; c.fill(); });
   const hr = Math.max(12, RAD * .045);
@@ -375,7 +372,7 @@ function update(dt) {
   if (rg.snap === null) {
     rg.a += rg.w * dt; drive += rg.w * dt * .35;
     rg.w -= (rg.w * rg.fr + Math.sign(rg.w) * 1.1) * dt;
-    if (Math.abs(rg.w) < .45) { const k = under(rg); let t = winA(active) - (k + .5) * SPAN; t += Math.round((rg.a - t) / TAU) * TAU; rg.snap = t; }
+    if (Math.abs(rg.w) < .45) { const k = under(rg); let t = WIN - (k + .5) * SPAN; t += Math.round((rg.a - t) / TAU) * TAU; rg.snap = t; }
   } else {
     const d = rg.snap - rg.a; rg.a += d * Math.min(1, dt * 9); drive += d * Math.min(1, dt * 9) * .35;
     if (Math.abs(d) < .0015) {
