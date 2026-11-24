@@ -237,16 +237,28 @@ const N = 24, SPAN = Math.PI * 2 / N, TAU = Math.PI * 2;
 
 const wc = $('#wheel'), wx = wc.getContext('2d');
 let W = 0, H = 0, DPR = 1, C = { x: 0, y: 0 }, RAD = 300, R0 = 60, RW = 20, WIN = -Math.PI / 2, HW = .2, drive = 0;
-const PAPER = '#f4f2ed', UNDER = '#e4e0d6';
-let grainPat = null;
-function grain() {
-  if (grainPat) return grainPat;
-  const g = document.createElement('canvas'); g.width = g.height = 256; const x = g.getContext('2d'), d = x.createImageData(256, 256);
-  for (let i = 0; i < d.data.length; i += 4) { const v = 236 + Math.random() * 19; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+const TEX = {};
+function paperTex(base, amp, fiber, speck) {
+  const S = 512, g = document.createElement('canvas'); g.width = g.height = S; const x = g.getContext('2d');
+  x.fillStyle = base; x.fillRect(0, 0, S, S);
+  const lo = document.createElement('canvas'); lo.width = lo.height = 24; const lx = lo.getContext('2d'), ld = lx.createImageData(24, 24);
+  for (let i = 0; i < ld.data.length; i += 4) { const v = Math.random() < .5 ? 0 : 255; ld.data[i] = ld.data[i + 1] = ld.data[i + 2] = v; ld.data[i + 3] = Math.random() * 255 * amp * 2.2; }
+  lx.putImageData(ld, 0, 0); x.globalAlpha = .12; x.imageSmoothingEnabled = true; for (const dx of [-S, 0, S]) for (const dy of [-S, 0, S]) x.drawImage(lo, -1, -1, 26, 26, dx - S / 24, dy - S / 24, S + S / 12, S + S / 12); x.globalAlpha = 1;
+  const d = x.getImageData(0, 0, S, S);
+  for (let i = 0; i < d.data.length; i += 4) { const n = (Math.random() - .5) * 255 * amp; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; }
   x.putImageData(d, 0, 0);
-  x.strokeStyle = 'rgba(120,110,95,.08)'; x.lineWidth = .6;
-  for (let i = 0; i < 90; i++) { const a = Math.random() * 256, b = Math.random() * 256, r = 4 + Math.random() * 14, t = Math.random() * 6; x.beginPath(); x.moveTo(a, b); x.quadraticCurveTo(a + Math.cos(t) * r, b + Math.sin(t) * r, a + Math.cos(t + .5) * r * 2, b + Math.sin(t + .5) * r * 2); x.stroke(); }
-  return grainPat = wx.createPattern(g, 'repeat');
+  x.lineCap = 'round';
+  for (let i = 0; i < 700; i++) {
+    const a = Math.random() * S, b = Math.random() * S, r = 1.5 + Math.random() * 4, t = Math.random() * 6.3;
+    x.strokeStyle = fiber.replace('A', (.02 + Math.random() * .045).toFixed(3)); x.lineWidth = .3 + Math.random() * .4;
+    x.beginPath(); x.moveTo(a, b); x.quadraticCurveTo(a + Math.cos(t) * r, b + Math.sin(t) * r, a + Math.cos(t + .25) * r * 2, b + Math.sin(t + .25) * r * 2); x.stroke();
+  }
+  for (let i = 0; i < 60; i++) { x.fillStyle = speck.replace('A', (.1 + Math.random() * .2).toFixed(3)); x.beginPath(); x.arc(Math.random() * S, Math.random() * S, .25 + Math.random() * .5, 0, 7); x.fill(); }
+  return wx.createPattern(g, 'repeat');
+}
+function tex(k) {
+  if (!TEX[k]) TEX[k] = k === 'cover' ? paperTex('#161616', .09, 'rgba(255,255,255,A)', 'rgba(255,255,255,A)') : paperTex('#ece7da', .05, 'rgba(110,95,70,A)', 'rgba(60,50,40,A)');
+  return TEX[k];
 }
 const mobile = () => W < 760;
 function layout() {
@@ -280,13 +292,15 @@ function radialText(c, txt, r, ang, size, color, weight = 500, font = "'Noto San
 function drawWheel() {
   const c = wx; c.setTransform(DPR, 0, 0, DPR, 0, 0);
   c.clearRect(0, 0, W, H);
-  c.save(); c.shadowColor = 'rgba(0,0,0,.55)'; c.shadowBlur = 40; c.shadowOffsetY = 10;
-  c.fillStyle = PAPER; c.beginPath(); c.arc(C.x, C.y, RAD, 0, TAU); c.fill(); c.restore();
+  c.save(); c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 36; c.shadowOffsetY = 10;
+  c.fillStyle = tex('under'); c.beginPath(); c.arc(C.x, C.y, RAD * 1.03, 0, TAU); c.fill(); c.restore();
+  c.save(); c.shadowColor = 'rgba(0,0,0,.5)'; c.shadowBlur = 10; c.shadowOffsetX = -2; c.shadowOffsetY = 4;
+  c.fillStyle = tex('cover'); c.beginPath(); c.arc(C.x, C.y, RAD, 0, TAU); c.fill(); c.restore();
   const top = ringR(0)[1], bot = ringR(RINGS.length - 1)[0];
   RINGS.forEach((rg, i) => {
     const [r0, r1] = ringR(i), m = (r0 + r1) / 2;
     c.save(); sector(c, r0, r1, WIN - HW, WIN + HW); c.clip();
-    c.fillStyle = UNDER; c.fillRect(0, 0, W, H);
+    c.fillStyle = tex('under'); c.fillRect(0, 0, W, H);
     if (rg.value !== null || rg.spinning) {
       for (let k = 0; k < N; k++) {
         const a0 = rg.a + k * SPAN, mid = a0 + SPAN / 2;
@@ -298,30 +312,25 @@ function drawWheel() {
     }
     c.restore();
   });
-  c.save(); c.beginPath(); c.arc(C.x, C.y, RAD, 0, TAU); c.clip();
-  c.globalCompositeOperation = 'multiply'; c.globalAlpha = .55; c.fillStyle = grain(); c.fillRect(0, 0, W, H);
-  c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
-  const lg = c.createRadialGradient(C.x - RAD * .4, C.y - RAD * .5, RAD * .1, C.x, C.y, RAD * 1.05);
-  lg.addColorStop(0, 'rgba(255,255,255,.18)'); lg.addColorStop(1, 'rgba(0,0,0,.07)'); c.fillStyle = lg; c.fillRect(0, 0, W, H);
-  c.restore();
   c.save(); sector(c, bot, top, WIN - HW, WIN + HW); c.clip();
-  c.shadowColor = 'rgba(0,0,0,.45)'; c.shadowBlur = 9; c.shadowOffsetX = 2; c.shadowOffsetY = 3;
+  c.shadowColor = 'rgba(0,0,0,.6)'; c.shadowBlur = 10; c.shadowOffsetX = -2; c.shadowOffsetY = 4;
   c.beginPath(); c.rect(-W, -H, W * 3, H * 3); sector(c, bot, top, WIN - HW, WIN + HW, true); c.fillStyle = '#000'; c.fill('evenodd');
   c.restore();
-  c.strokeStyle = 'rgba(0,0,0,.28)'; c.lineWidth = 1; sector(c, bot, top, WIN - HW, WIN + HW); c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.1)'; c.lineWidth = 1; sector(c, bot, top, WIN - HW, WIN + HW); c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.08)'; c.beginPath(); c.arc(C.x, C.y, RAD - .5, 0, TAU); c.stroke();
   RINGS.forEach((rg, i) => {
     const [r0, r1] = ringR(i), m = (r0 + r1) / 2;
     if (i) { c.strokeStyle = 'rgba(0,0,0,.14)'; c.lineWidth = 1; c.beginPath(); c.arc(C.x, C.y, r1, WIN - HW, WIN + HW); c.stroke(); }
     const la = WIN - HW - 10 / m;
     c.save(); c.translate(C.x + Math.cos(la) * m, C.y + Math.sin(la) * m); c.rotate(la + Math.PI / 2);
-    c.fillStyle = i === active ? '#000' : '#3a3a3a'; c.font = `${i === active ? 700 : 600} ${Math.max(10, Math.min(14, RW * .32))}px 'Noto Sans KR', sans-serif`;
+    c.fillStyle = i === active ? '#fff' : 'rgba(255,255,255,.72)'; c.font = `${i === active ? 700 : 600} ${Math.max(10, Math.min(14, RW * .32))}px 'Noto Sans KR', sans-serif`;
     c.textAlign = 'right'; c.textBaseline = 'middle'; c.fillText(rg.k, 0, 0);
     if (i === active && !rg.spinning) { const w = c.measureText(rg.k).width; c.beginPath(); c.moveTo(-w - 13, -4); c.lineTo(-w - 6, 0); c.lineTo(-w - 13, 4); c.fill(); }
     c.restore();
   });
   const hr = Math.max(12, RAD * .045);
   const gg = c.createRadialGradient(C.x - hr * .3, C.y - hr * .3, 1, C.x, C.y, hr);
-  gg.addColorStop(0, '#9a9a9a'); gg.addColorStop(.55, '#3c3c3c'); gg.addColorStop(1, '#161616');
+  gg.addColorStop(0, '#f2f2f2'); gg.addColorStop(.55, '#9b9b9b'); gg.addColorStop(1, '#4a4a4a');
   c.fillStyle = gg; c.beginPath(); c.arc(C.x, C.y, hr, 0, TAU); c.fill();
   c.fillStyle = '#050505'; c.beginPath(); c.arc(C.x, C.y, hr * .45, 0, TAU); c.fill();
   c.strokeStyle = 'rgba(255,255,255,.25)'; c.lineWidth = 1; c.beginPath(); c.arc(C.x, C.y, hr * .8, Math.PI * 1.1, Math.PI * 1.7); c.stroke();
