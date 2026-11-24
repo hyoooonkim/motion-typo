@@ -237,22 +237,33 @@ function click(v, hi) {
 }
 dice.forEach(d => d.body.addEventListener('collide', e => click(Math.abs(e.contact.getImpactVelocityAlongNormal()), e.body.material === mDie)));
 
-let rolling = false, still = 0, rollNo = 0, settleT = 0;
-function throwDice(dir, user) {
-  if (user && !actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
-  rolling = true; still = 0; settleT = 0;
-  $('#roll').disabled = true;
-  $('#labels').innerHTML = '';
-  const a = dir ?? { x: 1, z: (Math.random() - .5) * .5 };
-  const len = Math.hypot(a.x, a.z) || 1, ux = a.x / len, uz = a.z / len;
+let rolling = false, still = 0, rollNo = 0, settleT = 0, next = 0, roundSeed = 0;
+function park() {
   dice.forEach((d, i) => {
     const b = d.body; b.wakeUp();
-    b.position.set(-ux * (HX - 1.2) + (Math.random() - .5) * 1.2 - uz * (i - 1.5) * 1.3, 2.2 + i * .45, -uz * (HZ - 1) + ux * (i - 1.5) * 1.1);
-    b.quaternion.setFromEuler(Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3);
-    const sp = 13 + Math.random() * 5;
-    b.velocity.set(ux * sp + (Math.random() - .5) * 2, 2 + Math.random() * 3, uz * sp + (Math.random() - .5) * 3);
-    b.angularVelocity.set((Math.random() - .5) * 30, (Math.random() - .5) * 30, (Math.random() - .5) * 30);
+    b.position.set(-HX + 1 + i * 1.5, SIZE / 2, -HZ + .95);
+    b.quaternion.setFromEuler(0, (Math.random() - .5) * .6, 0);
+    b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0); d.value = null;
   });
+}
+function rollLabel() {
+  $('#roll').textContent = next === 0 && rollNo ? '새 포스터 · 형태부터' : `${FACES[next].k} 주사위 던지기 · ${next + 1}/4`;
+}
+function throwDice(dir, user) {
+  if (user && !actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
+  if (next === 0) { park(); roundSeed = Math.floor(Math.random() * 2 ** 31); $('#labels').innerHTML = ''; dice.forEach(d => d.tag = null); }
+  rolling = true; still = 0; settleT = 0;
+  $('#roll').disabled = true;
+  const a = dir ?? { x: .55 + Math.random() * .3, z: -(.5 + Math.random() * .4) };
+  const len = Math.hypot(a.x, a.z) || 1, ux = a.x / len, uz = a.z / len;
+  const d = dice[next], b = d.body; b.wakeUp();
+  b.position.set(-ux * (HX - 1.1), 2.4, -uz * (HZ - 1.1));
+  b.quaternion.setFromEuler(Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3);
+  const sp = 12 + Math.random() * 5;
+  b.velocity.set(ux * sp, 2 + Math.random() * 3, uz * sp);
+  b.angularVelocity.set((Math.random() - .5) * 30, (Math.random() - .5) * 30, (Math.random() - .5) * 30);
+  if (d.tag) { d.tag.remove(); d.tag = null; }
+  next++;
 }
 function topFace(d) {
   let best = -2, idx = 0;
@@ -268,18 +279,20 @@ function checkSettle(dt) {
   const tilted = dice.filter(d => topFace(d).dot < .94);
   if (tilted.length && settleT < 7) { tilted.forEach(d => { d.body.wakeUp(); d.body.velocity.set((Math.random() - .5) * 2, 3, (Math.random() - .5) * 2); d.body.angularVelocity.set(Math.random() * 6, 0, Math.random() * 6); }); still = 0; return; }
   rolling = false;
-  dice.forEach(d => { d.value = d.order[topFace(d).idx]; });
+  dice.slice(0, next).forEach(d => { d.value = d.order[topFace(d).idx]; });
   showLabels();
-  make();
+  if (next === 4) { next = 0; make(); }
+  else { preview(next); $('#roll').disabled = false; }
+  rollLabel();
 }
 function showLabels() {
-  const el = $('#labels'); el.innerHTML = '';
-  dice.forEach(d => {
-    const s = document.createElement('span');
+  dice.slice(0, next || 4).forEach(d => {
+    if (d.value === null) return;
+    const s = d.tag || document.createElement('span');
     const v = d.value, f = d.f;
     const name = f.k === '형태' ? SHAPES[v].k : f.k === '팔레트' ? PALS[v].k : f.k === '무늬' ? MOTIFS[v].k : `${GRIDS[v]}칸`;
     s.innerHTML = `${f.k}<b>${name}</b>` + (f.k === '팔레트' ? PALS[v].c.slice(0, 4).map(c => `<i style="background:${c}"></i>`).join('') : '');
-    el.append(s); d.tag = s;
+    if (!d.tag) { $('#labels').append(s); d.tag = s; }
   });
 }
 const tmpV = new THREE.Vector3();
@@ -340,10 +353,28 @@ function frame(info) {
   px.fillStyle = '#77736b'; px.fillText(`${info.n} tiles · seed ${info.seed.toString(16)} · ${info.time}`, 54, 1162);
   px.textAlign = 'right'; px.fillText('COINCIDENCE / DICE POSTER', 846, 1162);
 }
+function preview(stage) {
+  const v = dice.map(d => d.value);
+  const P = plan(roundSeed, v[0], stage >= 2 ? v[1] : 0, stage >= 3 ? v[2] : 0, 2);
+  const s = Math.floor(Math.min(792 / P.cols, 940 / P.rows)), ox = Math.round((PW - P.cols * s) / 2), oy = Math.round(150 + (940 - P.rows * s) / 2);
+  const info = { no: rollNo + 1, seed: roundSeed, shape: SHAPES[v[0]].k, pal: stage >= 2 ? PALS[v[1]].k : '—', motif: stage >= 3 ? MOTIFS[v[2]].k : '—', cols: '—', rows: '—', n: '—', time: '격자 주사위를 기다리는 중' };
+  frame(info);
+  px.globalAlpha = stage === 3 ? .5 : 1;
+  for (const t of P.tiles) {
+    if (t.stray) continue;
+    const X = ox + t.x * s, Y = oy + t.y * s;
+    if (stage === 1) { px.fillStyle = '#d9d5cc'; px.fillRect(X + 1, Y + 1, s * t.w - 2, s - 2); }
+    else if (stage === 2) { px.fillStyle = t.a; px.fillRect(X, Y, s * t.w + .5, s + .5); }
+    else tile(px, t.m, X, Y, s, t.a, t.b, t.k, t.w);
+  }
+  px.globalAlpha = 1;
+  const left = FACES.slice(stage).map(f => f.k).join(' · ');
+  $('#meta').innerHTML = `<span class="k">No.${pad(rollNo + 1)}</span> · ${info.shape}${stage >= 2 ? ' · ' + info.pal : ''}${stage >= 3 ? ' · ' + info.motif : ''}<br><span class="k">남은 주사위 · ${left}</span>`;
+}
 function make() {
   rollNo++;
   const v = Object.fromEntries(dice.map(d => [d.f.k, d.value]));
-  const seed = Math.floor(Math.random() * 2 ** 31);
+  const seed = roundSeed;
   const P = plan(seed, v['형태'], v['팔레트'], v['무늬'], v['격자']);
   const body = P.tiles.filter(t => !t.stray);
   const digits = String(rollNo).split('');
@@ -390,6 +421,7 @@ $('#save').onclick = () => {
 document.fonts.ready.then(() => {
   dice.forEach(d => d.mesh.material.forEach(m => m.map.userData.redraw()));
   px.fillStyle = PBG; px.fillRect(0, 0, PW, PH);
-  resize(); requestAnimationFrame(loop);
-  setTimeout(() => throwDice(), 350);
+  resize(); park(); rollLabel(); requestAnimationFrame(loop);
+  px.fillStyle = '#9a958b'; px.font = `500 26px 'Noto Sans KR', sans-serif`; px.textAlign = 'center'; px.fillText('주사위를 하나씩 던지면 형태가 생겨요', PW / 2, PH / 2);
+  $('#meta').innerHTML = `<span class="k">형태 → 팔레트 → 무늬 → 격자 순서로 던져요</span>`;
 });
