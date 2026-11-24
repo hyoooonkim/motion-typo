@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261124 — 우연 주사위 포스터</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;700;900&display=swap">
+<style>
+  :root { --bg: #e7e2d7; --ink: #161616; --mute: #7b766c; --line: rgba(22,22,22,.18); }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; user-select: none; -webkit-user-select: none; }
+  body { overflow: hidden; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; z-index: 5; pointer-events: none; }
+  #top a { color: inherit; text-decoration: none; pointer-events: auto; }
+  main { display: grid; grid-template-columns: 1fr 440px; height: 100%; }
+  #table { position: relative; overflow: hidden; touch-action: none; }
+  #table canvas { display: block; width: 100%; height: 100%; }
+  #labels span { position: absolute; transform: translate(-50%, -100%); font-size: 11px; white-space: nowrap; padding: 3px 7px; background: rgba(22,22,22,.88); color: #f1ede4; pointer-events: none; transition: opacity .3s; }
+  #labels span b { font-family: 'Noto Sans KR', sans-serif; font-weight: 500; margin-left: 6px; }
+  #labels span i { display: inline-block; width: 9px; height: 9px; margin-left: 6px; vertical-align: -1px; border: 1px solid rgba(255,255,255,.5); }
+  #rollbar { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  #roll { background: var(--ink); color: var(--bg); border: 0; padding: 14px 34px; font-size: 14px; font-weight: 600; letter-spacing: .12em; }
+  #roll:disabled { opacity: .4; cursor: default; }
+  #hint { font-size: 11px; color: var(--mute); font-family: 'Noto Sans KR', sans-serif; }
+  #side { border-left: 1px solid var(--line); padding: 46px 28px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
+  #poster { width: 100%; aspect-ratio: 3 / 4; display: block; box-shadow: 0 1px 0 rgba(0,0,0,.08), 0 18px 40px -18px rgba(0,0,0,.35); background: #eee8dc; }
+  #meta { font-size: 11.5px; line-height: 1.7; min-height: 40px; }
+  #meta .k { color: var(--mute); }
+  .btns { display: flex; gap: 6px; }
+  .btns button { flex: 1; background: transparent; border: 1px solid var(--line); padding: 8px 0; font-size: 12px; }
+  .wl { font-size: 10px; letter-spacing: .16em; color: var(--mute); text-transform: uppercase; margin-top: 4px; }
+  #wall { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  #wall canvas { width: 100%; aspect-ratio: 3 / 4; display: block; cursor: pointer; box-shadow: 0 4px 10px -6px rgba(0,0,0,.4); }
+  #wall canvas.on { outline: 1.5px solid var(--ink); outline-offset: 2px; }
+  @media (max-width: 860px) {
+    body { overflow: auto; }
+    main { display: block; height: auto; }
+    #table { height: 52vh; }
+    #rollbar { bottom: 12px; } #roll { padding: 11px 28px; }
+    #side { border-left: 0; border-top: 1px solid var(--line); padding: 18px 16px 30px; }
+    #poster { max-width: 420px; margin: 0 auto; }
+    #wall { grid-template-columns: repeat(6, 1fr); }
+  }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/", "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js" } }</script>
+</head>
+<body>
+<header id="top"><span>우연 · DICE POSTER</span><a href="../index.html">← INDEX</a></header>
+<main>
+  <section id="table">
+    <div id="labels"></div>
+    <div id="rollbar"><button id="roll">주사위 굴리기</button><span id="hint">탁자를 끌어서 던져도 돼요</span></div>
+  </section>
+  <aside id="side">
+    <canvas id="poster" width="900" height="1200"></canvas>
+    <div id="meta"></div>
+    <div class="btns"><button id="save">포스터 저장</button></div>
+    <div class="wl">지금까지 나온 우연</div>
+    <div id="wall"></div>
+  </aside>
+</main>
+<script type="module" src="main.js?v=1"></script>
+</body>
+</html>
