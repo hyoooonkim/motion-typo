@@ -20,7 +20,7 @@
   #labels span b { font-family: 'Noto Sans KR', sans-serif; font-weight: 500; margin-left: 6px; }
   #labels span i { display: inline-block; width: 9px; height: 9px; margin-left: 6px; vertical-align: -1px; border: 1px solid rgba(255,255,255,.5); }
   #rollbar { position: absolute; left: 50%; bottom: 26px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  #roll { background: var(--ink); color: var(--bg); border: 0; padding: 14px 34px; font-size: 14px; font-weight: 600; letter-spacing: .12em; }
+  #roll { white-space: nowrap; background: var(--ink); color: var(--bg); border: 0; padding: 14px 34px; font-size: 14px; font-weight: 600; letter-spacing: .12em; }
   #roll:disabled { opacity: .4; cursor: default; }
   #hint { font-size: 11px; color: var(--mute); font-family: 'Noto Sans KR', sans-serif; }
   #side { border-left: 1px solid var(--line); padding: 46px 28px 20px; display: flex; flex-direction: column; gap: 14px; overflow: hidden; }
@@ -50,7 +50,7 @@
 <main>
   <section id="table">
     <div id="labels"></div>
-    <div id="rollbar"><button id="roll">주사위 굴리기</button><span id="hint">탁자를 끌어서 던져도 돼요</span></div>
+    <div id="rollbar"><button id="roll">주사위 굴리기</button><span id="hint">주사위를 컵에 넣고 흔들어 엎어요</span></div>
   </section>
   <aside id="side">
     <canvas id="poster" width="900" height="1200"></canvas>
@@ -60,6 +60,6 @@
     <div id="wall"></div>
   </aside>
 </main>
-<script type="module" src="main.js?v=2"></script>
+<script type="module" src="main.js?v=4"></script>
 </body>
 </html>

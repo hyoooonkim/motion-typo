@@ -238,61 +238,119 @@ function click(v, hi) {
 dice.forEach(d => d.body.addEventListener('collide', e => click(Math.abs(e.contact.getImpactVelocityAlongNormal()), e.body.material === mDie)));
 
 let rolling = false, still = 0, rollNo = 0, settleT = 0, next = 0, roundSeed = 0;
+let phase = 'idle', pt = 0, slot = null, canLift = false, rattleT = 0;
+const cup = new THREE.Group();
+{
+  const prof = [[1.08, 0], [1.1, .08], [1.02, .2], [.9, 1.75], [.88, 1.9], [0, 1.94]].map(([r, y]) => new THREE.Vector2(r, y));
+  const leather = new THREE.MeshStandardMaterial({ color: '#4a2f22', roughness: .62, metalness: 0, side: THREE.DoubleSide });
+  const m = new THREE.Mesh(new THREE.LatheGeometry(prof, 48), leather); m.castShadow = true; cup.add(m);
+  const band = new THREE.Mesh(new THREE.TorusGeometry(1.06, .045, 10, 64), new THREE.MeshStandardMaterial({ color: '#c8a46a', roughness: .35, metalness: .6 }));
+  band.rotation.x = Math.PI / 2; band.position.y = .22; cup.add(band);
+  const band2 = band.clone(); band2.scale.setScalar(.85); band2.position.y = 1.72; cup.add(band2);
+}
+cup.visible = false; scene.add(cup);
+const ring = Array.from({ length: 12 }, () => { const b = new CANNON.Body({ mass: 0, material: mFloor, shape: new CANNON.Box(new CANNON.Vec3(.3, 1.1, .06)) }); b.collisionResponse = false; b.position.set(0, -20, 0); world.addBody(b); return b; });
+function ringAt(x, z, on) {
+  ring.forEach((b, i) => { const a = i / ring.length * Math.PI * 2; b.position.set(on ? x + Math.cos(a) * 1.0 : 0, on ? 1.1 : -20, on ? z + Math.sin(a) * 1.0 : 0); b.quaternion.setFromEuler(0, Math.PI / 2 - a, 0); b.collisionResponse = on; });
+}
+const slotOf = i => HX < 4.2 ? { x: (i % 2 ? 1 : -1) * 1.15, z: i < 2 ? -.15 : 2.05 } : { x: (-1.5 + i) * Math.min(2.4, HX * .45), z: .6 };
 function park() {
   dice.forEach((d, i) => {
-    const b = d.body; b.wakeUp();
+    if (!world.bodies.includes(d.body)) world.addBody(d.body);
+    const b = d.body; b.wakeUp(); d.mesh.visible = true;
     b.position.set(-HX + 1 + i * 1.5, SIZE / 2, -HZ + .95);
     b.quaternion.setFromEuler(0, (Math.random() - .5) * .6, 0);
     b.velocity.set(0, 0, 0); b.angularVelocity.set(0, 0, 0); d.value = null;
   });
 }
 function rollLabel() {
-  $('#roll').textContent = next === 0 && rollNo ? '새 포스터 · 형태부터' : `${FACES[next].k} 주사위 던지기 · ${next + 1}/4`;
+  const b = $('#roll'), h = $('#hint');
+  if (phase === 'covered') { b.textContent = canLift ? '컵 들어 올리기' : '굴러가는 중…'; b.disabled = !canLift; h.textContent = canLift ? '컵을 클릭하거나 위로 끌어 올려도 돼요' : '컵 안에서 주사위가 멈추길 기다려요'; return; }
+  if (phase !== 'idle') { b.disabled = true; if (phase === 'shake') { b.textContent = '흔드는 중…'; h.textContent = '딸그락딸그락'; } return; }
+  b.disabled = !!anim;
+  b.textContent = next === 0 && rollNo ? '새 포스터 · 형태부터' : `${FACES[next].k} 주사위 흔들기 · ${next + 1}/4`;
+  h.textContent = '주사위를 컵에 넣고 흔들어 엎어요';
 }
 function throwDice(dir, user) {
+  if (phase !== 'idle' || anim) return;
   if (user && !actx) { try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {} }
   if (next === 0) { park(); roundSeed = Math.floor(Math.random() * 2 ** 31); $('#labels').innerHTML = ''; dice.forEach(d => d.tag = null); }
-  rolling = true; still = 0; settleT = 0;
-  $('#roll').disabled = true;
-  const a = dir ?? { x: .55 + Math.random() * .3, z: -(.5 + Math.random() * .4) };
-  const len = Math.hypot(a.x, a.z) || 1, ux = a.x / len, uz = a.z / len;
-  const d = dice[next], b = d.body; b.wakeUp();
-  b.position.set(-ux * (HX - 1.1), 2.4, -uz * (HZ - 1.1));
-  b.quaternion.setFromEuler(Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3);
-  const sp = 12 + Math.random() * 5;
-  b.velocity.set(ux * sp, 2 + Math.random() * 3, uz * sp);
-  b.angularVelocity.set((Math.random() - .5) * 30, (Math.random() - .5) * 30, (Math.random() - .5) * 30);
+  const d = dice[next];
+  world.removeBody(d.body); d.mesh.visible = false;
   if (d.tag) { d.tag.remove(); d.tag = null; }
+  slot = slotOf(next);
+  cup.visible = true; cup.position.set(0, 2.3, .4); cup.rotation.set(0, 0, 0);
+  phase = 'shake'; pt = 0; rattleT = 0; rollLabel();
+}
+function lift() {
+  if (phase !== 'covered' || !canLift) return;
+  const d = dice[next];
+  d.value = d.order[topFace(d).idx];
+  phase = 'lift'; pt = 0; ringAt(0, 0, false);
   next++;
+  showLabels();
+  if (next === 4) { next = 0; make(); } else preview(next);
+  rollLabel();
 }
 function topFace(d) {
   let best = -2, idx = 0;
   NORMALS.forEach((n, i) => { const w = d.body.quaternion.vmult(n); if (w.y > best) { best = w.y; idx = i; } });
   return { idx, dot: best };
 }
+const ease = t => t < .5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2;
 function checkSettle(dt) {
-  if (!rolling) return;
-  settleT += dt;
-  const calm = dice.every(d => d.body.velocity.length() < .08 && d.body.angularVelocity.length() < .12);
-  still = calm ? still + dt : 0;
-  if (still < .35 && settleT < 7) return;
-  const tilted = dice.filter(d => topFace(d).dot < .94);
-  if (tilted.length && settleT < 7) { tilted.forEach(d => { d.body.wakeUp(); d.body.velocity.set((Math.random() - .5) * 2, 3, (Math.random() - .5) * 2); d.body.angularVelocity.set(Math.random() * 6, 0, Math.random() * 6); }); still = 0; return; }
-  rolling = false;
-  dice.slice(0, next).forEach(d => { d.value = d.order[topFace(d).idx]; });
-  showLabels();
-  if (next === 4) { next = 0; make(); }
-  else { preview(next); $('#roll').disabled = false; }
-  rollLabel();
+  pt += dt;
+  if (phase === 'shake') {
+    const k = Math.min(1, pt / 1.1);
+    cup.position.set(Math.sin(pt * 26) * .4 * (1 - k * .3), 2.3 + Math.abs(Math.sin(pt * 13)) * .35, .4 + Math.cos(pt * 19) * .2);
+    cup.rotation.set(Math.cos(pt * 19) * .12, 0, Math.sin(pt * 26) * .2);
+    rattleT -= dt; if (rattleT <= 0) { rattleT = .045 + Math.random() * .06; click(3 + Math.random() * 7, true); }
+    if (pt > 1.1) { phase = 'slam'; pt = 0; }
+  } else if (phase === 'slam') {
+    const k = Math.min(1, pt / .26), e = k * k;
+    cup.position.set(slot.x * e, 2.3 - 2.3 * e, .4 + (slot.z - .4) * e); cup.rotation.set(0, 0, 0);
+    if (k >= 1) {
+      thump();
+      const d = dice[next], b = d.body;
+      world.addBody(b); b.wakeUp(); d.mesh.visible = true;
+      b.position.set(slot.x + (Math.random() - .5) * .3, 1.05, slot.z + (Math.random() - .5) * .3);
+      b.quaternion.setFromEuler(Math.random() * 6.3, Math.random() * 6.3, Math.random() * 6.3);
+      b.velocity.set((Math.random() - .5) * 4, -2, (Math.random() - .5) * 4);
+      b.angularVelocity.set((Math.random() - .5) * 26, (Math.random() - .5) * 26, (Math.random() - .5) * 26);
+      ringAt(slot.x, slot.z, true);
+      phase = 'covered'; pt = 0; canLift = false; still = 0; rollLabel();
+    }
+  } else if (phase === 'covered' && !canLift) {
+    const d = dice[next], b = d.body;
+    const calm = b.velocity.length() < .08 && b.angularVelocity.length() < .12;
+    still = calm ? still + dt : 0;
+    if (still > .3 || pt > 5) {
+      if (topFace(d).dot < .94 && pt < 5) { b.wakeUp(); b.velocity.set(0, 3, 0); b.angularVelocity.set(Math.random() * 8, 0, Math.random() * 8); still = 0; }
+      else { canLift = true; rollLabel(); }
+    }
+  } else if (phase === 'lift') {
+    const k = Math.min(1, pt / .7), e = ease(k);
+    cup.position.set(slot.x + e * 1.6, e * 5, slot.z - e * .8); cup.rotation.set(-e * .35, 0, -e * .6);
+    if (k >= 1) { cup.visible = false; phase = 'idle'; rollLabel(); }
+  }
+}
+function thump() {
+  if (!actx) return;
+  const len = .25, buf = actx.createBuffer(1, actx.sampleRate * len, actx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 4);
+  const src = actx.createBufferSource(); src.buffer = buf;
+  const f = actx.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 260;
+  const g = actx.createGain(); g.gain.value = 1.4;
+  src.connect(f).connect(g).connect(actx.destination); src.start();
 }
 function showLabels() {
-  dice.slice(0, next || 4).forEach(d => {
-    if (d.value === null) return;
-    const s = d.tag || document.createElement('span');
+  dice.forEach(d => {
+    if (d.value === null || d.tag) return;
+    const s = document.createElement('span');
     const v = d.value, f = d.f;
     const name = f.k === '형태' ? SHAPES[v].k : f.k === '팔레트' ? PALS[v].k : f.k === '무늬' ? MOTIFS[v].k : `${GRIDS[v]}칸`;
     s.innerHTML = `${f.k}<b>${name}</b>` + (f.k === '팔레트' ? PALS[v].c.slice(0, 4).map(c => `<i style="background:${c}"></i>`).join('') : '');
-    if (!d.tag) { $('#labels').append(s); d.tag = s; }
+    $('#labels').append(s); d.tag = s;
   });
 }
 const tmpV = new THREE.Vector3();
@@ -306,15 +364,14 @@ function placeLabels() {
 }
 
 let drag = null;
-table.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; drag = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+table.addEventListener('pointerdown', e => { if (e.target.closest('button')) return; drag = { x: e.clientX, y: e.clientY }; });
 addEventListener('pointerup', e => {
   if (!drag) return;
-  const dx = e.clientX - drag.x, dy = e.clientY - drag.y; drag = null;
-  if (rolling) return;
-  if (Math.hypot(dx, dy) > 30) throwDice({ x: dx, z: dy }, true); else throwDice(null, true);
+  drag = null;
+  if (phase === 'covered') lift(); else throwDice(null, true);
 });
-$('#roll').onclick = () => !rolling && throwDice(null, true);
-addEventListener('keydown', e => { if (e.code === 'Space' && !rolling) { e.preventDefault(); throwDice(null, true); } });
+$('#roll').onclick = () => phase === 'covered' ? lift() : throwDice(null, true);
+addEventListener('keydown', e => { if (e.code === 'Space') { e.preventDefault(); phase === 'covered' ? lift() : throwDice(null, true); } });
 
 function resize() {
   const w = table.clientWidth, h = table.clientHeight;
@@ -401,7 +458,7 @@ function posterTick(dt) {
     const snap = document.createElement('canvas'); snap.width = PW; snap.height = PH; snap.getContext('2d').drawImage(pc, 0, 0);
     wall.unshift({ snap, info, meta: $('#meta').innerHTML }); wall = wall.slice(0, 12); shown = 0;
     renderWall();
-    $('#roll').disabled = false;
+    rollLabel();
   }
 }
 function renderWall() {
