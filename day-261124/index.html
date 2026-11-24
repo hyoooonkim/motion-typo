@@ -7,38 +7,70 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Noto+Sans+KR:wght@400;500;900&display=swap">
 <style>
-  :root { --bg: #f1f0eb; --ink: #1c1c1c; --mute: #8a877f; --line: rgba(28,28,28,.16); --him: #e2552f; }
+  :root { --bg: #0a0c0d; --ink: #e8ecea; --mute: #7d8684; --line: rgba(232,236,234,.14); --cy: #5ff2e6; --him: #ff6a3d; }
   html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); color: var(--ink); font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; touch-action: manipulation; user-select: none; -webkit-user-select: none; }
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-  .panel { position: fixed; z-index: 2; background: rgba(241,240,235,.9); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  button { font: inherit; color: inherit; }
+  .panel { position: fixed; z-index: 2; background: rgba(10,12,13,.8); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); border: 1px solid var(--line); }
   #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; z-index: 3; }
   #top a { color: inherit; text-decoration: none; }
   .k { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--mute); }
-  #calc { left: 18px; top: 44px; padding: 14px 16px 12px; width: 300px; border: 1px solid var(--line); }
-  #calc h1 { margin: 0 0 12px; font: 500 15px 'Noto Sans KR', sans-serif; letter-spacing: -.01em; }
-  #pday { font: 600 40px/1.05 'IBM Plex Mono', monospace; letter-spacing: -.03em; margin: 4px 0 6px; }
+  #calc { left: 18px; top: 44px; padding: 14px 16px 12px; width: 300px; }
+  #calc h1 { margin: 0 0 12px; font: 500 15px 'Noto Sans KR', sans-serif; }
+  #pday { font: 600 40px/1.05 'IBM Plex Mono', monospace; letter-spacing: -.03em; margin: 4px 0 6px; color: var(--cy); }
   #every { font: 500 14px 'Noto Sans KR', monospace; }
   #life { font-size: 12px; color: var(--mute); margin-top: 4px; }
   #formula { margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 10.5px; line-height: 1.6; color: var(--mute); }
-  #ctl { left: 18px; bottom: 18px; padding: 12px 16px 14px; width: 300px; border: 1px solid var(--line); font-size: 12px; }
+  #ctl { left: 18px; bottom: 18px; padding: 12px 16px 14px; width: 300px; font-size: 12px; }
   .row { margin-bottom: 11px; }
-  .row .h { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .row .h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
   .seg { display: flex; }
-  .seg button, .act button { flex: 1; background: transparent; color: var(--ink); border: 1px solid var(--line); margin-left: -1px; font: 12px 'IBM Plex Mono', 'Noto Sans KR', monospace; padding: 6px 0; cursor: pointer; }
+  .seg button, .act button { flex: 1; background: transparent; border: 1px solid var(--line); margin-left: -1px; font-size: 12px; padding: 6px 0; cursor: pointer; }
   .seg button.on { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  input[type=range] { width: 100%; margin: 0; accent-color: var(--ink); }
+  .link { background: none; border: 0; padding: 0; color: var(--cy); font-size: 11px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+  #sum { font-family: 'Noto Sans KR', monospace; font-size: 12px; }
+  input[type=range] { width: 100%; margin: 0; accent-color: var(--cy); }
   .act { display: flex; gap: 6px; margin-top: 4px; }
   .act button { margin: 0; padding: 9px 0; font-weight: 500; }
-  .act button#until { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-  #log { right: 18px; top: 44px; width: 290px; padding: 12px 14px; border: 1px solid var(--line); font-size: 11.5px; }
+  .act button#until { background: var(--cy); color: var(--bg); border-color: var(--cy); }
+  .act button:disabled { opacity: .35; cursor: default; }
+  #log { right: 18px; top: 44px; width: 290px; padding: 12px 14px; font-size: 11.5px; }
   #days { list-style: none; margin: 8px 0 0; padding: 0; }
-  #days li { display: grid; grid-template-columns: 68px 50px 1fr; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); font-family: 'IBM Plex Mono', 'Noto Sans KR', monospace; }
-  #days li .t { font-family: 'Noto Sans KR', sans-serif; color: #4a4843; }
+  #days li { display: grid; grid-template-columns: 68px 50px 1fr; gap: 10px; padding: 5px 0; border-top: 1px solid var(--line); }
+  #days li .t { font-family: 'Noto Sans KR', sans-serif; color: #aab3b0; }
   #days li .d { text-align: right; }
-  #days li.meet { color: var(--him); } #days li.meet .t { color: var(--him); font-weight: 500; }
+  #days li.meet, #days li.meet .t { color: var(--him); font-weight: 500; }
   #days li.sep { display: block; text-align: center; color: var(--mute); font-size: 10.5px; }
-  #hud { right: 18px; bottom: 18px; padding: 10px 14px; border: 1px solid var(--line); font-size: 12px; text-align: right; line-height: 1.6; min-width: 230px; }
-  #hud b { font-weight: 600; }
+  #hud { right: 18px; bottom: 18px; padding: 10px 14px; font-size: 12px; text-align: right; line-height: 1.6; min-width: 230px; }
+  #hud b { font-weight: 600; color: var(--cy); }
+
+  #modal { position: fixed; inset: 0; z-index: 10; display: flex; align-items: center; justify-content: center; background: rgba(5,6,7,.72); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); overflow-y: auto; padding: 20px 12px; box-sizing: border-box; }
+  #modal.hide { display: none; }
+  .sheet { width: min(560px, 100%); margin: auto; background: #0e1112; border: 1px solid rgba(95,242,230,.35); padding: 22px 24px 20px; box-sizing: border-box; position: relative; }
+  .sheet::before, .sheet::after { content: ''; position: absolute; width: 14px; height: 14px; border: 1px solid var(--cy); }
+  .sheet::before { left: -1px; top: -1px; border-right: 0; border-bottom: 0; }
+  .sheet::after { right: -1px; bottom: -1px; border-left: 0; border-top: 0; }
+  .sheet h2 { margin: 6px 0 6px; font: 500 20px 'Noto Sans KR', sans-serif; }
+  .sheet .sub { margin: 0 0 18px; font: 12.5px/1.6 'Noto Sans KR', sans-serif; color: var(--mute); }
+  .person { margin-bottom: 16px; }
+  .person .h { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+  .tag { font-size: 10.5px; padding: 2px 6px; border: 1px solid currentColor; }
+  .tag.me { color: var(--ink); } .tag.him { color: var(--him); }
+  .person input[type=text] { background: transparent; border: 0; border-bottom: 1px solid var(--line); color: var(--ink); font: 14px 'Noto Sans KR', sans-serif; padding: 3px 0; width: 120px; outline: none; }
+  .person input[type=text]:focus { border-color: var(--cy); }
+  .person .cnt { margin-left: auto; font-size: 11px; color: var(--mute); }
+  .hours { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; touch-action: none; }
+  .hours div { height: 26px; border: 1px solid var(--line); box-sizing: border-box; cursor: pointer; position: relative; }
+  .hours div.on { background: rgba(232,236,234,.85); border-color: transparent; }
+  .him .hours div.on { background: var(--him); }
+  .hours div.both { box-shadow: 0 0 0 1px var(--cy) inset, 0 0 8px rgba(95,242,230,.6); }
+  .ticks { display: grid; grid-template-columns: repeat(24, 1fr); font-size: 9px; color: var(--mute); margin-top: 3px; }
+  .ticks span:nth-child(6n+1) { visibility: visible; } .ticks span { visibility: hidden; }
+  .sheet .row { margin: 14px 0 0; font-size: 12px; }
+  #mprev { margin-top: 18px; padding: 12px 14px; border: 1px dashed rgba(95,242,230,.4); font-size: 12px; line-height: 1.7; }
+  #mprev b { color: var(--cy); font-size: 18px; font-weight: 600; }
+  #go { margin-top: 14px; width: 100%; padding: 12px 0; background: var(--cy); color: var(--bg); border: 0; font-weight: 600; letter-spacing: .06em; cursor: pointer; }
+
   @media (max-width: 639px) {
     #top { font-size: 10px; }
     #calc { left: 10px; right: 10px; top: 36px; width: auto; padding: 10px 12px; }
@@ -49,6 +81,8 @@
     .row { margin-bottom: 8px; }
     #log { display: none; }
     #hud { right: 10px; bottom: auto; top: 186px; min-width: 0; font-size: 10.5px; padding: 6px 9px; }
+    .sheet { padding: 18px 14px 16px; }
+    .hours { gap: 1px; } .hours div { height: 24px; }
   }
 </style>
 </head>
@@ -64,12 +98,33 @@
 </section>
 <aside id="log" class="panel"><div class="k">기록</div><ol id="days"></ol></aside>
 <section id="ctl" class="panel">
-  <div class="row"><div class="h"><span class="k">사는 곳</span></div><div class="seg" id="place"></div></div>
-  <div class="row"><div class="h"><span class="k">하루 외출 시간</span><span id="hoursV"></span></div><input id="hours" type="range" min="0.5" max="6" step="0.5" value="2"></div>
+  <div class="row"><div class="h"><span class="k">생활 루틴</span><button class="link" id="edit">다시 입력</button></div><div id="sum">—</div></div>
   <div class="row"><div class="h"><span class="k">알아보는 거리</span><span id="rV"></span></div><input id="r" type="range" min="2" max="15" step="1" value="5"></div>
   <div class="act"><button id="walk">하루 걷기</button><button id="until">만날 때까지</button></div>
 </section>
 <div id="hud" class="panel">—</div>
-<script type="module" src="main.js?v=1"></script>
+
+<div id="modal">
+  <form class="sheet" id="form" onsubmit="return false">
+    <div class="k">STEP 01 · ROUTINE INPUT</div>
+    <h2>두 사람의 하루를 알려주세요</h2>
+    <p class="sub">밖을 걸어 다니는 시간을 눌러서 칠하세요. 끌면 여러 칸이 한 번에 칠해져요.<br>입력한 내용은 이 브라우저 밖으로 나가지 않아요.</p>
+    <div class="person me">
+      <div class="h"><span class="tag me">SUBJECT A</span><input type="text" id="nmMe" maxlength="8" placeholder="나" value="나"><span class="cnt" id="cMe"></span></div>
+      <div class="hours" id="hMe"></div>
+      <div class="ticks" id="tMe"></div>
+    </div>
+    <div class="person him">
+      <div class="h"><span class="tag him">SUBJECT B</span><input type="text" id="nmHim" maxlength="8" placeholder="그" value="그"><span class="cnt" id="cHim"></span></div>
+      <div class="hours" id="hHim"></div>
+      <div class="ticks" id="tHim"></div>
+    </div>
+    <div class="row"><div class="h"><span class="k">그는 지금 어디 사나요</span></div><div class="seg" id="mPlace"></div></div>
+    <div class="row"><div class="h"><span class="k">둘이 같이 가던 단골 장소</span></div><div class="seg" id="mHaunt"></div></div>
+    <div id="mprev">—</div>
+    <button id="go" type="button">관측 시작</button>
+  </form>
+</div>
+<script type="module" src="main.js?v=3"></script>
 </body>
 </html>
