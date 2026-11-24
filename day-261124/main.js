@@ -256,8 +256,20 @@ function paperTex(base, amp, fiber, speck) {
   for (let i = 0; i < 60; i++) { x.fillStyle = speck.replace('A', (.1 + Math.random() * .2).toFixed(3)); x.beginPath(); x.arc(Math.random() * S, Math.random() * S, .25 + Math.random() * .5, 0, 7); x.fill(); }
   return wx.createPattern(g, 'repeat');
 }
+function blackTex() {
+  const S = 512, g = document.createElement('canvas'); g.width = g.height = S; const x = g.getContext('2d');
+  x.fillStyle = '#1b1b1c'; x.fillRect(0, 0, S, S);
+  const n = document.createElement('canvas'); n.width = n.height = S / 2; const nx = n.getContext('2d'), nd = nx.createImageData(S / 2, S / 2);
+  for (let i = 0; i < nd.data.length; i += 4) { const v = Math.random() * 255; nd.data[i] = nd.data[i + 1] = nd.data[i + 2] = v; nd.data[i + 3] = 255; }
+  nx.putImageData(nd, 0, 0);
+  x.globalAlpha = .045; x.imageSmoothingEnabled = true; x.drawImage(n, 0, 0, S, S); x.globalAlpha = 1;
+  const d = x.getImageData(0, 0, S, S);
+  for (let i = 0; i < d.data.length; i += 4) { const v = (Math.random() - .5) * 7; d.data[i] += v; d.data[i + 1] += v; d.data[i + 2] += v; }
+  x.putImageData(d, 0, 0);
+  return wx.createPattern(g, 'repeat');
+}
 function tex(k) {
-  if (!TEX[k]) TEX[k] = k === 'cover' ? paperTex('#161616', .09, 'rgba(255,255,255,A)', 'rgba(255,255,255,A)') : paperTex('#ece7da', .05, 'rgba(110,95,70,A)', 'rgba(60,50,40,A)');
+  if (!TEX[k]) TEX[k] = k === 'cover' ? blackTex() : paperTex('#ece7da', .05, 'rgba(110,95,70,A)', 'rgba(60,50,40,A)');
   return TEX[k];
 }
 const mobile = () => W < 760;
