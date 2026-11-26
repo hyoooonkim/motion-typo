@@ -12,20 +12,20 @@
   #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; z-index: 3; pointer-events: none; }
   #top a { color: inherit; text-decoration: none; pointer-events: auto; }
   main { padding: 70px 4vw 60px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 3.2vw 3vw; max-width: 1180px; margin: 0 auto; box-sizing: border-box; }
-  .slot { display: flex; flex-direction: column; align-items: center; gap: 12px; }
-  .coin { width: 100%; max-width: 230px; aspect-ratio: 1; perspective: 900px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.3, 1.4, .5, 1); transform: rotateX(var(--rx, 0deg)) rotateY(calc(var(--ry, 0deg) + var(--flip, 0deg))); }
-  .inner canvas { position: absolute; inset: 0; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; filter: drop-shadow(0 10px 14px rgba(0,0,0,.6)); }
-  .inner canvas.back { transform: rotateY(180deg); }
+  .slot { display: flex; align-items: center; justify-content: center; min-height: 100%; }
+  .coin { position: relative; width: calc(100% * var(--sz, 1)); max-width: calc(230px * var(--sz, 1)); aspect-ratio: 1; perspective: 900px; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
+  .shadow { position: absolute; left: 12%; right: 12%; bottom: -9%; height: 14%; border-radius: 50%; background: radial-gradient(closest-side, rgba(0,0,0,.65), rgba(0,0,0,0)); }
+  .toss { position: absolute; inset: 0; transform-style: preserve-3d; }
+  .inner { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform .25s ease-out; transform: rotateX(calc(var(--rx, 0deg) + var(--flip, 0deg))) rotateY(var(--ry, 0deg)); }
+  .inner canvas { position: absolute; inset: 0; width: 100%; height: 100%; backface-visibility: hidden; -webkit-backface-visibility: hidden; filter: drop-shadow(0 4px 6px rgba(0,0,0,.5)); }
+  .inner canvas.back { transform: rotateX(180deg); }
   .coin.flip .inner { --flip: 180deg; }
-  .label { font-size: 11px; letter-spacing: .06em; color: rgba(217,210,195,.5); text-align: center; font-family: 'IBM Plex Mono', 'Noto Serif KR', monospace; }
-  .label b { color: rgba(217,210,195,.85); font-weight: 500; font-family: 'Noto Serif KR', serif; }
   @media (max-width: 760px) { main { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 60px 6vw 40px; gap: 8vw 6vw; } }
 </style>
 </head>
 <body>
 <header id="top"><span>잔돈 · COINS OF ORDINARY PEOPLE</span><a href="../index.html">← INDEX</a></header>
 <main id="wall"></main>
-<script type="module" src="main.js?v=3"></script>
+<script type="module" src="main.js?v=5"></script>
 </body>
 </html>
