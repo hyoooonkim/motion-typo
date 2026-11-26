@@ -75,7 +75,7 @@ function tick() {
   const s = actx.createBufferSource(); s.buffer = buf; const f = actx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 2500;
   const g = actx.createGain(); g.gain.value = .5; s.connect(f).connect(g).connect(actx.destination); s.start(t);
 }
-function flick(coin, toss, inner, shadow, metal, power) {
+function flick(coin, toss, inner, shadow, metal, power, ang) {
   if (!actx) try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
   coin.dataset.air = '1'; tick();
   const halfTurns = 2 * (2 + Math.round(power * 3) + Math.floor(Math.random() * 2)) + 1;
@@ -84,7 +84,8 @@ function flick(coin, toss, inner, shadow, metal, power) {
   const k = [0, .1, .3, .5, .7, .9, 1];
   const ease = t => t < .5 ? 1 - (1 - 2 * t) ** 2 : 1 - (2 * t - 1) ** 2;
   const an = toss.animate(k.map(t => ({ offset: t, transform: `translateY(${-up * ease(t)}px) scale(${1 + .22 * ease(t)}) rotateZ(${tilt * t}deg) rotateX(${spin * t}deg)` })), { duration: dur, easing: 'linear' });
-  shadow.animate(k.map(t => ({ offset: t, transform: `scale(${1 - .55 * ease(t)})`, opacity: 1 - .7 * ease(t) })), { duration: dur, easing: 'linear' });
+  const so = (e) => `translate(${4 + 46 * e}px, ${6 + 62 * e}px) rotate(${ang}deg) scale(${1 + .08 * e})`;
+  shadow.animate(k.map(t => ({ offset: t, transform: so(ease(t)), opacity: .7 - .5 * ease(t), filter: `blur(${3 + 14 * ease(t)}px)` })), { duration: dur, easing: 'linear' });
   an.onfinish = () => {
     inner.style.transition = 'none'; coin.classList.toggle('flip'); void inner.offsetWidth; inner.style.transition = '';
     toss.animate([{ transform: `rotateZ(${tilt}deg) translateY(0)` }, { transform: `rotateZ(${tilt * .5}deg) translateY(-14px)` }, { transform: 'rotateZ(0deg) translateY(0)' }], { duration: 260, easing: 'ease-out' });
@@ -106,21 +107,23 @@ async function init() {
   await Promise.all([document.fonts.load("700 30px 'Cinzel'"), document.fonts.load("900 50px 'Noto Serif KR'")]);
   const wall = $('#wall');
   const ims = await Promise.all(COINS.map(o => load(`coins/${o.k}.webp`))), backs = await Promise.all(COINS.map(o => load(`coins/${o.k}-back.webp`)));
-  COINS.forEach((o, i) => {
-    const slot = document.createElement('div'); slot.className = 'slot';
-    const coin = document.createElement('div'); coin.className = 'coin'; coin.style.setProperty('--sz', o.sz);
-    const shadow = document.createElement('div'); shadow.className = 'shadow';
+  const els = COINS.map((o, i) => {
+    const coin = document.createElement('div'); coin.className = 'coin';
+    const ang = (Math.random() - .5) * 70;
+    const sh = document.createElement('canvas'); sh.width = sh.height = 160; sh.className = 'shadow';
+    const sc = sh.getContext('2d'); sc.drawImage(ims[i], 0, 0, 160, 160); sc.globalCompositeOperation = 'source-in'; sc.fillStyle = '#000'; sc.fillRect(0, 0, 160, 160);
+    sh.style.transform = `translate(4px, 6px) rotate(${ang}deg)`;
+    const rot = document.createElement('div'); rot.className = 'rot'; rot.style.transform = `rotate(${ang}deg)`;
     const toss = document.createElement('div'); toss.className = 'toss';
     const inner = document.createElement('div'); inner.className = 'inner';
     inner.append(front(ims[i], o), back(backs[i], o));
-    toss.append(inner); coin.append(shadow, toss);
-    slot.append(coin); wall.append(slot);
+    toss.append(inner); rot.append(toss); coin.append(sh, rot); wall.append(coin);
     let down = null;
     coin.addEventListener('pointerdown', e => { down = { y: e.clientY, t: performance.now() }; });
     coin.addEventListener('pointerup', e => {
       if (!down || coin.dataset.air) return;
       const dy = down.y - e.clientY, dt = Math.max(16, performance.now() - down.t); down = null;
-      flick(coin, toss, inner, shadow, o.m, Math.min(1, Math.max(0, dy / dt * .9)));
+      flick(coin, toss, inner, sh, o.m, Math.min(1, Math.max(0, dy / dt * .9)), ang);
     });
     coin.addEventListener('pointermove', e => {
       if (e.pointerType !== 'mouse') return;
@@ -128,6 +131,26 @@ async function init() {
       inner.style.setProperty('--rx', `${-y * 18}deg`); inner.style.setProperty('--ry', `${x * 18}deg`);
     });
     coin.addEventListener('pointerleave', () => { inner.style.setProperty('--rx', '0deg'); inner.style.setProperty('--ry', '0deg'); });
+    return { coin, sz: o.sz };
   });
+  const order = els.map((_, i) => i).sort(() => Math.random() - .5), jit = els.map(() => [Math.random() - .5, Math.random() - .5]);
+  function scatter() {
+    const W = innerWidth, mob = W < 760, H = mob ? Math.max(innerHeight * 1.45, 1100) : innerHeight, top = 56, pad = 16;
+    const area = (W - pad * 2) * (H - top - pad), m2 = els.reduce((a, e) => a + e.sz * e.sz, 0);
+    const d0 = Math.min(270, Math.sqrt(area * (mob ? .46 : .42) / (.785 * m2)));
+    const cols = mob ? 3 : 4, rows = Math.ceil(els.length / cols), cw = (W - pad * 2) / cols, ch = (H - top - pad) / rows;
+    const P = els.map((e, i) => { const c = order[i], gx = c % cols + (Math.floor(c / cols) % 2 ? .35 : -.1), gy = Math.floor(c / cols); return { r: d0 * e.sz / 2, x: pad + (gx + .5 + jit[i][0] * .7) * cw, y: top + (gy + .5 + jit[i][1] * .7) * ch }; });
+    for (let it = 0; it < 400; it++) {
+      for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) {
+        const A = P[a], B = P[b], dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || .01, need = (A.r + B.r) * 1.06 + 6;
+        if (d < need) { const push = (need - d) / 2, ux = dx / d, uy = dy / d; A.x -= ux * push; A.y -= uy * push; B.x += ux * push; B.y += uy * push; }
+      }
+      P.forEach(p => { p.x = Math.min(W - pad - p.r, Math.max(pad + p.r, p.x)); p.y = Math.min(H - pad - p.r, Math.max(top + p.r, p.y)); });
+    }
+    wall.style.height = `${H}px`;
+    els.forEach((e, i) => { const p = P[i]; Object.assign(e.coin.style, { left: `${p.x - p.r}px`, top: `${p.y - p.r}px`, width: `${p.r * 2}px`, height: `${p.r * 2}px` }); });
+  }
+  scatter();
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(scatter, 150); });
 }
 init();
