@@ -135,19 +135,22 @@ async function init() {
   });
   const seedP = els.map(() => [Math.random() * 2 - 1, Math.random() * 2 - 1]);
   function scatter() {
-    const W = innerWidth, mob = W < 760, top = 50, pad = 14, H = mob ? Math.max(innerHeight, 760) : innerHeight;
-    const aw = W - pad * 2, ah = H - top - pad, cx0 = W / 2, cy0 = top + ah / 2, m2 = els.reduce((a, e) => a + e.sz * e.sz, 0);
-    const d0 = Math.min(250, Math.sqrt(aw * ah * (mob ? .6 : .5) / (.785 * m2)));
-    const sx = mob ? 1 : Math.min(1.6, aw / ah), P = els.map((e, i) => ({ r: d0 * e.sz / 2, x: cx0 + seedP[i][0] * aw * .08, y: cy0 + seedP[i][1] * ah * .08 }));
+    const W = innerWidth, mob = W < 760, top = mob ? 56 : Math.max(70, innerHeight * .1), pad = mob ? 16 : Math.max(60, W * .07), H = mob ? Math.max(innerHeight, 760) : innerHeight;
+    const aw = W - pad * 2, ah = H - top - (mob ? 24 : top * .8), cx0 = W / 2, cy0 = top + ah / 2, m2 = els.reduce((a, e) => a + e.sz * e.sz, 0);
+    const d0 = Math.min(300, Math.sqrt(aw * ah * (mob ? .6 : .6) / (.785 * m2)));
+    const sx = Math.max(.45, Math.min(2.2, aw / ah)), P = els.map((e, i) => ({ r: d0 * e.sz / 2, x: cx0 + seedP[i][0] * aw * .08, y: cy0 + seedP[i][1] * ah * .08 }));
     for (let it = 0; it < 600; it++) {
       const pull = it < 450 ? .04 : .01;
-      P.forEach(p => { p.x += (cx0 - p.x) * pull / sx; p.y += (cy0 - p.y) * pull * sx * .9; });
+      P.forEach(p => { p.x += (cx0 - p.x) * pull / (sx * sx); p.y += (cy0 - p.y) * pull; });
       for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) {
         const A = P[a], B = P[b], dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || .01, need = (A.r + B.r) * .985 + 2;
         if (d < need) { const push = (need - d) / 2, ux = dx / d, uy = dy / d; A.x -= ux * push; A.y -= uy * push; B.x += ux * push; B.y += uy * push; }
       }
-      P.forEach(p => { p.x = Math.min(W - pad - p.r, Math.max(pad + p.r, p.x)); p.y = Math.min(H - pad - p.r, Math.max(top + p.r, p.y)); });
     }
+    let bx0 = Infinity, bx1 = -Infinity, by0 = Infinity, by1 = -Infinity;
+    P.forEach(p => { bx0 = Math.min(bx0, p.x - p.r); bx1 = Math.max(bx1, p.x + p.r); by0 = Math.min(by0, p.y - p.r); by1 = Math.max(by1, p.y + p.r); });
+    const k = Math.min(aw / (bx1 - bx0), ah / (by1 - by0)), mx = (bx0 + bx1) / 2, my = (by0 + by1) / 2;
+    P.forEach(p => { p.x = cx0 + (p.x - mx) * k; p.y = cy0 + (p.y - my) * k; p.r *= k; });
     wall.style.height = `${H}px`;
     els.forEach((e, i) => { const p = P[i]; Object.assign(e.coin.style, { left: `${p.x - p.r}px`, top: `${p.y - p.r}px`, width: `${p.r * 2}px`, height: `${p.r * 2}px`, zIndex: Math.round(p.y) }); });
   }
