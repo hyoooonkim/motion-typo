@@ -116,7 +116,7 @@ let drag = null;
 renderer.domElement.addEventListener('pointerdown', e => {
   if (!actx) try { actx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
   const h = uAt(e); if (!h || busy()) return;
-  drag = { a: h, b: h }; renderer.domElement.setPointerCapture(e.pointerId);
+  drag = { a: h, b: h }; try { renderer.domElement.setPointerCapture(e.pointerId); } catch {}
 });
 renderer.domElement.addEventListener('pointermove', e => { if (!drag) return; const h = uAt(e); drag.b = h ? h : { u: drag.b.u, x: e.clientX }; });
 addEventListener('pointerup', () => {
