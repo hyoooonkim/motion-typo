@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Day 261126 — 동전 탁본</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Noto+Sans+KR:wght@700;900&family=Noto+Serif+KR:wght@900&display=swap">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #e9e3d6; color: #2a2723; font-family: 'IBM Plex Mono', monospace; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  #top { position: fixed; left: 18px; right: 18px; top: 14px; display: flex; justify-content: space-between; font-size: 12px; letter-spacing: .14em; text-transform: uppercase; z-index: 3; pointer-events: none; }
+  #top a { color: inherit; text-decoration: none; pointer-events: auto; }
+  #bar { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; z-index: 3; font-size: 12px; color: rgba(42,39,35,.6); white-space: nowrap; }
+  #bar button { background: transparent; color: #2a2723; border: 1px solid rgba(42,39,35,.3); padding: 7px 14px; font: 12px 'IBM Plex Mono', 'Noto Sans KR', monospace; cursor: pointer; }
+</style>
+</head>
+<body>
+<header id="top"><span>잔돈 · FROTTAGE</span><a href="../index.html">← INDEX</a></header>
+<div id="bar"><span id="hint">종이를 문질러 보세요</span><button id="fresh">새 종이</button><button id="save">저장</button></div>
+<script type="module" src="main.js?v=2"></script>
+</body>
+</html>
