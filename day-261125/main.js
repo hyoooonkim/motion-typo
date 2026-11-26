@@ -1,11 +1,16 @@
 import * as THREE from 'three';
 
 const $ = s => document.querySelector(s);
-const BAND = [.43, .565];
+const STORIES = [
+  { band: [.43, .565], lines: [['나는 너를', '친구로서', '사랑해', 10], ['우리', '셋이서', '영원히']] },
+  { band: [.415, .585], lines: [['나는 너', '의 친한 친구', '를 좋아해', 4], ['우리', '셋이 같이', '또 오자']] },
+  { band: [.41, .57], lines: [['이 아이는 제', '동생 부부의', '아들입니다'], ['다들', '제 동생을', '닮았대요']] },
+  { band: [.335, .745], lines: [['우리 집 서열 1위는', '아빠, 2위는 엄마, 꼴찌는', '강아지']] },
+];
+let cur = 0;
 const TW = 2048, BX = 64, BY = 64, PWP = TW - BX * 2, PHP = Math.round(PWP * 1207 / 1800), CAP = 330, TH = BY + PHP + CAP;
 const uOf = f => (BX + f * PWP) / TW;
-const BU = [uOf(BAND[0]), uOf(BAND[1])];
-const LINES = [['나는 너를', '친구로서', '사랑해'], ['우리', '셋이서', '영원히']];
+let BU = [uOf(STORIES[0].band[0]), uOf(STORIES[0].band[1])];
 const CW = 4, CH = CW * TH / TW, FOLD = Math.PI - .045;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -34,14 +39,20 @@ function paint(img) {
   tx.putImageData(d, 0, 0);
   if (img) { tx.drawImage(img, BX, BY, PWP, PHP); tx.fillStyle = 'rgba(255,214,160,.07)'; tx.fillRect(BX, BY, PWP, PHP); }
   tx.fillStyle = '#26324a'; tx.textBaseline = 'alphabetic';
-  const a = BU[0] * TW, b = BU[1] * TW, gap = 16, bw = b - a - 24;
-  LINES.forEach(([l, m, r], j) => {
-    const y = BY + PHP + 128 + j * 128, fs = 108;
+  const st = STORIES[cur], a = BU[0] * TW, b = BU[1] * TW, n = st.lines.length;
+  st.lines.forEach(([l, m, r, g = 18], j) => {
+    const y = BY + PHP + (n === 1 ? 190 : 128 + j * 128), fs = 108;
     tx.font = `${fs}px 'Nanum Pen Script', cursive`;
-    tx.textAlign = 'right'; tx.fillText(l, a - gap, y);
-    tx.textAlign = 'left'; tx.fillText(r, b + gap, y);
-    const mw = tx.measureText(m).width, ms = mw > bw ? fs * bw / mw : fs;
-    tx.font = `${ms}px 'Nanum Pen Script', cursive`; tx.textAlign = 'center'; tx.fillText(m, (a + b) / 2, y);
+    tx.textAlign = 'right'; tx.fillText(l, a - g, y);
+    tx.textAlign = 'left'; tx.fillText(r, b + g, y);
+    const chars = [...m], x0 = a + g, avail = b - g - x0;
+    const nat = tx.measureText(m).width, fsm = fs * Math.max(.55, Math.min(1.22, avail / nat));
+    tx.font = `${fsm}px 'Nanum Pen Script', cursive`;
+    const ws = chars.map(ch => tx.measureText(ch).width), tot = ws.reduce((s, w) => s + w, 0), left = Math.max(0, avail - tot);
+    const sp = chars.filter(ch => ch === ' ').length, slots = sp || Math.max(1, chars.length - 1);
+    let x = chars.length > 1 ? x0 : x0 + left / 2;
+    tx.textAlign = 'left';
+    chars.forEach((ch, i) => { tx.fillText(ch, x, y); x += ws[i] + ((sp ? ch === ' ' : i < chars.length - 1) ? left / slots : 0); });
   });
   texture.needsUpdate = true;
 }
@@ -158,7 +169,18 @@ function loop(now) {
 }
 
 paint(null); rebuild(); resize();
-const img = new Image();
-img.onload = () => document.fonts.load("108px 'Nanum Pen Script'").then(() => { paint(img); });
-img.src = 'photo.jpg';
+const imgs = STORIES.map((_, i) => { const im = new Image(); im.src = `photo-${i + 1}.jpg`; return im; });
+const ready = document.fonts.load("108px 'Nanum Pen Script'");
+function show(i) {
+  cur = i; BU = [uOf(STORIES[i].band[0]), uOf(STORIES[i].band[1])];
+  pleats.length = 0; rebuild(); pose();
+  $('#open').disabled = true; $('#hint').textContent = '사진을 가로로 끌어서 접어 보세요';
+  document.querySelectorAll('#stories button').forEach((b, j) => b.classList.toggle('on', j === i));
+  const im = imgs[i];
+  const go = () => ready.then(() => { if (cur === i) paint(im); });
+  if (im.complete && im.naturalWidth) go(); else { paint(null); im.onload = go; }
+}
+const nav = $('#stories');
+STORIES.forEach((_, i) => { const b = document.createElement('button'); b.textContent = String(i + 1).padStart(2, '0'); b.onclick = () => !busy() && show(i); nav.append(b); });
+show(0);
 requestAnimationFrame(loop);

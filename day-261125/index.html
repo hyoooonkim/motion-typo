@@ -15,13 +15,18 @@
   #bar { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; z-index: 3; font-size: 12px; color: rgba(233,229,220,.6); white-space: nowrap; }
   #open { background: transparent; color: #e9e5dc; border: 1px solid rgba(233,229,220,.35); padding: 7px 14px; font: 12px 'IBM Plex Mono', monospace; cursor: pointer; }
   #open:disabled { opacity: .3; cursor: default; }
+  #stories { position: fixed; left: 50%; top: 10px; transform: translateX(-50%); display: flex; gap: 4px; z-index: 4; }
+  #stories button { background: transparent; color: rgba(233,229,220,.55); border: 1px solid rgba(233,229,220,.2); font: 12px 'IBM Plex Mono', monospace; padding: 4px 10px; cursor: pointer; }
+  #stories button.on { color: #101011; background: #e9e5dc; border-color: #e9e5dc; }
+  @media (max-width: 640px) { #stories { top: 38px; } }
 </style>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js" } }</script>
 </head>
 <body>
 <header id="top"><span>접기 · FOLD</span><a href="../index.html">← INDEX</a></header>
+<nav id="stories"></nav>
 <canvas id="ov"></canvas>
 <div id="bar"><span id="hint">사진을 가로로 끌어서 접어 보세요</span><button id="open" disabled>펼치기</button></div>
-<script type="module" src="main.js?v=1"></script>
+<script type="module" src="main.js?v=3"></script>
 </body>
 </html>
