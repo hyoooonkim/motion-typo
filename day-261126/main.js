@@ -1,17 +1,17 @@
 const $ = s => document.querySelector(s);
 const COINS = [
-  { k: 'bus', sz: 0.95, lr: 0.8, m: 'bronze', job: '첫차 버스 기사', v: 50, leg: 'FIRST BVS DRIVER · V:X AM', back: ['새벽 5시 10분', '아무도 없는 정류장에도', '섰다'] },
-  { k: 'clerk', sz: 0.74, lr: 0.84, m: 'silver', job: '편의점 야간 알바', v: 100, leg: 'NIGHT CLERK · CCCXII CHANGES', back: ['오늘 거스름돈을', '312번 건넸다'] },
-  { k: 'granny', sz: 0.9, lr: 0.7, m: 'gold', job: '시장 나물 할머니', v: 500, leg: 'MARKET GRANDMOTHER · LX YEARS', back: ['60년 동안', '덤을 얹어 주었다'] },
-  { k: 'guard', sz: 0.92, lr: 0.8, m: 'silver', job: '아파트 경비원', v: 100, leg: 'APARTMENT GVARD · MMCXL PARCELS', back: ['택배 2,140개를', '대신 받아 주었다'] },
-  { k: 'bungeo', sz: 0.8, lr: 0.76, m: 'bronze', job: '붕어빵 사장님', v: 10, leg: 'BVNGEOPPANG MASTER · III FOR M', back: ['천 원에 세 마리', '가끔은 네 마리'] },
-  { k: 'rider', sz: 1.0, lr: 0.86, lm: 'gold', m: 'silver', job: '배달 라이더', v: 100, leg: 'DELIVERY RIDER · RAIN OR SHINE', back: ['비 오는 날', '더 많이 달렸다'] },
-  { k: 'nurse', sz: 0.88, lr: 0.7, m: 'gold', job: '야간 간호사', v: 500, leg: 'NIGHT NVRSE · WARD VII', back: ['모두가 자는 동안', '깨어 있었다'] },
-  { k: 'sweeper', sz: 0.86, lr: 0.76, m: 'bronze', job: '환경미화원', v: 10, leg: 'STREET SWEEPER · IV AM', back: ['아침이 오기 전에', '길을 치웠다'] },
-  { k: 'crossing', sz: 1.12, lr: 0.66, m: 'silver', job: '등굣길 지킴이', v: 100, leg: 'CROSSING GVARD · MDCCC CHILDREN', back: ['아이들 1,800명을', '건너게 했다'] },
-  { k: 'laundry', sz: 0.9, lr: 0.82, m: 'bronze', job: '동네 세탁소 사장님', v: 50, leg: 'LAVNDRY MASTER · XL YEARS', back: ['단추 하나도', '그냥 넘기지 않았다'] },
-  { k: 'barista', sz: 0.8, lr: 0.72, m: 'gold', job: '카페 바리스타', v: 500, leg: 'BARISTA · CCXL NAMES', back: ['손님 240명의', '이름을 외웠다'] },
-  { k: 'mom', sz: 1.18, lr: 0.74, m: 'gold', job: '엄마', v: 500, leg: 'MOTHER · KEEP THE CHANGE', back: ['거스름돈은', '늘 너 가져'] },
+  { k: 'bus', sz: 0.95, lf: 0.753, mf: 'bronze', lb: 0.614, mb: 'bronze', m: 'bronze', job: '첫차 버스 기사', v: 50, leg: 'FIRST BVS DRIVER · V:X AM', back: ['새벽 5시 10분', '아무도 없는 정류장에도', '섰다'] },
+  { k: 'clerk', sz: 0.74, lf: 0.829, mf: 'silver', lb: 0.601, mb: 'silver', m: 'silver', job: '편의점 야간 알바', v: 100, leg: 'NIGHT CLERK · CCCXII CHANGES', back: ['오늘 거스름돈을', '312번 건넸다'] },
+  { k: 'granny', sz: 0.9, lf: 0.608, mf: 'gold', lb: 0.601, mb: 'gold', m: 'gold', job: '시장 나물 할머니', v: 500, leg: 'MARKET GRANDMOTHER · LX YEARS', back: ['60년 동안', '덤을 얹어 주었다'] },
+  { k: 'guard', sz: 0.92, lf: 0.785, mf: 'silver', lb: 0.614, mb: 'silver', m: 'silver', job: '아파트 경비원', v: 100, leg: 'APARTMENT GVARD · MMCXL PARCELS', back: ['택배 2,140개를', '대신 받아 주었다'] },
+  { k: 'bungeo', sz: 0.8, lf: 0.72, mf: 'bronze', lb: 0.601, mb: 'bronze', m: 'bronze', job: '붕어빵 사장님', v: 10, leg: 'BVNGEOPPANG · III FOR M', back: ['천 원에 세 마리', '가끔은 네 마리'] },
+  { k: 'rider', sz: 1.0, lf: 0.816, mf: 'gold', lb: 0.601, mb: 'silver', m: 'silver', job: '배달 라이더', v: 100, leg: 'DELIVERY RIDER · RAIN OR SHINE', back: ['비 오는 날', '더 많이 달렸다'] },
+  { k: 'nurse', sz: 0.88, lf: 0.627, mf: 'gold', lb: 0.5, mb: 'gold', m: 'gold', job: '야간 간호사', v: 500, leg: 'NIGHT NVRSE · WARD VII', back: ['모두가 자는 동안', '깨어 있었다'] },
+  { k: 'sweeper', sz: 0.86, lf: 0.633, mf: 'bronze', lb: 0.601, mb: 'bronze', m: 'bronze', job: '환경미화원', v: 10, leg: 'STREET SWEEPER · IV AM', back: ['아침이 오기 전에', '길을 치웠다'] },
+  { k: 'crossing', sz: 1.12, lf: 0.69, mf: 'silver', lb: 0.519, mb: 'silver', m: 'silver', job: '등굣길 지킴이', v: 100, leg: 'MDCCC CHILDREN', back: ['아이들 1,800명을', '건너게 했다'] },
+  { k: 'laundry', sz: 0.9, lf: 0.785, mf: 'bronze', lb: 0.721, mb: 'bronze', m: 'bronze', job: '동네 세탁소 사장님', v: 50, leg: 'LAVNDRY MASTER · XL YEARS', back: ['단추 하나도', '그냥 넘기지 않았다'] },
+  { k: 'barista', sz: 0.8, lf: 0.709, mf: 'gold', lb: 0.601, mb: 'gold', m: 'gold', job: '카페 바리스타', v: 500, leg: 'BARISTA · CCXL NAMES', back: ['손님 240명의', '이름을 외웠다'] },
+  { k: 'mom', sz: 1.18, lf: 0.715, mf: 'gold', lb: 0.601, mb: 'gold', m: 'gold', job: '엄마', v: 500, leg: 'MOTHER · KEEP THE CHANGE', back: ['거스름돈은', '늘 너 가져'] },
 ];
 const METAL = {
   gold: { base: '#d4ad62', hi: 'rgba(255,244,210,.85)', lo: 'rgba(80,45,5,.8)' },
@@ -29,12 +29,12 @@ function emboss(c, draw, metal, d = 1.7) {
   c.save(); c.translate(d * 1.9, d * 1.9); c.globalAlpha = .45; c.fillStyle = M.lo; draw(); c.restore();
   c.fillStyle = M.base; draw();
 }
-function arcLegend(c, txt, r, size, metal) {
+function arcLegend(c, txt, r, size, metal, maxSpan = 2.05) {
   c.font = `700 ${size}px 'Cinzel', serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
-  const chars = [...txt], track = size * .08, ws = chars.map(ch => c.measureText(ch).width + track);
+  let chars = [...txt], track = size * .08, ws = chars.map(ch => c.measureText(ch).width + track);
   let tot = ws.reduce((a, b) => a + b, 0) / r;
-  const maxSpan = Math.PI * 1.62, k = tot > maxSpan ? maxSpan / tot : 1;
-  tot *= k;
+  if (tot > maxSpan) { size *= maxSpan / tot; c.font = `700 ${size}px 'Cinzel', serif`; track = size * .08; ws = chars.map(ch => c.measureText(ch).width + track); tot = ws.reduce((a, b) => a + b, 0) / r; }
+  const k = 1;
   let a = -Math.PI / 2 - tot / 2;
   chars.forEach((ch, i) => {
     const d = ws[i] * k / r; a += d / 2;
@@ -46,22 +46,22 @@ function arcLegend(c, txt, r, size, metal) {
 function front(im, o) {
   const cv = document.createElement('canvas'); cv.width = cv.height = SZ; cv.className = 'front';
   const c = cv.getContext('2d'); c.drawImage(im, 0, 0, SZ, SZ);
-  arcLegend(c, o.leg, R * o.lr, 27 * Math.min(1, o.lr / .8), o.lm || o.m);
+  arcLegend(c, o.leg, R * o.lf, 26, o.mf);
   return cv;
 }
 function back(im, o) {
   const cv = document.createElement('canvas'); cv.width = cv.height = SZ; cv.className = 'back';
   const c = cv.getContext('2d'); c.drawImage(im, 0, 0, SZ, SZ);
-  arcLegend(c, `${ROMAN[o.v]} · ${o.v} WON · MMXXVI`, R * o.lr, 24 * Math.min(1, o.lr / .8), o.lm || o.m);
-  const n = o.back.length, fs = n > 2 ? 48 : 56, lh = fs * 1.3, y0 = SZ / 2 + 4 - lh * (n - 1) / 2;
+  arcLegend(c, `${ROMAN[o.v]} · ${o.v} WON · MMXXVI`, R * o.lb, 22, o.mb, 1.3);
+  const n = o.back.length, fs = n > 2 ? 48 : 56, lh = fs * 1.3;
+  const jy = SZ / 2 - R * o.lb * Math.cos(.65) + 40, y0 = Math.max(SZ / 2 + 4 - lh * (n - 1) / 2, jy + 50 + fs * .55);
   c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = `900 30px 'Noto Serif KR', serif`;
-  const jy = y0 - lh * .5 - 46;
   emboss(c, () => c.fillText(o.job, SZ / 2, jy), o.m, 2);
   emboss(c, () => c.fillRect(SZ / 2 - 46, jy + 30, 92, 3), o.m, 1.2);
   c.textAlign = 'center'; c.textBaseline = 'middle';
   o.back.forEach((l, i) => {
     let s = fs; c.font = `900 ${s}px 'Noto Serif KR', serif`;
-    const w = c.measureText(l).width, max = R * o.lr * 1.55; if (w > max) { s *= max / w; c.font = `900 ${s}px 'Noto Serif KR', serif`; }
+    const w = c.measureText(l).width, max = R * Math.max(.62, o.lb) * 1.45; if (w > max) { s *= max / w; c.font = `900 ${s}px 'Noto Serif KR', serif`; }
     emboss(c, () => c.fillText(l, SZ / 2, y0 + i * lh), o.m, 3);
   });
   return cv;
@@ -133,22 +133,23 @@ async function init() {
     coin.addEventListener('pointerleave', () => { inner.style.setProperty('--rx', '0deg'); inner.style.setProperty('--ry', '0deg'); });
     return { coin, sz: o.sz };
   });
-  const order = els.map((_, i) => i).sort(() => Math.random() - .5), jit = els.map(() => [Math.random() - .5, Math.random() - .5]);
+  const seedP = els.map(() => [Math.random() * 2 - 1, Math.random() * 2 - 1]);
   function scatter() {
-    const W = innerWidth, mob = W < 760, H = mob ? Math.max(innerHeight * 1.45, 1100) : innerHeight, top = 56, pad = 16;
-    const area = (W - pad * 2) * (H - top - pad), m2 = els.reduce((a, e) => a + e.sz * e.sz, 0);
-    const d0 = Math.min(270, Math.sqrt(area * (mob ? .46 : .42) / (.785 * m2)));
-    const cols = mob ? 3 : 4, rows = Math.ceil(els.length / cols), cw = (W - pad * 2) / cols, ch = (H - top - pad) / rows;
-    const P = els.map((e, i) => { const c = order[i], gx = c % cols + (Math.floor(c / cols) % 2 ? .35 : -.1), gy = Math.floor(c / cols); return { r: d0 * e.sz / 2, x: pad + (gx + .5 + jit[i][0] * .7) * cw, y: top + (gy + .5 + jit[i][1] * .7) * ch }; });
-    for (let it = 0; it < 400; it++) {
+    const W = innerWidth, mob = W < 760, top = 50, pad = 14, H = mob ? Math.max(innerHeight, 760) : innerHeight;
+    const aw = W - pad * 2, ah = H - top - pad, cx0 = W / 2, cy0 = top + ah / 2, m2 = els.reduce((a, e) => a + e.sz * e.sz, 0);
+    const d0 = Math.min(250, Math.sqrt(aw * ah * (mob ? .6 : .5) / (.785 * m2)));
+    const sx = mob ? 1 : Math.min(1.6, aw / ah), P = els.map((e, i) => ({ r: d0 * e.sz / 2, x: cx0 + seedP[i][0] * aw * .08, y: cy0 + seedP[i][1] * ah * .08 }));
+    for (let it = 0; it < 600; it++) {
+      const pull = it < 450 ? .04 : .01;
+      P.forEach(p => { p.x += (cx0 - p.x) * pull / sx; p.y += (cy0 - p.y) * pull * sx * .9; });
       for (let a = 0; a < P.length; a++) for (let b = a + 1; b < P.length; b++) {
-        const A = P[a], B = P[b], dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || .01, need = (A.r + B.r) * 1.06 + 6;
+        const A = P[a], B = P[b], dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || .01, need = (A.r + B.r) * .985 + 2;
         if (d < need) { const push = (need - d) / 2, ux = dx / d, uy = dy / d; A.x -= ux * push; A.y -= uy * push; B.x += ux * push; B.y += uy * push; }
       }
       P.forEach(p => { p.x = Math.min(W - pad - p.r, Math.max(pad + p.r, p.x)); p.y = Math.min(H - pad - p.r, Math.max(top + p.r, p.y)); });
     }
     wall.style.height = `${H}px`;
-    els.forEach((e, i) => { const p = P[i]; Object.assign(e.coin.style, { left: `${p.x - p.r}px`, top: `${p.y - p.r}px`, width: `${p.r * 2}px`, height: `${p.r * 2}px` }); });
+    els.forEach((e, i) => { const p = P[i]; Object.assign(e.coin.style, { left: `${p.x - p.r}px`, top: `${p.y - p.r}px`, width: `${p.r * 2}px`, height: `${p.r * 2}px`, zIndex: Math.round(p.y) }); });
   }
   scatter();
   let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(scatter, 150); });
