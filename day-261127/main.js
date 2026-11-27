@@ -134,6 +134,28 @@ function drawSketch() {
     cx.restore();
   });
 }
+const SEALS = {};
+function seal(name, seed, strength = 1) {
+  const key = name + seed + strength; if (SEALS[key]) return SEALS[key];
+  const N = 160, c = document.createElement('canvas'); c.width = c.height = N; const x = c.getContext('2d'), R = i => rnd0(i * 13.7 + seed * 101);
+  x.translate(N / 2, N / 2); x.fillStyle = x.strokeStyle = '#c2201b';
+  x.lineWidth = 9; x.beginPath(); for (let i = 0; i <= 64; i++) { const a = i / 64 * 6.283, rr = 66 + (R(i) - .5) * 2.6; x.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); } x.closePath(); x.stroke();
+  const ch = [...name]; x.textAlign = 'center'; x.textBaseline = 'middle';
+  if (ch.length === 3) {
+    x.font = `900 56px 'Noto Serif KR', serif`; x.lineWidth = 3.5; x.lineJoin = 'round';
+    [[0, -36], [0, 3], [0, 41]].forEach(([tx, ty], i) => { x.save(); x.translate(tx, ty); x.scale(1.3, .74); x.fillText(ch[i], 0, 2); x.strokeText(ch[i], 0, 2); x.restore(); });
+  } else { x.font = `900 60px 'Noto Serif KR', serif`; x.save(); x.scale(1.1, .9); x.fillText(name, 0, 2); x.restore(); }
+  x.globalCompositeOperation = 'destination-out';
+  for (let i = 0; i < 150; i++) { const a = R(i + 300) * 6.283, d = Math.sqrt(R(i + 600)) * 72; x.globalAlpha = .2 + R(i + 900) * .6; x.beginPath(); x.arc(Math.cos(a) * d, Math.sin(a) * d, .5 + R(i + 1200) * 1.5, 0, 7); x.fill(); }
+  const weak = R(5) * 6.283, wk = 1 - strength * .75;
+  const g = x.createRadialGradient(Math.cos(weak) * 70, Math.sin(weak) * 70, 4, Math.cos(weak) * 70, Math.sin(weak) * 70, 90); g.addColorStop(0, `rgba(0,0,0,${.35 + wk * .55})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.globalAlpha = 1; x.fillStyle = g; x.fillRect(-N, -N, N * 2, N * 2);
+  x.globalAlpha = .1; for (let i = 0; i < 12; i++) { x.beginPath(); x.ellipse((R(i + 40) - .5) * 110, (R(i + 70) - .5) * 110, 6 + R(i + 90) * 14, 3 + R(i + 95) * 6, R(i) * 3, 0, 7); x.fill(); }
+  x.globalCompositeOperation = 'source-atop'; x.globalAlpha = .35; x.fillStyle = '#8e0f0c';
+  for (let i = 0; i < 6; i++) { x.beginPath(); x.ellipse((R(i + 140) - .5) * 90, (R(i + 150) - .5) * 90, 10 + R(i + 160) * 16, 5 + R(i + 165) * 8, R(i + 3) * 3, 0, 7); x.fill(); }
+  return SEALS[key] = c;
+}
+function stampMark(img, x, y, r, rot, a) { cx.save(); cx.translate(x, y); cx.rotate(rot); cx.globalAlpha = a; cx.globalCompositeOperation = 'multiply'; cx.drawImage(img, -r, -r, r * 2, r * 2); cx.restore(); }
 function drawForms() {
   st.forms.forEach((f, i) => {
     sheet(f, '#fdfcf8', .8);
@@ -143,15 +165,11 @@ function drawForms() {
       const cw = (f.w - 40) / 3; cx.strokeStyle = '#3d3a35'; cx.lineWidth = 1.2;
       ['담당', '팀장', '대표'].forEach((t, j) => { cx.strokeRect(20 + j * cw, 90, cw, 24); cx.strokeRect(20 + j * cw, 114, cw, 56); cx.fillStyle = '#3d3a35'; cx.fillText(t, 20 + j * cw + cw / 2, 107); });
       cx.fillStyle = 'rgba(60,60,70,.35)'; for (let k = 0; k < 6; k++) cx.fillRect(22, 192 + k * 12, (f.w - 44) * (.5 + rnd0(i * 7 + k) * .5), 4);
-      const mark = (alpha, sr) => {
-        cx.save(); cx.translate(20 + cw * 2 + cw / 2, 142); cx.rotate(sr); cx.globalAlpha = alpha; cx.globalCompositeOperation = 'multiply';
-        cx.strokeStyle = cx.fillStyle = '#c8241c'; cx.lineWidth = 3; cx.beginPath(); cx.arc(0, 0, 24, 0, 7); cx.stroke();
-        cx.font = `900 17px 'Noto Serif KR', serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('승인', 0, 1);
-        cx.globalCompositeOperation = 'destination-out'; cx.globalAlpha = .35; for (let q = 0; q < 14; q++) { cx.beginPath(); cx.arc(rnd0(q + i * 20) * 50 - 25, rnd0(q + i * 20 + 5) * 50 - 25, 1.6, 0, 7); cx.fill(); }
-        cx.restore();
-      };
-      if (f.faint) mark(.12, f.fsr);
-      if (f.done) mark(.88 * Math.min(1, (now - f.at) / 120), f.sr);
+      const col = j => 20 + cw * j + cw / 2;
+      stampMark(seal('김수진', i * 3 + 1), col(0) + (rnd0(i + 30) - .5) * 6, 142 + (rnd0(i + 31) - .5) * 6, 21, (rnd0(i + 32) - .5) * .5, .86);
+      stampMark(seal('박정호', i * 3 + 2), col(1) + (rnd0(i + 33) - .5) * 6, 142 + (rnd0(i + 34) - .5) * 6, 21, (rnd0(i + 35) - .5) * .5, .84);
+      if (f.faint) stampMark(seal('한마감', i * 3 + 7, .15), col(2) + 2, 143, 22, f.fsr, .35);
+      if (f.done) { const k = Math.min(1, (now - f.at) / 90); stampMark(seal('한마감', i * 3 + 3, f.str || 1), col(2) + f.ox, 142 + f.oy, 22 * (1 + (1 - k) * .15), f.sr, .9 * k); }
     });
   });
 }
@@ -249,11 +267,17 @@ function drawInk() {
 }
 function stampAt(x, y, h, ang) {
   cx.save(); cx.translate(x, y); cx.rotate(ang); shadowFor(x, y, h);
-  cx.fillStyle = '#3b2518'; cx.beginPath(); cx.arc(0, 0, 24, 0, 7); cx.fill(); noShadow();
-  const g = cx.createRadialGradient(-8, -9, 2, 0, 0, 25); g.addColorStop(0, '#9a6a45'); g.addColorStop(.6, '#5a3722'); g.addColorStop(1, '#2a180e');
-  cx.fillStyle = g; cx.beginPath(); cx.arc(0, 0, 23, 0, 7); cx.fill();
-  cx.strokeStyle = 'rgba(255,220,180,.18)'; cx.lineWidth = 1; for (let i = 0; i < 4; i++) { cx.beginPath(); cx.arc(0, 0, 6 + i * 4.5, .3 + i, 2.4 + i); cx.stroke(); }
-  cx.fillStyle = st.ink ? '#c8241c' : '#d9c7a8'; cx.beginPath(); cx.arc(0, -16, 3, 0, 7); cx.fill();
+  cx.fillStyle = '#141212'; cx.beginPath(); cx.arc(0, 0, 25, 0, 7); cx.fill(); noShadow();
+  const body = cx.createRadialGradient(-9, -10, 2, 0, 0, 26); body.addColorStop(0, '#5a524c'); body.addColorStop(.45, '#1d1a18'); body.addColorStop(1, '#050404');
+  cx.fillStyle = body; cx.beginPath(); cx.arc(0, 0, 24.5, 0, 7); cx.fill();
+  const gold = cx.createLinearGradient(-20, -20, 20, 20); gold.addColorStop(0, '#f6dc8e'); gold.addColorStop(.4, '#b58a35'); gold.addColorStop(.7, '#f2d27a'); gold.addColorStop(1, '#7c5a1c');
+  cx.strokeStyle = gold; cx.lineWidth = 3.2; cx.beginPath(); cx.arc(0, 0, 17, 0, 7); cx.stroke();
+  const top = cx.createRadialGradient(-4, -5, 1, 0, 0, 12); top.addColorStop(0, '#6b625b'); top.addColorStop(.5, '#26221f'); top.addColorStop(1, '#0c0a09');
+  cx.fillStyle = top; cx.beginPath(); cx.arc(0, 0, 11.5, 0, 7); cx.fill();
+  cx.fillStyle = 'rgba(255,255,255,.55)'; cx.beginPath(); cx.ellipse(-8, -13, 7, 2.4, -.7, 0, 7); cx.fill();
+  cx.fillStyle = 'rgba(255,255,255,.35)'; cx.beginPath(); cx.ellipse(-3.5, -5, 3, 1.2, -.7, 0, 7); cx.fill();
+  cx.fillStyle = gold; cx.beginPath(); cx.arc(0, -21, 1.8, 0, 7); cx.fill();
+  if (st.ink) { cx.strokeStyle = 'rgba(190,20,20,.7)'; cx.lineWidth = 1.6; cx.beginPath(); cx.arc(0, 0, 25.5, .8, 2.6); cx.stroke(); }
   cx.restore();
 }
 function drawPack() {
@@ -277,6 +301,27 @@ function tissueShape(x, y, rot, s, dirt, h) {
   cx.restore();
 }
 function drawUsed() { st.used.forEach(u => { cx.save(); cx.translate(u.x, u.y); cx.rotate(u.rot); shadowFor(u.x, u.y, 4); cx.fillStyle = '#efe6dc'; blob(cx, 0, 0, 20, 11, .35); cx.fill(); noShadow(); cx.fillStyle = 'rgba(95,52,18,.7)'; blob(cx, 3, 2, 12, 9, .4); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.18)'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(-12, -5); cx.lineTo(6, 7); cx.moveTo(-3, -14); cx.lineTo(10, -3); cx.stroke(); cx.restore(); }); }
+const HAND = { '메일 회신': ['메일 회신', '김팀장님께!'], '회의록 정리': ['회의록', '정리 → 공유'], '견적서!!': ['견적서!!', '오늘까지'], '전화 걸기': ['전화 걸기', '010-…'], '백업 꼭': ['백업 꼭', '외장하드'] };
+function hand(n) {
+  if (!n.ink) {
+    const R = (i) => rnd0(i + n.t.length * 7 + n.c.charCodeAt(1)), lines = HAND[n.t] || [n.t], ink = R(3) < .5 ? '#1c2a55' : '#1d1d24';
+    n.ink = { ink, lines: lines.map((l, li) => ({ l, size: li ? 23 : 33, chars: [...l].map((ch, ci) => ({ ch, r: (R(ci * 3 + li * 17) - .5) * .16, dy: (R(ci * 5 + li * 11) - .5) * 3.2, sc: .92 + R(ci * 7 + li) * .16 })) })), slant: (R(9) - .5) * .12, under: R(4) < .55, li2: R(6) };
+  }
+  const I = n.ink; cx.save(); cx.rotate(I.slant); cx.textBaseline = 'alphabetic'; cx.textAlign = 'left';
+  I.lines.forEach((L, li) => {
+    cx.font = `${L.size}px ${PEN}`;
+    const ws = L.chars.map(c => cx.measureText(c.ch).width * c.sc * .96), tot = ws.reduce((a, b) => a + b, 0);
+    let x = -tot / 2 + (li ? 6 : -2); const y = li ? 30 : 0;
+    L.chars.forEach((c, i) => {
+      cx.save(); cx.translate(x, y + c.dy); cx.rotate(c.r); cx.scale(c.sc, c.sc);
+      cx.fillStyle = I.ink; cx.globalAlpha = .82; cx.fillText(c.ch, 0, 0);
+      cx.globalAlpha = .28; cx.fillText(c.ch, .7, .4); cx.fillText(c.ch, -.4, .6);
+      cx.restore(); x += ws[i];
+    });
+    if (!li && I.under) { cx.strokeStyle = I.ink; cx.globalAlpha = .7; cx.lineWidth = 1.8; cx.lineCap = 'round'; cx.beginPath(); cx.moveTo(-tot / 2 - 4, y + 7); cx.quadraticCurveTo(0, y + 10 + I.li2 * 3, tot / 2 + 2, y + 5); cx.stroke(); cx.globalAlpha = 1; }
+  });
+  cx.restore();
+}
 function drawNote(n) {
   const k = n.binned ? Math.min(1, n.k) : 0;
   if (k >= 1) return;
@@ -286,7 +331,8 @@ function drawNote(n) {
   shadowFor(px, py, lifted ? 26 : 3);
   cx.fillStyle = n.c; cx.fillRect(-n.w / 2, -n.h / 2, n.w, n.h); noShadow();
   cx.fillStyle = 'rgba(0,0,0,.06)'; cx.fillRect(-n.w / 2, -n.h / 2, n.w, 20);
-  cx.fillStyle = '#2b2b33'; cx.font = `31px ${PEN}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(n.t, 0, 7);
+  cx.save(); cx.translate(0, -12);
+  hand(n); cx.restore();
   const g = cx.createLinearGradient(0, n.h / 2 - 26, 0, n.h / 2); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.12)'); cx.fillStyle = g; cx.fillRect(-n.w / 2, n.h / 2 - 26, n.w, 26);
   cx.restore();
 }
@@ -402,7 +448,7 @@ function buildHud() {
   tasksEl.innerHTML = '';
   TASKS.forEach(tk => {
     const li = document.createElement('li'); li.dataset.k = tk.k;
-    li.innerHTML = `<i class="ic">${tk.ic}</i><div><b>${tk.t}</b><small>${tk.how}</small><div class="bar"><span></span></div></div><em>0</em>`;
+    li.innerHTML = `<i class="ic">${TASKS.indexOf(tk) + 1}</i><div><b>${tk.t}</b><small>${tk.how}</small><div class="bar"><span></span></div></div><em>0</em>`;
     li.onmouseenter = () => { st.focus = tk.k; }; li.onmouseleave = () => { st.focus = null; };
     tasksEl.append(li);
   });
@@ -425,14 +471,15 @@ function hudTip() {
 }
 function updateHud() {
   const ps = TASKS.map(t => progress(t.k)), done = TASKS.filter(t => st.done[t.k]).length, tip = hudTip();
-  const key = ps.map(p => p[1]).join() + done + tip + Object.keys(st.done).join();
-  $('#tbar').style.transform = `scaleX(${Math.max(0, st.t / TIME)})`;
+  const key = ps.map(p => p[1]).join() + done + tip + Object.keys(st.done).join() + st.mode;
+  $('#tbar').style.transform = `scaleX(${Math.max(0, st.t / TIME)})`; $('#tsec').textContent = `${Math.ceil(Math.max(0, st.t))}초`; $('#hud').classList.toggle('hot', st.mode === 'play' && st.t < 10);
   if (key === hudCache) return; hudCache = key;
   [...tasksEl.children].forEach((li, i) => {
     const k = TASKS[i].k, [v, s] = ps[i], was = li.classList.contains('done');
     li.querySelector('.bar span').style.width = `${Math.min(100, v * 100)}%`; li.querySelector('em').textContent = st.done[k] ? '완료' : s;
     li.classList.toggle('done', !!st.done[k]); if (st.done[k] && !was) { li.classList.remove('pop'); void li.offsetWidth; li.classList.add('pop'); li.querySelector('.ic').textContent = '✓'; }
-    if (!st.done[k]) li.querySelector('.ic').textContent = TASKS[i].ic;
+    if (!st.done[k]) li.querySelector('.ic').textContent = i + 1;
+    li.classList.toggle('next', st.mode === 'play' && !st.done[k] && TASKS.findIndex(t => !st.done[t.k]) === i);
   });
   $('#hc').textContent = `${done} / 5`; $('#tip').textContent = tip;
 }
@@ -456,7 +503,7 @@ cv.addEventListener('pointerdown', e => {
   if (st.hold === 'stamp') {
     if (near(p, LY.ink[0], LY.ink[1], LY.ink[2])) { st.ink = 1; st.dip = now; st.dipX = p.x; st.dipY = p.y; tone(140, .14, 'sine', .35); tone(600, .05, 'triangle', .05); return; }
     if (form) {
-      if (st.ink) { form.done = 1; form.at = now; form.sr = rnd(-.4, .2); st.ink = 0; thud(); st.shake = .25; if (st.forms.every(f => f.done)) complete('stamp'); }
+      if (st.ink) { form.done = 1; form.at = now; form.sr = rnd(-.35, .25); form.ox = rnd(-5, 5); form.oy = rnd(-5, 5); form.str = rnd(.7, 1); st.ink = 0; thud(); st.shake = .25; if (st.forms.every(f => f.done)) complete('stamp'); }
       else { form.faint = 1; form.fsr = rnd(-.4, .2); tone(260, .1, 'sine', .25); say('인주가 없어요 · 인주에 먼저 꾹', p.x, p.y - 40); }
       return;
     }
