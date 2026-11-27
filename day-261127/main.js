@@ -26,7 +26,7 @@ const TASKS = [
 ];
 const LY = { lamp: [478, 205], lampH: 300, pool: [592, 329], ipad: [570, 98, 526, 696, -.025, .69], sketch: [935, 452, 430, 320, .05, .68],
   forms: [[425, 640, 200, 270, -.08, .72], [600, 628, 200, 270, .05, .72], [772, 652, 200, 270, -.04, .7]],
-  spill: [1108, 792, 80], cup: [1058, 752, 64, 66], handle: [996, 800, 25, 17, -.6], ink: [985, 300, 42], stampHome: [1068, 392], pack: [1292, 480, 150, 92, .18], bin: [1445, 705, 150],
+  spill: [1108, 792, 80], cup: [1058, 752, 64, 66], handle: [996, 800, 25, 17, -.6], ink: [985, 300, 42], stampHome: [1068, 392], pack: [1300, 478, 196, 124, .18], bin: [1445, 705, 150],
   notes: [330, 110, 1240, 800], clock: [800, 46] };
 const AVOID = [[420, 170, 190], [985, 300, 90], [1068, 392, 70], [1292, 480, 120], [1100, 790, 130], [1445, 705, 260], [1040, 750, 90]];
 
@@ -277,15 +277,15 @@ function stampHeld(x, y, pressing) {
 }
 function drawPack() {
   const [x, y, w, h, r] = LY.pack;
-  sprite('pack', x, y, 166, 116, r, 6);
+  sprite('pack', x, y, 214, 150, r, 7);
 }
 function tissueShape(x, y, rot, s, dirt, h) {
   cx.save(); cx.translate(x, y); cx.rotate(rot); shadowFor(x, y, h);
-  if (ok(IMG.wipe)) cx.drawImage(IMG.wipe, -42, -42, 84, 84); noShadow();
-  if (dirt > 0 && ok(IMG.used)) { cx.globalCompositeOperation = 'source-atop'; cx.globalAlpha = Math.min(.9, dirt * .95); cx.drawImage(IMG.used, -30 - dirt * 14, -30 - dirt * 14, 60 + dirt * 28, 60 + dirt * 28); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; }
+  if (ok(IMG.wipe)) cx.drawImage(IMG.wipe, -56, -56, 112, 112); noShadow();
+  if (dirt > 0 && ok(IMG.used)) { cx.globalCompositeOperation = 'source-atop'; cx.globalAlpha = Math.min(.9, dirt * .95); cx.drawImage(IMG.used, -40 - dirt * 18, -40 - dirt * 18, 80 + dirt * 36, 80 + dirt * 36); cx.globalCompositeOperation = 'source-over'; cx.globalAlpha = 1; }
   cx.restore();
 }
-function drawUsed() { st.used.forEach(u => { if (u.binned) return; const lifted = st.drag && st.drag.used === u; sprite('used', u.x, u.y, 54, 52, u.rot, lifted ? 22 : 4); }); }
+function drawUsed() { st.used.forEach(u => { if (u.binned) return; const lifted = st.drag && st.drag.used === u; sprite('used', u.x, u.y, 70, 67, u.rot, lifted ? 22 : 4); }); }
 const HAND = { '메일 회신': ['메일 회신', '김팀장님께!'], '회의록 정리': ['회의록', '정리 → 공유'], '견적서!!': ['견적서!!', '오늘까지'], '전화 걸기': ['전화 걸기', '010-…'], '백업 꼭': ['백업 꼭', '외장하드'] };
 function hand(n) {
   if (!n.ink) {
@@ -503,7 +503,7 @@ cv.addEventListener('pointerdown', e => {
       const c = Math.cos(-n.rot), s = Math.sin(-n.rot), dx = p.x - n.x - n.w / 2, dy = p.y - n.y - n.h / 2;
       if (Math.abs(dx * c - dy * s) < n.w / 2 && Math.abs(dx * s + dy * c) < n.h / 2) { st.notes.splice(i, 1); st.notes.push(n); st.drag = { note: n, dx: p.x - n.x, dy: p.y - n.y }; tone(700, .05, 'square', .05); return; }
     }
-    const u = [...st.used].reverse().find(u => !u.binned && near(p, u.x, u.y, 30)); if (u) { st.drag = { used: u, dx: p.x - u.x, dy: p.y - u.y }; rustle(); return; }
+    const u = [...st.used].reverse().find(u => !u.binned && near(p, u.x, u.y, 38)); if (u) { st.drag = { used: u, dx: p.x - u.x, dy: p.y - u.y }; rustle(); return; }
     if (near(p, LY.stampHome[0], LY.stampHome[1], 40)) { st.hold = 'stamp'; tone(420, .06, 'triangle', .1); return; }
     if (onPack(p)) { st.hold = 'tissue'; st.tissue = { start: spillSum(), dirt: 0 }; rustle(); return; }
     if (inside(st.ipad, p.x, p.y)) {
@@ -520,7 +520,7 @@ cv.addEventListener('pointermove', e => {
   if (!st) return;
   const p = world(e); st.ptr = p;
   if (st.mode === 'play' && !st.drag) {
-    const over = !st.hold && (st.notes.some(n => !n.binned && Math.hypot(p.x - n.x - n.w / 2, p.y - n.y - n.h / 2) < 60) || st.used.some(u => !u.binned && near(p, u.x, u.y, 30)) ? 'grab'
+    const over = !st.hold && (st.notes.some(n => !n.binned && Math.hypot(p.x - n.x - n.w / 2, p.y - n.y - n.h / 2) < 60) || st.used.some(u => !u.binned && near(p, u.x, u.y, 38)) ? 'grab'
       : near(p, LY.stampHome[0], LY.stampHome[1], 46) || onPack(p) || (inside(st.ipad, p.x, p.y) && st.typos.some(t => { if (t.fixed || !t.box) return 0; const l = toLocal(st.ipad, p.x, p.y); return l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]; })) ? 'pointer' : '');
     cv.style.cursor = st.hold ? 'none' : over || 'default';
   }
@@ -531,7 +531,7 @@ cv.addEventListener('pointermove', e => {
   else {
     if (st.hold === 'tissue') {
       const m = SP.M.getContext('2d'), k = SP.k, o = SP.o;
-      m.save(); m.globalCompositeOperation = 'destination-out'; m.globalAlpha = .2; m.lineCap = 'round'; m.lineWidth = 46 * k;
+      m.save(); m.globalCompositeOperation = 'destination-out'; m.globalAlpha = .2; m.lineCap = 'round'; m.lineWidth = 60 * k;
       m.beginPath(); m.moveTo((last.x - o[0]) * k, (last.y - o[1]) * k); m.lineTo((p.x - o[0]) * k, (p.y - o[1]) * k); m.stroke(); m.restore();
       SP.dirty = 1; st.wiped = 1;
     }
