@@ -105,7 +105,7 @@ bg.onload = () => {
   x.putImageData(d, 0, 0); LM.width = w; LM.height = h; LM.getContext('2d').drawImage(t, 0, 0); lmReady = true;
 };
 const PEN = "'Nanum Pen Script', cursive";
-const IMG = {}; ['ink', 'stamp', 'pack', 'wipe', 'used', 'eraser', 'crumbs', 'note0', 'note1', 'note2', 'note3', 'note4'].forEach(k => { const im = new Image(); im.src = `obj/${k}.webp`; IMG[k] = im; });
+const IMG = {}; ['sketch', 'ink', 'stamp', 'pack', 'wipe', 'used', 'eraser', 'crumbs', 'note0', 'note1', 'note2', 'note3', 'note4'].forEach(k => { const im = new Image(); im.src = `obj/${k}.webp`; IMG[k] = im; });
 const CR = [[0, 0, 37, 48], [50, 0, 48, 28], [100, 0, 42, 48], [150, 0, 44, 48], [200, 0, 48, 47], [250, 0, 48, 32], [300, 0, 43, 48], [350, 0, 48, 30], [400, 0, 48, 33], [450, 0, 43, 48], [500, 0, 44, 48], [550, 0, 40, 48], [600, 0, 48, 45], [650, 0, 45, 48], [700, 0, 44, 48], [750, 0, 48, 24], [800, 0, 30, 48], [850, 0, 43, 48], [900, 0, 34, 48], [950, 0, 48, 27], [1000, 0, 48, 36], [1050, 0, 48, 39], [1100, 0, 47, 24], [1150, 0, 48, 27], [1200, 0, 48, 28], [1250, 0, 35, 48], [1300, 0, 39, 48], [1350, 0, 44, 48], [1400, 0, 42, 48], [1450, 0, 48, 48], [1500, 0, 48, 45], [1550, 0, 45, 48], [1600, 0, 48, 44], [1650, 0, 36, 48], [1700, 0, 48, 42], [1750, 0, 48, 32], [1800, 0, 48, 45], [1850, 0, 46, 48], [1900, 0, 38, 48], [1950, 0, 42, 48]];
 const NOTE_IMG = { '#ffe066': 'note0', '#ffb3c7': 'note1', '#a8e6cf': 'note4', '#9ad0ff': 'note2', '#ffd19a': 'note3' };
 const ok = im => im && im.complete && im.naturalWidth;
@@ -127,13 +127,11 @@ function sheet(p, col = '#fbf8f1', lift = 1) {
 }
 const rnd0 = i => { const v = Math.sin(i * 91.7 + 13.1) * 43758.5; return v - Math.floor(v); };
 function drawSketch() {
-  const p = st.sketch; sheet(p, '#f7f3ea');
+  const p = st.sketch, k = p.s;
   withPaper(p, () => {
-    cx.strokeStyle = 'rgba(70,70,80,.55)'; cx.lineWidth = 1.6; cx.lineCap = 'round';
-    cx.beginPath(); cx.rect(60, 60, 150, 110); cx.moveTo(250, 70); cx.lineTo(370, 70); cx.moveTo(250, 100); cx.lineTo(350, 100); cx.moveTo(250, 130); cx.lineTo(330, 130); cx.stroke();
-    cx.beginPath(); cx.moveTo(60, 230); cx.bezierCurveTo(140, 190, 220, 280, 370, 220); cx.stroke();
-    cx.fillStyle = 'rgba(70,70,80,.5)'; cx.font = `30px ${PEN}`; cx.fillText('시안 B — 이거로?', 70, 290);
-    cx.fillStyle = 'rgba(90,90,100,.1)'; for (let i = 0; i < 6; i++) { cx.save(); cx.translate(rnd0(i) * p.w, 30 + rnd0(i + 9) * (p.h - 60)); cx.rotate(rnd0(i + 3) * 3); cx.beginPath(); cx.ellipse(0, 0, 30, 9, 0, 0, 7); cx.fill(); cx.restore(); }
+    cx.save(); shadowFor(p.x + p.w * k / 2, p.y + p.h * k / 2, 4);
+    if (ok(IMG.sketch)) cx.drawImage(IMG.sketch, 0, 0, p.w, p.h); else { cx.fillStyle = '#f2efe8'; cx.fillRect(0, 0, p.w, p.h); }
+    cx.restore();
     sprite('eraser', 330, 262, 150, 58, -.35, 4);
   });
 }
