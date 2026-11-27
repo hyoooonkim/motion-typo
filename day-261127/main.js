@@ -26,9 +26,9 @@ const TASKS = [
 ];
 const LY = { lamp: [478, 205], lampH: 300, pool: [592, 329], ipad: [570, 98, 526, 696, -.025, .69], sketch: [935, 452, 430, 320, .05, .68],
   forms: [[425, 640, 200, 270, -.08, .72], [600, 628, 200, 270, .05, .72], [772, 652, 200, 270, -.04, .7]],
-  spill: [1108, 792, 80], cup: [1058, 752, 64, 66], handle: [996, 800, 25, 17, -.6], ink: [985, 300, 42], stampHome: [1068, 392], pack: [1300, 478, 196, 124, .18], bin: [1445, 705, 150],
+  spill: [1000, 728, 82], cup: [1058, 752, 64, 66], handle: [996, 800, 25, 17, -.6], ink: [985, 300, 42], stampHome: [1068, 392], pack: [1300, 478, 196, 124, .18], bin: [1445, 705, 150],
   notes: [330, 110, 1240, 800], clock: [800, 46] };
-const AVOID = [[420, 170, 190], [985, 300, 90], [1068, 392, 70], [1292, 480, 120], [1100, 790, 130], [1445, 705, 260], [1040, 750, 90]];
+const AVOID = [[420, 170, 190], [985, 300, 90], [1068, 392, 70], [1292, 480, 120], [1000, 728, 130], [1445, 705, 260], [1040, 750, 90]];
 
 const paper = (a, extra = {}) => ({ x: a[0], y: a[1], w: a[2], h: a[3], rot: a[4], s: a[5] || 1, ...extra });
 function toLocal(p, px, py) {
@@ -58,14 +58,24 @@ let st;
 const SP = { HC: document.createElement('canvas'), M: document.createElement('canvas'), C: document.createElement('canvas'), E: document.createElement('canvas'), o: [0, 0], k: 2, sum0: 1, left: 1, dirty: 1 };
 function spillSum() { const d = SP.M.getContext('2d').getImageData(0, 0, SP.M.width, SP.M.height).data; let n = 0; for (let i = 3; i < d.length; i += 16) n += d[i]; return n; }
 function makeSpill() {
-  const [x, y, r] = LY.spill, k = SP.k, size = Math.ceil(r * 3.2 * k);
-  SP.o = [x - r * 1.6, y - r * 1.6];
+  const [x, y, r] = LY.spill, k = SP.k, size = Math.ceil(r * 4.2 * k);
+  SP.o = [x - r * 2.1, y - r * 2.1];
   for (const c of [SP.M, SP.C, SP.E, SP.HC]) { c.width = c.height = size; }
-  const m = SP.M.getContext('2d'), L = v => v * k;
-  m.fillStyle = '#000'; blob(m, L(r * 1.6), L(r * 1.6), L(r), 18, .36); m.fill();
-  blob(m, L(r * 1.6 - r * .75), L(r * 1.6 + r * .15), L(r * .55), 12, .3); m.fill();
-  for (let i = 0; i < 9; i++) { const a = rnd(0, 6.3), d = rnd(1.08, 1.5) * r; blob(m, L(r * 1.6 + Math.cos(a) * d), L(r * 1.6 + Math.sin(a) * d), L(rnd(2.5, 9)), 9, .3); m.fill(); }
-  const [ux, uy, urx, ury] = LY.cup, [hx, hy, hrx, hry, hr] = LY.handle, ox = SP.o[0], oy = SP.o[1];
+  const m = SP.M.getContext('2d'), L = v => v * k, c0 = r * 2.1;
+  const f = document.createElement('canvas'); f.width = f.height = size; const fx = f.getContext('2d');
+  fx.filter = `blur(${11 * k}px)`; fx.fillStyle = '#000';
+  const [ux, uy] = LY.cup, cx0 = (ux - SP.o[0]), cy0 = (uy - SP.o[1]);
+  const circ = (x, y, rr) => { fx.beginPath(); fx.arc(L(x), L(y), L(rr), 0, 7); fx.fill(); };
+  circ(cx0 - 26, cy0 - 12, 50); circ(c0 - 4, c0 - 4, 56); circ(c0 - 40, c0 + 18, 40); circ(c0 + 14, c0 - 44, 32); circ(cx0 - 10, cy0 + 34, 26);
+  for (let i = 0; i < 4; i++) { const a = 2.3 + i * .55 + rnd(-.15, .15), len = rnd(.9, 1.35) * r; for (let t = .3; t <= 1; t += .1) circ(c0 + Math.cos(a) * len * t, c0 + Math.sin(a) * len * t, (1 - t * .7) * rnd(14, 22)); }
+  fx.filter = 'none';
+  const d = fx.getImageData(0, 0, size, size), D = d.data;
+  const sm = (a, b, v) => { const t = Math.max(0, Math.min(1, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+  for (let i = 3; i < D.length; i += 4) { const v = D[i] / 255, t = sm(.42, .5, v) * (.35 + .65 * sm(.5, .92, v)); D[i] = t * 255; }
+  m.putImageData(d, 0, 0);
+  m.fillStyle = 'rgba(0,0,0,.85)';
+  for (let i = 0; i < 10; i++) { const a = rnd(2.2, 4.6), dd = rnd(1.1, 1.5) * r; m.beginPath(); m.arc(L(c0 + Math.cos(a) * dd), L(c0 + Math.sin(a) * dd), L(rnd(1.5, 5)), 0, 7); m.fill(); }
+  const [, , urx, ury] = LY.cup, [hx, hy, hrx, hry, hr] = LY.handle, ox = SP.o[0], oy = SP.o[1];
   m.globalCompositeOperation = 'destination-out'; m.beginPath(); m.ellipse((ux - ox) * k, (uy - oy) * k, urx * k, ury * k, 0, 0, 7); m.fill(); m.beginPath(); m.ellipse((hx - ox) * k, (hy - oy) * k, hrx * k, hry * k, hr, 0, 7); m.fill(); m.globalCompositeOperation = 'source-over';
   SP.sum0 = spillSum(); SP.left = 1; SP.dirty = 1;
 }
@@ -225,21 +235,29 @@ function ipadScreen() {
   });
 }
 function renderSpill() {
-  const { M, C, E } = SP, c = C.getContext('2d'), e = E.getContext('2d'), w = C.width;
-  c.globalCompositeOperation = 'copy'; c.drawImage(M, 0, 0); c.globalCompositeOperation = 'source-in';
-  const [lx, ly] = LY.lamp, [sx, sy] = LY.spill, a = Math.atan2(ly - sy, lx - sx);
-  const g = c.createRadialGradient(w / 2, w / 2, 4, w / 2, w / 2, w / 2); g.addColorStop(0, '#4f280c'); g.addColorStop(.7, '#3a1c07'); g.addColorStop(1, '#241003'); c.fillStyle = g; c.fillRect(0, 0, w, w);
-  e.globalCompositeOperation = 'copy'; e.drawImage(M, 0, 0); e.globalCompositeOperation = 'destination-out'; e.filter = `blur(${6 * SP.k}px)`; e.drawImage(M, 0, 0); e.drawImage(M, 0, 0); e.filter = 'none';
-  e.globalCompositeOperation = 'source-in'; e.fillStyle = '#120600'; e.fillRect(0, 0, w, w); e.globalCompositeOperation = 'source-over';
-  c.globalCompositeOperation = 'source-over'; c.globalAlpha = .9; c.drawImage(E, 0, 0); c.globalAlpha = 1;
-  const h = SP.HC.getContext('2d'); h.globalCompositeOperation = 'copy'; h.drawImage(M, 0, 0); h.globalCompositeOperation = 'source-in';
-  const hx = w / 2 + Math.cos(a) * w * .12, hy = w / 2 + Math.sin(a) * w * .12, hg = h.createRadialGradient(hx, hy, 1, hx, hy, w * .13);
-  hg.addColorStop(0, 'rgba(255,232,190,.4)'); hg.addColorStop(.3, 'rgba(255,215,160,.1)'); hg.addColorStop(1, 'rgba(255,215,160,0)'); h.fillStyle = hg; h.fillRect(0, 0, w, w);
-  h.globalCompositeOperation = 'source-atop'; h.fillStyle = 'rgba(255,252,240,.9)'; h.beginPath(); h.ellipse(hx - 5, hy - 3, w * .04, w * .013, a + 1.2, 0, 7); h.fill();
-  h.fillStyle = 'rgba(255,240,215,.35)'; h.beginPath(); h.ellipse(hx + w * .05, hy + w * .04, w * .022, w * .008, a + 1.2, 0, 7); h.fill(); h.globalCompositeOperation = 'source-over';
-  c.globalCompositeOperation = 'source-over'; SP.dirty = 0;
+  const { M, C } = SP, w = C.width, md = M.getContext('2d').getImageData(0, 0, w, w).data, c = C.getContext('2d'), out = c.createImageData(w, w), O = out.data;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  for (let i = 0; i < md.length; i += 4) {
+    const t = md[i + 3] / 255; if (t < .004) { O[i] = O[i + 1] = O[i + 2] = 255; O[i + 3] = 0; continue; }
+    const thin = Math.min(1, t / .22), thick = Math.max(0, Math.min(1, (t - .2) / .7)), rim = Math.exp(-(((t - .07) / .045) ** 2)) * .45;
+    let R = lerp(255, 168, thin), G = lerp(255, 104, thin), B = lerp(255, 52, thin);
+    R = lerp(R, 42, thick); G = lerp(G, 20, thick); B = lerp(B, 7, thick);
+    R = lerp(R, 85, rim); G = lerp(G, 45, rim); B = lerp(B, 18, rim);
+    O[i] = R; O[i + 1] = G; O[i + 2] = B; O[i + 3] = 255 * Math.min(1, t * 5);
+  }
+  c.putImageData(out, 0, 0);
+  const h = SP.HC.getContext('2d'), [lx, ly] = LY.lamp, [sx, sy] = LY.spill, a = Math.atan2(ly - sy, lx - sx);
+  h.globalCompositeOperation = 'copy'; h.drawImage(M, 0, 0); h.globalCompositeOperation = 'source-in';
+  const hx = w / 2 + Math.cos(a) * w * .1, hy = w / 2 + Math.sin(a) * w * .1;
+  h.fillStyle = 'rgba(0,0,0,0)'; h.fillRect(0, 0, w, w);
+  h.save(); h.translate(hx, hy); h.rotate(a + Math.PI / 2);
+  const hg = h.createRadialGradient(0, 0, 1, 0, 0, w * .16); hg.addColorStop(0, 'rgba(255,236,205,.32)'); hg.addColorStop(1, 'rgba(255,236,205,0)');
+  h.scale(.55, 1.4); h.fillStyle = hg; h.fillRect(-w, -w, w * 2, w * 2); h.restore();
+  h.save(); h.translate(hx - w * .02, hy); h.rotate(a + Math.PI / 2); h.fillStyle = 'rgba(255,250,235,.5)'; h.beginPath(); h.ellipse(0, 0, w * .008, w * .045, 0, 0, 7); h.fill(); h.restore();
+  h.globalCompositeOperation = 'destination-in'; h.drawImage(M, 0, 0); h.drawImage(M, 0, 0); h.globalCompositeOperation = 'source-over';
+  SP.dirty = 0;
 }
-function drawSpill() { if (SP.dirty) renderSpill(); const s = SP.C.width / SP.k; cx.globalAlpha = .84; cx.drawImage(SP.C, SP.o[0], SP.o[1], s, s); cx.globalAlpha = 1; }
+function drawSpill() { if (SP.dirty) renderSpill(); const s = SP.C.width / SP.k; cx.globalCompositeOperation = 'multiply'; cx.drawImage(SP.C, SP.o[0], SP.o[1], s, s); cx.globalCompositeOperation = 'source-over'; }
 function spillGloss() { const s = SP.C.width / SP.k; cx.globalCompositeOperation = 'screen'; cx.drawImage(SP.HC, SP.o[0], SP.o[1], s, s); cx.globalCompositeOperation = 'source-over'; }
 function drawCrumbs() {
   const im = IMG.crumbs; if (!ok(im)) return;
@@ -593,7 +611,7 @@ function render(dt) {
   let jx = 0, jy = 0;
   if (st.shake || (st.mode === 'play' && st.t < 5)) { const a = st.shake * 14 + (st.mode === 'play' && st.t < 5 ? 1.8 : 0); jx = rnd(-a, a); jy = rnd(-a, a); }
   begin(L1, T, jx, jy);
-  drawSketch(); ipadBody(); drawForms(); drawSpill(); drawUsed(); drawInk(); if (st.hold !== 'stamp') stampLying(st.stampPos[0], st.stampPos[1], st.stampRot);
+  drawSketch(); ipadBody(); drawForms(); drawUsed(); drawInk(); if (st.hold !== 'stamp') stampLying(st.stampPos[0], st.stampPos[1], st.stampRot);
   drawPack(); drawBinned(); drawCrumbs(); clockBody();
   applyLight(L1, T, jx, jy, true);
   cx = L1.getContext('2d'); cx.setTransform(...T); cx.translate(jx, jy); ipadScreen();
@@ -604,7 +622,7 @@ function render(dt) {
   if (st.hold === 'tissue') tissueShape(st.ptr.x, st.ptr.y, -.25, 1, st.tissue ? st.tissue.dirt : 0, st.drag ? 4 : 16);
   applyLight(L2, T, jx, jy, false);
   cx = main; cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = '#000'; cx.fillRect(0, 0, cv.width, cv.height);
-  cx.setTransform(...T); cx.translate(jx, jy); if (bg.complete && bg.naturalWidth) cx.drawImage(bg, 0, 0, DW, DH);
+  cx.setTransform(...T); cx.translate(jx, jy); if (bg.complete && bg.naturalWidth) cx.drawImage(bg, 0, 0, DW, DH); drawSpill();
   cx.setTransform(1, 0, 0, 1, 0, 0); cx.drawImage(L1, 0, 0); cx.drawImage(L2, 0, 0);
   cx.setTransform(...T); cx.translate(jx, jy);
   { const t = now / 1000, f = .5 * Math.sin(t * .7) + .3 * Math.sin(t * 1.9 + 1) + .2 * Math.sin(t * 5.3 + rnd0(Math.floor(t * 3)) * 2) * (rnd0(Math.floor(t * .5)) < .2 ? 1 : .25);
