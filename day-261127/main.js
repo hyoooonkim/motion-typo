@@ -88,7 +88,7 @@ function newRound() {
   const typos = [];
   LINES.forEach(ln => ln.forEach(tok => { if (typeof tok !== 'string') typos.push({ wrong: tok[0], right: tok[1], fixed: 0, at: 0 }); }));
   st = { mode: 'ready', t: TIME, ipad, sketch, forms, typos, crumbs, notes, bin: LY.bin, done: {}, doneAt: {}, fx: [], drag: null, shake: 0, result: 0,
-    hold: null, ink: 0, tissue: null, used: [], ptr: { x: DW / 2, y: DH / 2 }, press: 0, edit: null, focus: null, tip: '', tipT: 0 };
+    hold: null, stampPos: [...LY.stampHome], stampRot: 2.4, ink: 0, tissue: null, used: [], ptr: { x: DW / 2, y: DH / 2 }, press: 0, edit: null, focus: null, tip: '', tipT: 0 };
   closeEditor(); resize(); buildHud();
 }
 
@@ -358,7 +358,7 @@ function focusRings() {
   if (k === 'coffee') { ring(LY.spill[0], LY.spill[1], LY.spill[2] * 1.45); ring(LY.pack[0], LY.pack[1], 90); st.used.forEach(u => { if (!u.binned) ring(u.x, u.y, 32); }); }
   if (k === 'typo') { const p = st.ipad; withPaper(p, () => { cx.beginPath(); cx.roundRect(-10, -10, p.w + 20, p.h + 20, 44); cx.stroke(); }); }
   if (k === 'crumb') { const p = st.sketch; withPaper(p, () => { cx.strokeRect(-10, -10, p.w + 20, p.h + 20); }); }
-  if (k === 'stamp') { ring(LY.stampHome[0], LY.stampHome[1], 40); ring(LY.ink[0], LY.ink[1], 58); st.forms.forEach(f => { if (!f.done) withPaper(f, () => cx.strokeRect(-8, -8, f.w + 16, f.h + 16)); }); }
+  if (k === 'stamp') { ring(st.stampPos[0], st.stampPos[1], 40); ring(LY.ink[0], LY.ink[1], 58); st.forms.forEach(f => { if (!f.done) withPaper(f, () => cx.strokeRect(-8, -8, f.w + 16, f.h + 16)); }); }
   if (k === 'note') { ring(st.bin[0], st.bin[1], st.bin[2] + 20); st.notes.forEach(n => { if (!n.binned) ring(n.x + 53, n.y + 53, 80); }); }
   cx.restore();
 }
@@ -448,7 +448,7 @@ function hudTip() {
   if (st.tip && now - st.tipT < 2200) return st.tip;
   if (st.mode !== 'play') return '할 일에 마우스를 올리면 책상 위 위치가 보여요';
   if (st.edit) return `키보드로 '${st.edit.right}'라고 고쳐 입력하세요`;
-  if (st.hold === 'stamp') return st.ink ? '결재 서류의 대표란을 눌러 쾅!' : '도장을 인주에 먼저 꾹 눌러요';
+  if (st.hold === 'stamp') return st.forms.every(f => f.done) ? '빈 책상을 누르면 도장을 내려놓아요' : st.ink ? '결재 서류의 대표란을 눌러 쾅! (빈 곳을 누르면 내려놓기)' : '도장을 인주에 먼저 꾹 눌러요';
   if (st.used.some(u => !u.binned) && !st.hold) return '다 쓴 물티슈를 휴지통에 버려요';
   if (st.hold === 'tissue') return `커피를 문질러 닦아요 · 물티슈 ${Math.round(Math.min(1, st.tissue.dirt) * 100)}% 젖음`;
   return '할 일에 마우스를 올리면 책상 위 위치가 보여요';
@@ -491,8 +491,7 @@ cv.addEventListener('pointerdown', e => {
       else { form.faint = 1; form.fsr = rnd(-.4, .2); tone(260, .1, 'sine', .25); say('인주가 없어요 · 인주에 먼저 꾹', p.x, p.y - 40); }
       return;
     }
-    if (near(p, LY.stampHome[0], LY.stampHome[1], 44)) { st.hold = null; tone(500, .05, 'triangle', .08); return; }
-    return;
+    st.stampPos = [p.x, p.y]; st.stampRot = rnd(1.9, 2.9); st.hold = null; tone(500, .05, 'triangle', .08); tone(140, .08, 'sine', .2); return;
   }
   if (st.hold === 'tissue' && onPack(p)) { st.hold = null; st.tissue = null; rustle(); return; }
   if (!st.hold) {
@@ -502,7 +501,7 @@ cv.addEventListener('pointerdown', e => {
       if (Math.abs(dx * c - dy * s) < n.w / 2 && Math.abs(dx * s + dy * c) < n.h / 2) { st.notes.splice(i, 1); st.notes.push(n); st.drag = { note: n, dx: p.x - n.x, dy: p.y - n.y }; tone(700, .05, 'square', .05); return; }
     }
     const u = [...st.used].reverse().find(u => !u.binned && near(p, u.x, u.y, 38)); if (u) { st.drag = { used: u, dx: p.x - u.x, dy: p.y - u.y }; rustle(); return; }
-    if (near(p, LY.stampHome[0], LY.stampHome[1], 40)) { st.hold = 'stamp'; tone(420, .06, 'triangle', .1); return; }
+    if (near(p, st.stampPos[0], st.stampPos[1], 40)) { st.hold = 'stamp'; tone(420, .06, 'triangle', .1); return; }
     if (onPack(p)) { st.hold = 'tissue'; st.tissue = { start: spillSum(), dirt: 0 }; rustle(); return; }
     if (inside(st.ipad, p.x, p.y)) {
       const l = toLocal(st.ipad, p.x, p.y), t = st.typos.find(t => !t.fixed && t.box && l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]);
@@ -519,7 +518,7 @@ cv.addEventListener('pointermove', e => {
   const p = world(e); st.ptr = p;
   if (st.mode === 'play' && !st.drag) {
     const over = !st.hold && (st.notes.some(n => !n.binned && Math.hypot(p.x - n.x - n.w / 2, p.y - n.y - n.h / 2) < 60) || st.used.some(u => !u.binned && near(p, u.x, u.y, 38)) ? 'grab'
-      : near(p, LY.stampHome[0], LY.stampHome[1], 46) || onPack(p) || (inside(st.ipad, p.x, p.y) && st.typos.some(t => { if (t.fixed || !t.box) return 0; const l = toLocal(st.ipad, p.x, p.y); return l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]; })) ? 'pointer' : '');
+      : near(p, st.stampPos[0], st.stampPos[1], 46) || onPack(p) || (inside(st.ipad, p.x, p.y) && st.typos.some(t => { if (t.fixed || !t.box) return 0; const l = toLocal(st.ipad, p.x, p.y); return l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]; })) ? 'pointer' : '');
     cv.style.cursor = st.hold ? 'none' : over || 'default';
   }
   if (!st.drag || !last || st.mode !== 'play') return;
@@ -594,7 +593,7 @@ function render(dt) {
   let jx = 0, jy = 0;
   if (st.shake || (st.mode === 'play' && st.t < 5)) { const a = st.shake * 14 + (st.mode === 'play' && st.t < 5 ? 1.8 : 0); jx = rnd(-a, a); jy = rnd(-a, a); }
   begin(L1, T, jx, jy);
-  drawSketch(); ipadBody(); drawForms(); drawSpill(); drawUsed(); drawInk(); if (st.hold !== 'stamp') stampLying(LY.stampHome[0], LY.stampHome[1], 2.4);
+  drawSketch(); ipadBody(); drawForms(); drawSpill(); drawUsed(); drawInk(); if (st.hold !== 'stamp') stampLying(st.stampPos[0], st.stampPos[1], st.stampRot);
   drawPack(); drawBinned(); drawCrumbs(); clockBody();
   applyLight(L1, T, jx, jy, true);
   cx = L1.getContext('2d'); cx.setTransform(...T); cx.translate(jx, jy); ipadScreen();
