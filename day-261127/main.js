@@ -18,17 +18,17 @@ const LINES = [
 ];
 const NOTES = [['메일 회신', '#ffe066'], ['회의록 정리', '#ffb3c7'], ['견적서!!', '#a8e6cf'], ['전화 걸기', '#9ad0ff'], ['백업 꼭', '#ffd19a']];
 const TASKS = [
-  { k: 'coffee', t: '엎지른 커피 닦기', how: '물티슈를 뽑아서 문질러요', ic: '☕' },
+  { k: 'coffee', t: '엎지른 커피 닦기', how: '물티슈로 닦고, 다 쓴 건 휴지통에', ic: '☕' },
   { k: 'typo', t: '보고서 오타 고치기', how: '아이패드에서 오타를 눌러 다시 입력', ic: 'Aa' },
   { k: 'crumb', t: '지우개 가루 털기', how: '빠르게 쓸어서 종이 밖으로', ic: '✎' },
   { k: 'stamp', t: '결재 도장 찍기', how: '도장 → 인주 → 서류', ic: '印' },
   { k: 'note', t: '포스트잇 버리기', how: '휴지통으로 끌어서', ic: '▤' },
 ];
-const LY = { lamp: [450, 170], ipad: [570, 98, 526, 696, -.025, .69], sketch: [935, 452, 430, 320, .05, .68],
+const LY = { lamp: [478, 205], lampH: 300, pool: [592, 329], ipad: [570, 98, 526, 696, -.025, .69], sketch: [935, 452, 430, 320, .05, .68],
   forms: [[425, 640, 200, 270, -.08, .72], [600, 628, 200, 270, .05, .72], [772, 652, 200, 270, -.04, .7]],
-  spill: [1162, 780, 64], ink: [985, 300, 42], stampHome: [1068, 392], pack: [1292, 480, 150, 92, .18], bin: [1445, 705, 150],
+  spill: [1108, 792, 80], cup: [1058, 752, 64, 66], handle: [996, 800, 25, 17, -.6], ink: [985, 300, 42], stampHome: [1068, 392], pack: [1292, 480, 150, 92, .18], bin: [1445, 705, 150],
   notes: [330, 110, 1240, 800], clock: [800, 46] };
-const AVOID = [[420, 170, 190], [985, 300, 90], [1068, 392, 70], [1292, 480, 120], [1162, 780, 110], [1445, 705, 260], [1040, 750, 90]];
+const AVOID = [[420, 170, 190], [985, 300, 90], [1068, 392, 70], [1292, 480, 120], [1100, 790, 130], [1445, 705, 260], [1040, 750, 90]];
 
 const paper = (a, extra = {}) => ({ x: a[0], y: a[1], w: a[2], h: a[3], rot: a[4], s: a[5] || 1, ...extra });
 function toLocal(p, px, py) {
@@ -42,13 +42,14 @@ function toWorld(p, lx, ly) {
 const inside = (p, px, py) => { const l = toLocal(p, px, py); return l.x >= 0 && l.y >= 0 && l.x <= p.w && l.y <= p.h; };
 function withPaper(p, f) { const k = p.s || 1; cx.save(); cx.translate(p.x + p.w * k / 2, p.y + p.h * k / 2); cx.rotate(p.rot); cx.scale(k, k); cx.translate(-p.w / 2, -p.h / 2); f(); cx.restore(); }
 function shadowFor(x, y, h) {
-  const dx = x - LY.lamp[0], dy = y - LY.lamp[1], d = Math.hypot(dx, dy) || 1, len = h * (.6 + d / 420), k = S * DPR;
-  cx.shadowColor = `rgba(8,4,0,${Math.min(.78, .5 + h * .012)})`; cx.shadowBlur = (3 + h * 1.1) * k; cx.shadowOffsetX = dx / d * len * k; cx.shadowOffsetY = dy / d * len * k;
+  const dx = x - LY.lamp[0], dy = y - LY.lamp[1], d = Math.hypot(dx, dy) || 1, len = Math.min(h * 6, h * d / LY.lampH + h * .25), k = S * DPR;
+  cx.shadowColor = `rgba(10,5,0,${Math.max(.35, Math.min(.8, .72 - d * .00022 + h * .004))})`; cx.shadowBlur = (2 + h * .7 + h * d * .0025) * k; cx.shadowOffsetX = dx / d * len * k; cx.shadowOffsetY = dy / d * len * k;
 }
 const noShadow = () => { cx.shadowColor = 'transparent'; cx.shadowBlur = 0; cx.shadowOffsetX = cx.shadowOffsetY = 0; };
-function blob(c, x, y, r, n = 14, j = .32) {
+function blob(c, x, y, r, n = 14, j = .32, seed) {
   c.beginPath();
-  const pts = Array.from({ length: n }, (_, i) => { const a = i / n * Math.PI * 2; return [x + Math.cos(a) * r * (1 + rnd(-j, j)), y + Math.sin(a) * r * (1 + rnd(-j, j))]; });
+  const jq = i => seed === undefined ? rnd(-j, j) : (rnd0(seed * 31 + i * 7.3) * 2 - 1) * j;
+  const pts = Array.from({ length: n }, (_, i) => { const a = i / n * Math.PI * 2; return [x + Math.cos(a) * r * (1 + jq(i)), y + Math.sin(a) * r * (1 + jq(i + 50))]; });
   pts.forEach((p, i) => { const q = pts[(i + 1) % n], mx = (p[0] + q[0]) / 2, my = (p[1] + q[1]) / 2; i ? c.quadraticCurveTo(p[0], p[1], mx, my) : c.moveTo(mx, my); });
   const p = pts[0], q = pts[1]; c.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2); c.closePath();
 }
@@ -64,6 +65,8 @@ function makeSpill() {
   m.fillStyle = '#000'; blob(m, L(r * 1.6), L(r * 1.6), L(r), 18, .36); m.fill();
   blob(m, L(r * 1.6 - r * .75), L(r * 1.6 + r * .15), L(r * .55), 12, .3); m.fill();
   for (let i = 0; i < 9; i++) { const a = rnd(0, 6.3), d = rnd(1.08, 1.5) * r; blob(m, L(r * 1.6 + Math.cos(a) * d), L(r * 1.6 + Math.sin(a) * d), L(rnd(2.5, 9)), 9, .3); m.fill(); }
+  const [ux, uy, urx, ury] = LY.cup, [hx, hy, hrx, hry, hr] = LY.handle, ox = SP.o[0], oy = SP.o[1];
+  m.globalCompositeOperation = 'destination-out'; m.beginPath(); m.ellipse((ux - ox) * k, (uy - oy) * k, urx * k, ury * k, 0, 0, 7); m.fill(); m.beginPath(); m.ellipse((hx - ox) * k, (hy - oy) * k, hrx * k, hry * k, hr, 0, 7); m.fill(); m.globalCompositeOperation = 'source-over';
   SP.sum0 = spillSum(); SP.left = 1; SP.dirty = 1;
 }
 function newRound() {
@@ -265,20 +268,34 @@ function drawInk() {
   cx.fillStyle = 'rgba(255,200,200,.18)'; cx.beginPath(); cx.ellipse(x - r * .3, y - r * .35, r * .35, r * .14, -.6, 0, 7); cx.fill();
   if (st.dip && now - st.dip < 300) { cx.fillStyle = `rgba(90,0,0,${.4 * (1 - (now - st.dip) / 300)})`; cx.beginPath(); cx.arc(st.dipX, st.dipY, 22, 0, 7); cx.fill(); }
 }
-function stampAt(x, y, h, ang) {
-  cx.save(); cx.translate(x, y); cx.rotate(ang); shadowFor(x, y, h);
-  cx.fillStyle = '#141212'; cx.beginPath(); cx.arc(0, 0, 25, 0, 7); cx.fill(); noShadow();
-  const body = cx.createRadialGradient(-9, -10, 2, 0, 0, 26); body.addColorStop(0, '#5a524c'); body.addColorStop(.45, '#1d1a18'); body.addColorStop(1, '#050404');
-  cx.fillStyle = body; cx.beginPath(); cx.arc(0, 0, 24.5, 0, 7); cx.fill();
-  const gold = cx.createLinearGradient(-20, -20, 20, 20); gold.addColorStop(0, '#f6dc8e'); gold.addColorStop(.4, '#b58a35'); gold.addColorStop(.7, '#f2d27a'); gold.addColorStop(1, '#7c5a1c');
-  cx.strokeStyle = gold; cx.lineWidth = 3.2; cx.beginPath(); cx.arc(0, 0, 17, 0, 7); cx.stroke();
-  const top = cx.createRadialGradient(-4, -5, 1, 0, 0, 12); top.addColorStop(0, '#6b625b'); top.addColorStop(.5, '#26221f'); top.addColorStop(1, '#0c0a09');
-  cx.fillStyle = top; cx.beginPath(); cx.arc(0, 0, 11.5, 0, 7); cx.fill();
-  cx.fillStyle = 'rgba(255,255,255,.55)'; cx.beginPath(); cx.ellipse(-8, -13, 7, 2.4, -.7, 0, 7); cx.fill();
-  cx.fillStyle = 'rgba(255,255,255,.35)'; cx.beginPath(); cx.ellipse(-3.5, -5, 3, 1.2, -.7, 0, 7); cx.fill();
-  cx.fillStyle = gold; cx.beginPath(); cx.arc(0, -21, 1.8, 0, 7); cx.fill();
-  if (st.ink) { cx.strokeStyle = 'rgba(190,20,20,.7)'; cx.lineWidth = 1.6; cx.beginPath(); cx.arc(0, 0, 25.5, .8, 2.6); cx.stroke(); }
+function stampBody(len, w) {
+  const g = cx.createLinearGradient(0, -w / 2, 0, w / 2);
+  g.addColorStop(0, '#120c09'); g.addColorStop(.22, '#4a3326'); g.addColorStop(.38, '#8a6a52'); g.addColorStop(.5, '#3a271d'); g.addColorStop(1, '#0d0806');
+  cx.fillStyle = g; cx.beginPath(); cx.roundRect(-len / 2, -w / 2, len, w, [w * .5, 4, 4, w * .5]); cx.fill();
+  cx.fillStyle = 'rgba(255,230,200,.07)'; for (let i = 0; i < 7; i++) cx.fillRect(-len / 2 + 8 + i * len / 8, -w / 2 + 2, 1.2, w - 4);
+  const gold = cx.createLinearGradient(0, -w / 2, 0, w / 2); gold.addColorStop(0, '#6d4f17'); gold.addColorStop(.35, '#f5d98a'); gold.addColorStop(.55, '#b88b34'); gold.addColorStop(1, '#4e380e');
+  cx.fillStyle = gold; cx.fillRect(len / 2 - 20, -w / 2, 7, w);
+}
+function stampLying(x, y, ang) {
+  const len = 92, w = 25;
+  cx.save(); cx.translate(x, y); cx.rotate(ang); shadowFor(x, y, 9);
+  cx.fillStyle = '#100a07'; cx.beginPath(); cx.roundRect(-len / 2, -w / 2, len, w, [w * .5, 4, 4, w * .5]); cx.fill(); noShadow();
+  stampBody(len, w);
+  const fg = cx.createLinearGradient(len / 2 - 3, -w / 2, len / 2 + 5, w / 2); fg.addColorStop(0, '#c9a86f'); fg.addColorStop(1, '#8c6a3a');
+  cx.fillStyle = fg; cx.beginPath(); cx.ellipse(len / 2, 0, 4.5, w / 2, 0, 0, 7); cx.fill();
+  cx.fillStyle = st.ink ? 'rgba(200,25,20,.9)' : 'rgba(170,40,35,.35)'; cx.beginPath(); cx.ellipse(len / 2 + .5, 0, 3, w / 2 - 3, 0, 0, 7); cx.fill();
   cx.restore();
+}
+function stampHeld(x, y, pressing) {
+  const lift = pressing ? 2 : 16, dx = x - LY.lamp[0], dy = y - LY.lamp[1], d = Math.hypot(dx, dy) || 1;
+  cx.save(); shadowFor(x, y, lift + 30); cx.fillStyle = '#100a07'; cx.beginPath(); cx.ellipse(x, y, 13, 13, 0, 0, 7); cx.fill(); noShadow(); cx.restore();
+  cx.save(); cx.translate(x, y - lift * .4); cx.rotate(-Math.PI / 2 - .35);
+  cx.translate(26, 0); stampBody(54, 25);
+  cx.fillStyle = '#2a1b13'; cx.beginPath(); cx.ellipse(-27, 0, 7, 12.5, 0, 0, 7); cx.fill();
+  const tg = cx.createRadialGradient(-29, -4, 1, -27, 0, 13); tg.addColorStop(0, '#9c7a5e'); tg.addColorStop(1, '#2a1a12');
+  cx.fillStyle = tg; cx.beginPath(); cx.ellipse(-27, 0, 6, 11.5, 0, 0, 7); cx.fill();
+  cx.restore();
+  if (st.ink) { cx.fillStyle = 'rgba(200,25,20,.55)'; cx.beginPath(); cx.ellipse(x + 2, y + 9 - lift * .4, 11, 3.5, -.35, 0, 7); cx.fill(); }
 }
 function drawPack() {
   const [x, y, w, h, r] = LY.pack;
@@ -289,7 +306,7 @@ function drawPack() {
   cx.fillStyle = '#2f8fc9'; cx.beginPath(); cx.roundRect(-w / 2 + 10, h / 2 - 26, w - 20, 16, 5); cx.fill();
   cx.fillStyle = '#fff'; cx.font = `900 10px 'Noto Sans KR', sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('물티슈 · 80매', 0, h / 2 - 18);
   cx.fillStyle = '#9fc7dc'; cx.beginPath(); cx.ellipse(0, -10, 40, 17, 0, 0, 7); cx.fill();
-  if (st.hold !== 'tissue') { cx.fillStyle = '#ffffff'; blob(cx, 0, -12, 22, 8, .25); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.08)'; cx.lineWidth = 1; cx.stroke(); }
+  if (st.hold !== 'tissue') { cx.fillStyle = '#ffffff'; blob(cx, 0, -12, 22, 8, .25, 3); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.08)'; cx.lineWidth = 1; cx.stroke(); }
   cx.fillStyle = 'rgba(255,255,255,.6)'; cx.beginPath(); cx.ellipse(-w * .28, -h * .28, 22, 6, -.2, 0, 7); cx.fill();
   cx.restore();
 }
@@ -300,7 +317,7 @@ function tissueShape(x, y, rot, s, dirt, h) {
   if (dirt > 0) { cx.fillStyle = `rgba(90,48,16,${Math.min(.85, dirt * .9)})`; cx.beginPath(); cx.ellipse(4, 6, 10 + dirt * 22, 8 + dirt * 18, .3, 0, 7); cx.fill(); }
   cx.restore();
 }
-function drawUsed() { st.used.forEach(u => { cx.save(); cx.translate(u.x, u.y); cx.rotate(u.rot); shadowFor(u.x, u.y, 4); cx.fillStyle = '#efe6dc'; blob(cx, 0, 0, 20, 11, .35); cx.fill(); noShadow(); cx.fillStyle = 'rgba(95,52,18,.7)'; blob(cx, 3, 2, 12, 9, .4); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.18)'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(-12, -5); cx.lineTo(6, 7); cx.moveTo(-3, -14); cx.lineTo(10, -3); cx.stroke(); cx.restore(); }); }
+function drawUsed() { st.used.forEach(u => { if (u.binned) return; const lifted = st.drag && st.drag.used === u; cx.save(); cx.translate(u.x, u.y); cx.rotate(u.rot); shadowFor(u.x, u.y, lifted ? 22 : 4); cx.fillStyle = '#efe6dc'; blob(cx, 0, 0, 20, 11, .35, u.seed); cx.fill(); noShadow(); cx.fillStyle = 'rgba(95,52,18,.7)'; blob(cx, 3, 2, 12, 9, .4, u.seed + 1); cx.fill(); cx.strokeStyle = 'rgba(0,0,0,.18)'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(-12, -5); cx.lineTo(6, 7); cx.moveTo(-3, -14); cx.lineTo(10, -3); cx.stroke(); cx.restore(); }); }
 const HAND = { '메일 회신': ['메일 회신', '김팀장님께!'], '회의록 정리': ['회의록', '정리 → 공유'], '견적서!!': ['견적서!!', '오늘까지'], '전화 걸기': ['전화 걸기', '010-…'], '백업 꼭': ['백업 꼭', '외장하드'] };
 function hand(n) {
   if (!n.ink) {
@@ -338,7 +355,8 @@ function drawNote(n) {
 }
 function drawBinned() {
   const [x, y] = st.bin;
-  st.notes.filter(n => n.binned && n.k >= 1).forEach((n, i) => { cx.save(); cx.translate(x - 20 + Math.cos(i * 2.3) * 40, y - 10 + Math.sin(i * 2.3) * 34); cx.rotate(i * 1.7); shadowFor(x, y, 3); cx.fillStyle = n.c; blob(cx, 0, 0, 24, 9, .4); cx.fill(); noShadow(); cx.strokeStyle = 'rgba(0,0,0,.25)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(-14, -4); cx.lineTo(6, 8); cx.moveTo(-4, -14); cx.lineTo(10, -2); cx.stroke(); cx.restore(); });
+  st.used.filter(u => u.binned).forEach((u, i) => { cx.save(); cx.translate(x + 30 + Math.cos(i * 2.9) * 30, y + 20 + Math.sin(i * 2.9) * 26); cx.rotate(u.rot); shadowFor(x, y, 3); cx.fillStyle = '#e9e0d6'; blob(cx, 0, 0, 20, 11, .35, u.seed); cx.fill(); noShadow(); cx.fillStyle = 'rgba(95,52,18,.7)'; blob(cx, 3, 2, 12, 9, .4, u.seed + 1); cx.fill(); cx.restore(); });
+  st.notes.filter(n => n.binned && n.k >= 1).forEach((n, i) => { cx.save(); cx.translate(x - 20 + Math.cos(i * 2.3) * 40, y - 10 + Math.sin(i * 2.3) * 34); cx.rotate(i * 1.7); shadowFor(x, y, 3); cx.fillStyle = n.c; blob(cx, 0, 0, 24, 9, .4, i + 11); cx.fill(); noShadow(); cx.strokeStyle = 'rgba(0,0,0,.25)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(-14, -4); cx.lineTo(6, 8); cx.moveTo(-4, -14); cx.lineTo(10, -2); cx.stroke(); cx.restore(); });
 }
 function clockBody() {
   const [x, y] = LY.clock;
@@ -372,7 +390,7 @@ function focusRings() {
   const k = st.focus; if (!k || st.done[k]) return;
   const a = .45 + .35 * Math.sin(now / 160), ring = (x, y, r) => { cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.stroke(); };
   cx.save(); cx.strokeStyle = `rgba(255,200,90,${a})`; cx.lineWidth = 3; cx.setLineDash([10, 8]); cx.lineDashOffset = -now / 40;
-  if (k === 'coffee') { ring(LY.spill[0], LY.spill[1], LY.spill[2] * 1.5); ring(LY.pack[0], LY.pack[1], 90); }
+  if (k === 'coffee') { ring(LY.spill[0], LY.spill[1], LY.spill[2] * 1.45); ring(LY.pack[0], LY.pack[1], 90); st.used.forEach(u => { if (!u.binned) ring(u.x, u.y, 32); }); }
   if (k === 'typo') { const p = st.ipad; withPaper(p, () => { cx.beginPath(); cx.roundRect(-10, -10, p.w + 20, p.h + 20, 44); cx.stroke(); }); }
   if (k === 'crumb') { const p = st.sketch; withPaper(p, () => { cx.strokeRect(-10, -10, p.w + 20, p.h + 20); }); }
   if (k === 'stamp') { ring(LY.stampHome[0], LY.stampHome[1], 40); ring(LY.ink[0], LY.ink[1], 58); st.forms.forEach(f => { if (!f.done) withPaper(f, () => cx.strokeRect(-8, -8, f.w + 16, f.h + 16)); }); }
@@ -455,7 +473,7 @@ function buildHud() {
   hudCache = '';
 }
 function progress(k) {
-  if (k === 'coffee') return [1 - SP.left, `${Math.round((1 - SP.left) * 100)}%`];
+  if (k === 'coffee') { const left = st.used.filter(u => !u.binned).length; if (st.clean && left) return [.95, `휴지 ${left}`]; return [(1 - SP.left) * .9, `${Math.round((1 - SP.left) * 100)}%`]; }
   if (k === 'typo') { const n = st.typos.filter(t => t.fixed).length; return [n / 5, `${n}/5`]; }
   if (k === 'crumb') { const n = st.crumbs.filter(c => c.gone).length; return [n / st.crumbs.length, `${Math.round(n / st.crumbs.length * 100)}%`]; }
   if (k === 'stamp') { const n = st.forms.filter(f => f.done).length; return [n / 3, `${n}/3`]; }
@@ -466,6 +484,7 @@ function hudTip() {
   if (st.mode !== 'play') return '할 일에 마우스를 올리면 책상 위 위치가 보여요';
   if (st.edit) return `키보드로 '${st.edit.right}'라고 고쳐 입력하세요`;
   if (st.hold === 'stamp') return st.ink ? '결재 서류의 대표란을 눌러 쾅!' : '도장을 인주에 먼저 꾹 눌러요';
+  if (st.used.some(u => !u.binned) && !st.hold) return '다 쓴 물티슈를 휴지통에 버려요';
   if (st.hold === 'tissue') return `커피를 문질러 닦아요 · 물티슈 ${Math.round(Math.min(1, st.tissue.dirt) * 100)}% 젖음`;
   return '할 일에 마우스를 올리면 책상 위 위치가 보여요';
 }
@@ -517,7 +536,8 @@ cv.addEventListener('pointerdown', e => {
       const c = Math.cos(-n.rot), s = Math.sin(-n.rot), dx = p.x - n.x - n.w / 2, dy = p.y - n.y - n.h / 2;
       if (Math.abs(dx * c - dy * s) < n.w / 2 && Math.abs(dx * s + dy * c) < n.h / 2) { st.notes.splice(i, 1); st.notes.push(n); st.drag = { note: n, dx: p.x - n.x, dy: p.y - n.y }; tone(700, .05, 'square', .05); return; }
     }
-    if (near(p, LY.stampHome[0], LY.stampHome[1], 34)) { st.hold = 'stamp'; tone(420, .06, 'triangle', .1); return; }
+    const u = [...st.used].reverse().find(u => !u.binned && near(p, u.x, u.y, 30)); if (u) { st.drag = { used: u, dx: p.x - u.x, dy: p.y - u.y }; rustle(); return; }
+    if (near(p, LY.stampHome[0], LY.stampHome[1], 40)) { st.hold = 'stamp'; tone(420, .06, 'triangle', .1); return; }
     if (onPack(p)) { st.hold = 'tissue'; st.tissue = { start: spillSum(), dirt: 0 }; rustle(); return; }
     if (inside(st.ipad, p.x, p.y)) {
       const l = toLocal(st.ipad, p.x, p.y), t = st.typos.find(t => !t.fixed && t.box && l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]);
@@ -533,13 +553,14 @@ cv.addEventListener('pointermove', e => {
   if (!st) return;
   const p = world(e); st.ptr = p;
   if (st.mode === 'play' && !st.drag) {
-    const over = !st.hold && (st.notes.some(n => !n.binned && Math.hypot(p.x - n.x - n.w / 2, p.y - n.y - n.h / 2) < 60) ? 'grab'
-      : near(p, LY.stampHome[0], LY.stampHome[1], 34) || onPack(p) || (inside(st.ipad, p.x, p.y) && st.typos.some(t => { if (t.fixed || !t.box) return 0; const l = toLocal(st.ipad, p.x, p.y); return l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]; })) ? 'pointer' : '');
+    const over = !st.hold && (st.notes.some(n => !n.binned && Math.hypot(p.x - n.x - n.w / 2, p.y - n.y - n.h / 2) < 60) || st.used.some(u => !u.binned && near(p, u.x, u.y, 30)) ? 'grab'
+      : near(p, LY.stampHome[0], LY.stampHome[1], 46) || onPack(p) || (inside(st.ipad, p.x, p.y) && st.typos.some(t => { if (t.fixed || !t.box) return 0; const l = toLocal(st.ipad, p.x, p.y); return l.x > t.box[0] && l.x < t.box[0] + t.box[2] && l.y > t.box[1] && l.y < t.box[1] + t.box[3]; })) ? 'pointer' : '');
     cv.style.cursor = st.hold ? 'none' : over || 'default';
   }
   if (!st.drag || !last || st.mode !== 'play') return;
   const t = performance.now(), dt = Math.max(1, t - last.t) / 1000, vx = (p.x - last.x) / dt, vy = (p.y - last.y) / dt, sp = Math.hypot(vx, vy);
   if (st.drag.note) { const n = st.drag.note; n.x = p.x - st.drag.dx; n.y = p.y - st.drag.dy; cv.style.cursor = 'grabbing'; }
+  else if (st.drag.used) { const u = st.drag.used; u.x = p.x - st.drag.dx; u.y = p.y - st.drag.dy; cv.style.cursor = 'grabbing'; }
   else {
     if (st.hold === 'tissue') {
       const m = SP.M.getContext('2d'), k = SP.k, o = SP.o;
@@ -558,6 +579,7 @@ addEventListener('pointerup', () => {
     const n = st.drag.note, [bx, by, br] = st.bin;
     if (Math.hypot(n.x + n.w / 2 - bx, n.y + n.h / 2 - by) < br + 30) { n.binned = 1; n.k = 0; tone(220, .15, 'sawtooth', .06); tone(160, .2, 'triangle', .1, .05); if (st.notes.every(n => n.binned)) complete('note'); }
   }
+  if (st.drag && st.drag.used) { const u = st.drag.used, [bx, by, br] = st.bin; if (Math.hypot(u.x - bx, u.y - by) < br + 30) { u.binned = 1; tone(220, .15, 'sawtooth', .06); } }
   st.drag = null; last = null; if (scrubG) scrubG.gain.setTargetAtTime(0, actx.currentTime, .05);
 });
 
@@ -583,10 +605,11 @@ function step(dt) {
     spT = .2; st.wiped = 0; const cur = spillSum(); SP.left = cur / SP.sum0;
     if (st.tissue) {
       st.tissue.dirt = (st.tissue.start - cur) / (SP.sum0 * .5);
-      if (st.tissue.dirt >= 1 && SP.left > .04) { st.used.push({ x: st.ptr.x + 30, y: st.ptr.y + 20, rot: rnd(0, 6) }); st.hold = null; st.tissue = null; rustle(); say('물티슈가 다 젖었어요 · 새로 뽑아요', st.ptr.x, st.ptr.y - 50); }
+      if (st.tissue.dirt >= 1 && SP.left > .04) { st.used.push({ x: st.ptr.x + 30, y: st.ptr.y + 20, rot: rnd(0, 6), seed: Math.random() * 1000 | 0 }); st.hold = null; st.tissue = null; rustle(); say('물티슈가 다 젖었어요 · 새로 뽑아요', st.ptr.x, st.ptr.y - 50); }
     }
-    if (SP.left < .04) { SP.M.getContext('2d').clearRect(0, 0, SP.M.width, SP.M.height); SP.left = 0; SP.dirty = 1; if (st.tissue) { st.used.push({ x: st.ptr.x + 30, y: st.ptr.y + 20, rot: rnd(0, 6) }); st.hold = null; st.tissue = null; } complete('coffee'); }
+    if (SP.left < .04) { SP.M.getContext('2d').clearRect(0, 0, SP.M.width, SP.M.height); SP.left = 0; SP.dirty = 1; st.clean = 1; if (st.tissue) { st.used.push({ x: st.ptr.x + 30, y: st.ptr.y + 20, rot: rnd(0, 6), seed: Math.random() * 1000 | 0 }); st.hold = null; st.tissue = null; } say('다 쓴 물티슈는 휴지통에!', st.ptr.x, st.ptr.y - 50); }
   }
+  if (st.mode === 'play' && st.clean && st.used.every(u => u.binned)) complete('coffee');
   st.shake = Math.max(0, st.shake - dt);
 }
 
@@ -606,20 +629,25 @@ function render(dt) {
   let jx = 0, jy = 0;
   if (st.shake || (st.mode === 'play' && st.t < 5)) { const a = st.shake * 14 + (st.mode === 'play' && st.t < 5 ? 1.8 : 0); jx = rnd(-a, a); jy = rnd(-a, a); }
   begin(L1, T, jx, jy);
-  drawSketch(); ipadBody(); drawForms(); drawSpill(); drawUsed(); drawInk(); if (st.hold !== 'stamp') stampAt(LY.stampHome[0], LY.stampHome[1], 4, .3);
+  drawSketch(); ipadBody(); drawForms(); drawSpill(); drawUsed(); drawInk(); if (st.hold !== 'stamp') stampLying(LY.stampHome[0], LY.stampHome[1], 2.4);
   drawPack(); drawBinned(); drawCrumbs(); clockBody();
   applyLight(L1, T, jx, jy, true);
   cx = L1.getContext('2d'); cx.setTransform(...T); cx.translate(jx, jy); ipadScreen();
   begin(L2, T, jx, jy);
   st.notes.forEach(drawNote);
   const pressing = now - st.press < 140 && st.drag !== undefined;
-  if (st.hold === 'stamp') stampAt(st.ptr.x, st.ptr.y, pressing ? 3 : 24, .3);
+  if (st.hold === 'stamp') stampHeld(st.ptr.x, st.ptr.y, pressing);
   if (st.hold === 'tissue') tissueShape(st.ptr.x, st.ptr.y, -.25, 1, st.tissue ? st.tissue.dirt : 0, st.drag ? 4 : 16);
   applyLight(L2, T, jx, jy, false);
   cx = main; cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = '#000'; cx.fillRect(0, 0, cv.width, cv.height);
   cx.setTransform(...T); cx.translate(jx, jy); if (bg.complete && bg.naturalWidth) cx.drawImage(bg, 0, 0, DW, DH);
   cx.setTransform(1, 0, 0, 1, 0, 0); cx.drawImage(L1, 0, 0); cx.drawImage(L2, 0, 0);
   cx.setTransform(...T); cx.translate(jx, jy);
+  { const t = now / 1000, f = .5 * Math.sin(t * .7) + .3 * Math.sin(t * 1.9 + 1) + .2 * Math.sin(t * 5.3 + rnd0(Math.floor(t * 3)) * 2) * (rnd0(Math.floor(t * .5)) < .2 ? 1 : .25);
+    const [px, py] = LY.pool, g = cx.createRadialGradient(px, py, 20, px, py, 760);
+    if (f > 0) { cx.globalCompositeOperation = 'lighter'; g.addColorStop(0, `rgba(255,190,120,${.045 * f})`); g.addColorStop(1, 'rgba(255,190,120,0)'); }
+    else { g.addColorStop(0, `rgba(0,0,0,${-.07 * f})`); g.addColorStop(1, `rgba(0,0,0,${-.03 * f})`); }
+    cx.fillStyle = g; cx.fillRect(-OX / S, -OY / S, W / S, H / S); cx.globalCompositeOperation = 'source-over'; }
   spillGloss(); focusRings(); drawFx(dt); drawClock();
   if (st.mode === 'play' && st.t < 10) {
     const a = (.18 + .14 * Math.sin(now / 120)) * (1 - st.t / 10), g = cx.createRadialGradient(DW / 2, DH / 2, Math.min(DW, DH) * .35, DW / 2, DH / 2, Math.max(DW, DH) * .75);
@@ -636,6 +664,6 @@ function resize() {
   S = Math.max(W / DW, Math.min(H / DH, W / (DW * .88))); OX = (W - DW * S) / 2; OY = (H - DH * S) / 2;
 }
 addEventListener('resize', () => { if (st) resize(); });
-function showOv(btn, sub) { $('#go').textContent = btn; $('.sub').textContent = sub; $('#ov').classList.remove('hide'); }
+function showOv(btn, sub) { $('#go').textContent = btn; $('.sub').textContent = sub; $('#ov').classList.add('res'); $('#ov').classList.remove('hide'); }
 $('#go').onclick = () => { audio(); if (st.mode !== 'ready') newRound(); st.mode = 'play'; st.t = TIME; nextTick = TIME + 1; $('#ov').classList.add('hide'); };
 Promise.all([document.fonts.load(`40px 'Nanum Pen Script'`), document.fonts.load("900 30px 'Noto Serif KR'"), document.fonts.load("500 21px 'Noto Serif KR'"), document.fonts.load("700 34px 'IBM Plex Mono'"), document.fonts.load("700 13px 'Noto Sans KR'")]).then(() => { newRound(); requestAnimationFrame(loop); });

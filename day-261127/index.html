@@ -11,9 +11,11 @@
   canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
   #top { position: fixed; right: 18px; top: 14px; font: 600 12px 'IBM Plex Mono', monospace; letter-spacing: .14em; z-index: 6; }
   #top a { color: rgba(255,240,220,.75); text-decoration: none; }
-  #ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 7; pointer-events: none; }
-  #ov button { pointer-events: auto; background: #ff4a2e; color: #fff; border: 0; padding: 16px 40px; font: 900 18px 'Noto Sans KR', sans-serif; letter-spacing: .04em; cursor: pointer; border-radius: 6px; box-shadow: 0 10px 30px rgba(255,60,30,.35), 0 0 0 1px rgba(255,255,255,.15) inset; }
-  #ov .sub { color: rgba(255,244,228,.9); font-size: 13px; text-shadow: 0 1px 3px rgba(0,0,0,.8); }
+  #ov { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 5; background: rgba(6,5,4,.55); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  #ov.res { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; justify-content: flex-end; padding-bottom: 12vh; box-sizing: border-box; pointer-events: none; }
+  #ov button { pointer-events: auto; background: #ff4a2e; color: #fff; border: 0; padding: 22px 56px; font: 900 22px 'Noto Sans KR', sans-serif; letter-spacing: .04em; cursor: pointer; border-radius: 6px; box-shadow: 0 10px 30px rgba(255,60,30,.35), 0 0 0 1px rgba(255,255,255,.15) inset; }
+  #ov button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  #ov .sub { display: none; }
   #ov.hide { display: none; }
 
   #hud { position: fixed; left: 20px; top: 20px; width: 340px; z-index: 6; color: #fff; background: rgba(16,15,14,.92); border: 1px solid rgba(255,255,255,.1); border-radius: 16px; box-shadow: 0 20px 50px rgba(0,0,0,.55); overflow: hidden; font-family: 'Noto Sans KR', sans-serif; }
@@ -62,6 +64,6 @@
 </div>
 <input id="ed" autocomplete="off" spellcheck="false">
 <div id="ov"><button id="go">마감 50초 전 · 시작</button><div class="sub">물티슈, 도장과 인주, 키보드를 써서 다섯 가지를 끝내세요</div></div>
-<script type="module" src="main.js?v=8"></script>
+<script type="module" src="main.js?v=10"></script>
 </body>
 </html>
