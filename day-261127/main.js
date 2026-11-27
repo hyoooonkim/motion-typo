@@ -1,8 +1,8 @@
 const $ = s => document.querySelector(s);
 const cv = document.createElement('canvas'); document.body.prepend(cv);
-const cx = cv.getContext('2d');
+let cx = cv.getContext('2d');
 const TIME = 50;
-let W = 0, H = 0, DPR = 1, DW = 1600, DH = 1000, S = 1, OX = 0, OY = 0, port = false;
+let W = 0, H = 0, DPR = 1, DW = 1600, DH = 893, S = 1, OX = 0, OY = 0;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const pick = a => a[Math.floor(Math.random() * a.length)];
 
@@ -26,31 +26,39 @@ const TASKS = [
   { k: 'note', t: '포스트잇 다 버리기' },
 ];
 
-const L = {
-  land: { DW: 1600, DH: 1000, memo: [40, 70, 300, 350, -.03], doc: [380, 100, 470, 640, -.025], sketch: [930, 110, 430, 320, .05],
-    forms: [[880, 500, 200, 270, -.07], [1095, 520, 200, 270, .04], [1310, 480, 200, 270, -.03]], coffee: [600, 820, 125], mug: [820, 900], bin: [1470, 880, 82],
-    notes: [60, 470, 1380, 960], clock: [800, 52] },
-  port: { DW: 1000, DH: 1600, memo: [30, 110, 280, 330, -.03], doc: [480, 120, 470, 640, .02], sketch: [40, 800, 430, 320, -.04],
-    forms: [[50, 1170, 200, 270, -.06], [330, 1190, 200, 270, .04], [610, 1160, 200, 270, -.03]], coffee: [720, 900, 120], mug: [880, 1050], bin: [880, 1500, 82],
-    notes: [40, 480, 900, 1480], clock: [500, 60] },
-};
-let LY = L.land;
+const LY = { DW: 1600, DH: 893, lamp: [450, 170], memo: [118, 232, 300, 350, -.07, .74], doc: [445, 118, 470, 640, -.03, .79], sketch: [838, 432, 430, 320, .05, .76],
+  forms: [[420, 652, 200, 270, -.08, .8], [612, 640, 200, 270, .05, .8], [800, 672, 200, 270, -.04, .78]], coffee: [1150, 600, 88], bin: [1445, 705, 150],
+  notes: [330, 110, 1240, 860], clock: [800, 46] };
 
-const paper = (a, extra = {}) => ({ x: a[0], y: a[1], w: a[2], h: a[3], rot: a[4], ...extra });
+const paper = (a, extra = {}) => ({ x: a[0], y: a[1], w: a[2], h: a[3], rot: a[4], s: a[5] || 1, ...extra });
 function toLocal(p, px, py) {
-  const cxp = p.x + p.w / 2, cyp = p.y + p.h / 2, c = Math.cos(-p.rot), s = Math.sin(-p.rot), dx = px - cxp, dy = py - cyp;
-  return { x: dx * c - dy * s + p.w / 2, y: dx * s + dy * c + p.h / 2 };
+  const k = p.s || 1, cxp = p.x + p.w * k / 2, cyp = p.y + p.h * k / 2, c = Math.cos(-p.rot), s = Math.sin(-p.rot), dx = px - cxp, dy = py - cyp;
+  return { x: (dx * c - dy * s) / k + p.w / 2, y: (dx * s + dy * c) / k + p.h / 2 };
 }
 const inside = (p, px, py) => { const l = toLocal(p, px, py); return l.x >= 0 && l.y >= 0 && l.x <= p.w && l.y <= p.h; };
-function withPaper(p, f) { cx.save(); cx.translate(p.x + p.w / 2, p.y + p.h / 2); cx.rotate(p.rot); cx.translate(-p.w / 2, -p.h / 2); f(); cx.restore(); }
+function withPaper(p, f) { const k = p.s || 1; cx.save(); cx.translate(p.x + p.w * k / 2, p.y + p.h * k / 2); cx.rotate(p.rot); cx.scale(k, k); cx.translate(-p.w / 2, -p.h / 2); f(); cx.restore(); }
+function shadowFor(x, y, h) {
+  const dx = x - LY.lamp[0], dy = y - LY.lamp[1], d = Math.hypot(dx, dy) || 1, len = h * (.6 + d / 420), k = S * DPR;
+  cx.shadowColor = `rgba(8,4,0,${Math.min(.75, .5 + h * .012)})`; cx.shadowBlur = (3 + h * 1.1) * k; cx.shadowOffsetX = dx / d * len * k; cx.shadowOffsetY = dy / d * len * k;
+}
+let paperPat = null;
 function sheet(p, col = '#fbf8f1', lift = 1) {
+  if (!paperPat) {
+    const c = document.createElement('canvas'); c.width = c.height = 256; const x = c.getContext('2d'), d = x.createImageData(256, 256);
+    for (let i = 0; i < d.data.length; i += 4) { const v = 228 + Math.random() * 27; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+    x.putImageData(d, 0, 0); paperPat = cx.createPattern(c, 'repeat');
+  }
+  const k = p.s || 1;
   withPaper(p, () => {
-    cx.shadowColor = 'rgba(30,15,5,.45)'; cx.shadowBlur = 14 * lift; cx.shadowOffsetX = 4 * lift; cx.shadowOffsetY = 7 * lift;
-    cx.fillStyle = col; cx.fillRect(0, 0, p.w, p.h); cx.shadowColor = 'transparent';
+    cx.save(); shadowFor(p.x + p.w * k / 2, p.y + p.h * k / 2, 4 * lift);
+    cx.fillStyle = col; cx.fillRect(0, 0, p.w, p.h); cx.restore();
+    cx.save(); cx.globalCompositeOperation = 'multiply'; cx.globalAlpha = .35; cx.fillStyle = paperPat; cx.fillRect(0, 0, p.w, p.h);
+    const g = cx.createLinearGradient(0, 0, p.w, p.h); g.addColorStop(0, 'rgba(255,255,255,0)'); g.addColorStop(.7, 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(120,100,80,.55)');
+    cx.globalAlpha = 1; cx.fillStyle = g; cx.fillRect(0, 0, p.w, p.h); cx.restore();
   });
 }
 
-let st, M, mctx, mask0 = 1, maskLeft = 1;
+let st, M, mctx, cxSave, mask0 = 1, maskLeft = 1;
 function blob(c, x, y, r, n = 14, j = .32) {
   c.beginPath();
   const pts = Array.from({ length: n }, (_, i) => { const a = i / n * Math.PI * 2; return [x + Math.cos(a) * r * (1 + rnd(-j, j)), y + Math.sin(a) * r * (1 + rnd(-j, j))]; });
@@ -59,45 +67,47 @@ function blob(c, x, y, r, n = 14, j = .32) {
 }
 function countMask() {
   const d = mctx.getImageData(0, 0, M.width, M.height).data; let n = 0;
-  for (let i = 3; i < d.length; i += 16) n += d[i];
+  for (let i = 3; i < d.length; i += 64) n += d[i];
   return n;
 }
 function newRound() {
-  port = innerWidth < innerHeight; LY = port ? L.port : L.land; DW = LY.DW; DH = LY.DH;
   const memo = paper(LY.memo), doc = paper(LY.doc), sketch = paper(LY.sketch);
   const forms = LY.forms.map(f => paper(f, { done: 0, t: 0 }));
   const [cxo, cyo, cr] = LY.coffee;
-  M = document.createElement('canvas'); M.width = DW / 2; M.height = DH / 2; mctx = M.getContext('2d');
-  mctx.fillStyle = 'rgba(92,52,22,.88)'; blob(mctx, cxo / 2, cyo / 2, cr / 2, 16, .38); mctx.fill();
-  for (let i = 0; i < 6; i++) { const a = rnd(0, 6.3), d = rnd(1.05, 1.5) * cr; blob(mctx, (cxo + Math.cos(a) * d) / 2, (cyo + Math.sin(a) * d) / 2, rnd(5, 16) / 2, 9, .3); mctx.fill(); }
-  mctx.strokeStyle = 'rgba(60,30,10,.6)'; mctx.lineWidth = 2; blob(mctx, cxo / 2, cyo / 2, cr / 2 * .9, 16, .3); mctx.stroke();
+  M = document.createElement('canvas'); M.width = DW; M.height = DH; mctx = M.getContext('2d');
+  mctx.fillStyle = 'rgba(52,26,9,.9)'; blob(mctx, cxo, cyo, cr, 16, .38); mctx.fill();
+  for (let i = 0; i < 6; i++) { const a = rnd(0, 6.3), d = rnd(1.05, 1.5) * cr; blob(mctx, (cxo + Math.cos(a) * d), (cyo + Math.sin(a) * d), rnd(5, 16), 9, .3); mctx.fill(); }
+  mctx.fillStyle = 'rgba(92,52,22,.55)'; blob(mctx, cxo + 4, cyo + 3, cr * .78, 16, .3); mctx.fill();
+  mctx.fillStyle = 'rgba(255,225,180,.18)'; blob(mctx, (cxo - cr * .35), (cyo - cr * .3), cr * .28, 10, .3); mctx.fill();
   mask0 = countMask(); maskLeft = 1;
   const typos = []; const crumbs = [];
   for (let i = 0; i < 34; i++) {
-    const l = { x: rnd(30, sketch.w - 30), y: rnd(30, sketch.h - 30) }, c = Math.cos(sketch.rot), s = Math.sin(sketch.rot), dx = l.x - sketch.w / 2, dy = l.y - sketch.h / 2;
-    crumbs.push({ x: sketch.x + sketch.w / 2 + dx * c - dy * s, y: sketch.y + sketch.h / 2 + dx * s + dy * c, vx: 0, vy: 0, a: rnd(0, 6.3), len: rnd(6, 15), off: 0 });
+    const k = sketch.s, l = { x: rnd(30, sketch.w - 30), y: rnd(30, sketch.h - 30) }, c = Math.cos(sketch.rot), s = Math.sin(sketch.rot), dx = (l.x - sketch.w / 2) * k, dy = (l.y - sketch.h / 2) * k;
+    crumbs.push({ x: sketch.x + sketch.w * k / 2 + dx * c - dy * s, y: sketch.y + sketch.h * k / 2 + dx * s + dy * c, vx: 0, vy: 0, a: rnd(0, 6.3), len: rnd(5, 11), off: 0 });
   }
   const [nx0, ny0, nx1, ny1] = LY.notes, bin = LY.bin, notes = [];
   NOTES.forEach(([t, c]) => {
     let x, y, k = 0;
-    do { x = rnd(nx0, nx1 - 130); y = rnd(ny0, ny1 - 130); k++; } while (k < 60 && (Math.hypot(x + 65 - bin[0], y + 65 - bin[1]) < bin[2] + 120 || notes.some(n => Math.hypot(n.x - x, n.y - y) < 150)));
-    notes.push({ x, y, w: 130, h: 130, rot: rnd(-.25, .25), t, c, binned: 0, k: 0 });
+    do { x = rnd(nx0, nx1 - 106); y = rnd(ny0, ny1 - 106); k++; } while (k < 80 && (Math.hypot(x + 53 - bin[0], y + 53 - bin[1]) < bin[2] + 110 || Math.hypot(x + 53 - 1050, y + 53 - 750) < 120 || notes.some(n => Math.hypot(n.x - x, n.y - y) < 130)));
+    notes.push({ x, y, w: 106, h: 106, rot: rnd(-.25, .25), t, c, binned: 0, k: 0 });
   });
   st = { mode: 'ready', t: TIME, memo, doc, sketch, forms, typos, crumbs, notes, bin, done: {}, doneAt: {}, fx: [], drag: null, shake: 0, result: 0 };
   resize();
 }
 
-let deskPat = null;
-function desk() {
-  if (!deskPat) {
-    const c = document.createElement('canvas'); c.width = 512; c.height = 512; const x = c.getContext('2d');
-    x.fillStyle = '#6b4a31'; x.fillRect(0, 0, 512, 512);
-    for (let i = 0; i < 120; i++) { const y = Math.random() * 512, h = rnd(1, 6); x.fillStyle = `rgba(${Math.random() < .5 ? '40,22,10' : '150,105,70'},${rnd(.05, .18)})`; x.beginPath(); x.moveTo(0, y); for (let X = 0; X <= 512; X += 32) x.lineTo(X, y + Math.sin(X * .02 + i) * 3); x.lineTo(512, y + h); x.lineTo(0, y + h); x.fill(); }
-    const d = x.getImageData(0, 0, 512, 512); for (let i = 0; i < d.data.length; i += 4) { const n = (Math.random() - .5) * 10; d.data[i] += n; d.data[i + 1] += n; d.data[i + 2] += n; } x.putImageData(d, 0, 0);
-    deskPat = cx.createPattern(c, 'repeat');
+const bg = new Image(); bg.src = 'desk.jpg';
+const LM = document.createElement('canvas'); let lmReady = false;
+bg.onload = () => {
+  const w = 320, h = Math.round(320 * bg.height / bg.width), t = document.createElement('canvas'); t.width = w; t.height = h;
+  const x = t.getContext('2d'); x.filter = 'blur(14px)'; x.drawImage(bg, -20, -20, w + 40, h + 40); x.filter = 'none';
+  const d = x.getImageData(0, 0, w, h);
+  for (let i = 0; i < d.data.length; i += 4) {
+    const l = (d.data[i] * .3 + d.data[i + 1] * .59 + d.data[i + 2] * .11) / 255, v = Math.min(1, Math.pow(l / .78, 1.15) * 1.05 + .03);
+    d.data[i] = 255 * Math.min(1, v * 1.04); d.data[i + 1] = 255 * v * .9; d.data[i + 2] = 255 * v * .74; d.data[i + 3] = 255;
   }
-  cx.fillStyle = deskPat; cx.fillRect(-OX / S, -OY / S, W / S, H / S);
-}
+  x.putImageData(d, 0, 0); LM.width = w; LM.height = h; LM.getContext('2d').drawImage(t, 0, 0); lmReady = true;
+};
+function desk() { if (bg.complete && bg.naturalWidth) cx.drawImage(bg, 0, 0, DW, DH); else { cx.fillStyle = '#2a1a0e'; cx.fillRect(0, 0, DW, DH); } }
 const PEN = "'Nanum Pen Script', cursive";
 function drawMemo() {
   const p = st.memo; sheet(p, '#fffbea');
@@ -183,25 +193,9 @@ function drawForms() {
 }
 
 function drawCoffee() { cx.drawImage(M, 0, 0, DW, DH); }
-function drawMug() {
-  const [x, y] = LY.mug;
-  cx.save(); cx.translate(x, y); cx.rotate(-.55);
-  cx.shadowColor = 'rgba(20,10,0,.5)'; cx.shadowBlur = 16; cx.shadowOffsetX = 5; cx.shadowOffsetY = 8;
-  cx.fillStyle = '#f2efe8'; cx.beginPath(); cx.roundRect(-70, -42, 140, 84, 14); cx.fill(); cx.shadowColor = 'transparent';
-  cx.strokeStyle = '#f2efe8'; cx.lineWidth = 12; cx.beginPath(); cx.arc(8, -46, 22, Math.PI, 0); cx.stroke();
-  cx.fillStyle = '#e4dfd4'; cx.beginPath(); cx.ellipse(-70, 0, 12, 42, 0, 0, 7); cx.fill();
-  cx.fillStyle = '#4a2a12'; cx.beginPath(); cx.ellipse(-71, 0, 8, 34, 0, 0, 7); cx.fill();
-  cx.fillStyle = '#d4362c'; cx.font = `900 20px 'Noto Sans KR', sans-serif`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('야근 중', 10, 4);
-  cx.restore();
-}
-function drawBin() {
-  const [x, y, r] = st.bin;
-  cx.save(); cx.shadowColor = 'rgba(20,10,0,.55)'; cx.shadowBlur = 18; cx.shadowOffsetY = 8;
-  cx.fillStyle = '#2f3136'; cx.beginPath(); cx.arc(x, y, r, 0, 7); cx.fill(); cx.restore();
-  const g = cx.createRadialGradient(x, y, r * .2, x, y, r * .92); g.addColorStop(0, '#101114'); g.addColorStop(1, '#25272c');
-  cx.fillStyle = g; cx.beginPath(); cx.arc(x, y, r * .88, 0, 7); cx.fill();
-  st.notes.filter(n => n.binned && n.k >= 1).forEach((n, i) => { cx.save(); cx.translate(x + Math.cos(i * 2.3) * r * .35, y + Math.sin(i * 2.3) * r * .3); cx.rotate(i * 1.7); cx.fillStyle = n.c; cx.beginPath(); blob(cx, 0, 0, 20, 9, .35); cx.fill(); cx.restore(); });
-  cx.strokeStyle = 'rgba(255,255,255,.08)'; cx.lineWidth = 3; cx.beginPath(); cx.arc(x, y, r * .94, 0, 7); cx.stroke();
+function drawBinned() {
+  const [x, y] = st.bin;
+  st.notes.filter(n => n.binned && n.k >= 1).forEach((n, i) => { cx.save(); cx.translate(x - 20 + Math.cos(i * 2.3) * 40, y - 10 + Math.sin(i * 2.3) * 34); cx.rotate(i * 1.7); shadowFor(x, y, 3); cx.fillStyle = n.c; blob(cx, 0, 0, 24, 9, .4); cx.fill(); cx.shadowColor = 'transparent'; cx.strokeStyle = 'rgba(0,0,0,.25)'; cx.lineWidth = 1.5; cx.beginPath(); cx.moveTo(-14, -4); cx.lineTo(6, 8); cx.moveTo(-4, -14); cx.lineTo(10, -2); cx.stroke(); cx.restore(); });
 }
 function drawNote(n) {
   const k = n.binned ? Math.min(1, n.k) : 0;
@@ -210,10 +204,11 @@ function drawNote(n) {
   const px = cxn + (bx - cxn) * k, py = cyn + (by - cyn) * k, s = 1 - .8 * k;
   const lifted = st.drag && st.drag.note === n;
   cx.save(); cx.translate(px, py); cx.rotate(n.rot + k * 3); cx.scale(s * (lifted ? 1.06 : 1), s * (lifted ? 1.06 : 1));
-  cx.shadowColor = 'rgba(30,15,5,.4)'; cx.shadowBlur = lifted ? 22 : 8; cx.shadowOffsetX = lifted ? 8 : 3; cx.shadowOffsetY = lifted ? 14 : 5;
+  shadowFor(px, py, lifted ? 26 : 3);
   cx.fillStyle = n.c; cx.fillRect(-n.w / 2, -n.h / 2, n.w, n.h); cx.shadowColor = 'transparent';
   cx.fillStyle = 'rgba(0,0,0,.06)'; cx.fillRect(-n.w / 2, -n.h / 2, n.w, 22);
-  cx.fillStyle = '#2b2b33'; cx.font = `38px ${PEN}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(n.t, 0, 8);
+  cx.fillStyle = '#2b2b33'; cx.font = `31px ${PEN}`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText(n.t, 0, 7);
+  const g = cx.createLinearGradient(0, n.h / 2 - 26, 0, n.h / 2); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.12)'); cx.fillStyle = g; cx.fillRect(-n.w / 2, n.h / 2 - 26, n.w, 26);
   cx.restore();
 }
 function drawCrumbs() {
@@ -226,13 +221,24 @@ function drawCrumbs() {
   });
   cx.globalAlpha = 1;
 }
+function clockBody() {
+  const [x, y] = LY.clock;
+  cx.save(); cx.translate(x, y); shadowFor(x, y, 9);
+  cx.fillStyle = '#1b1b1d'; cx.beginPath(); cx.roundRect(-128, -32, 256, 64, 14); cx.fill(); cx.shadowColor = 'transparent';
+  const g = cx.createLinearGradient(0, -32, 0, 32); g.addColorStop(0, 'rgba(255,255,255,.16)'); g.addColorStop(.5, 'rgba(255,255,255,0)'); cx.fillStyle = g; cx.beginPath(); cx.roundRect(-128, -32, 256, 64, 14); cx.fill();
+  cx.fillStyle = '#060606'; cx.beginPath(); cx.roundRect(-112, -22, 224, 44, 6); cx.fill();
+  cx.restore();
+}
 function drawClock() {
   const [x, y] = LY.clock, t = Math.max(0, st.t), sec = Math.ceil(t), hot = st.mode === 'play' && t < 10;
   const label = st.mode === 'lose' || t <= 0 ? '00:00:00' : `23:59:${String(60 - sec).padStart(2, '0')}`;
-  cx.save(); cx.translate(x, y); if (hot) cx.scale(1 + Math.max(0, .06 - (t % 1) * .06), 1 + Math.max(0, .06 - (t % 1) * .06));
-  cx.fillStyle = 'rgba(15,12,10,.78)'; cx.beginPath(); cx.roundRect(-150, -34, 300, 68, 10); cx.fill();
-  cx.fillStyle = hot ? '#ff4b3e' : '#ff8a3d'; cx.font = `700 44px 'IBM Plex Mono', monospace`; cx.textAlign = 'center'; cx.textBaseline = 'middle';
-  cx.shadowColor = cx.fillStyle; cx.shadowBlur = 14; cx.fillText(label, 0, 2); cx.shadowBlur = 0;
+  const blink = hot && (t % 1) < .35;
+  cx.save(); cx.translate(x, y);
+  cx.fillStyle = 'rgba(255,60,40,.08)'; cx.font = `700 34px 'IBM Plex Mono', monospace`; cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillText('88:88:88', 0, 1);
+  cx.globalCompositeOperation = 'lighter';
+  const r = cx.createRadialGradient(0, 0, 10, 0, 0, 170); r.addColorStop(0, `rgba(255,70,30,${blink ? .28 : .16})`); r.addColorStop(1, 'rgba(255,70,30,0)'); cx.fillStyle = r; cx.fillRect(-180, -110, 360, 220);
+  cx.globalCompositeOperation = 'source-over';
+  cx.fillStyle = blink ? '#ff9a80' : '#ff4a2e'; cx.shadowColor = '#ff3a1e'; cx.shadowBlur = 16 * S * DPR; cx.fillText(label, 0, 1);
   cx.restore();
 }
 function drawFx(dt) {
@@ -320,8 +326,8 @@ cv.addEventListener('pointermove', e => {
   const t = performance.now(), dt = Math.max(1, t - last.t) / 1000, vx = (p.x - last.x) / dt, vy = (p.y - last.y) / dt;
   if (st.drag.note) { const n = st.drag.note; n.x = p.x - st.drag.dx; n.y = p.y - st.drag.dy; cv.style.cursor = 'grabbing'; }
   else {
-    mctx.save(); mctx.globalCompositeOperation = 'destination-out'; mctx.globalAlpha = .14; mctx.lineCap = 'round'; mctx.lineWidth = 72 / 2;
-    mctx.beginPath(); mctx.moveTo(last.x / 2, last.y / 2); mctx.lineTo(p.x / 2, p.y / 2); mctx.stroke(); mctx.restore();
+    mctx.save(); mctx.globalCompositeOperation = 'destination-out'; mctx.globalAlpha = .14; mctx.lineCap = 'round'; mctx.lineWidth = 72;
+    mctx.beginPath(); mctx.moveTo(last.x, last.y); mctx.lineTo(p.x, p.y); mctx.stroke(); mctx.restore();
     st.wiped = (st.wiped || 0) + Math.hypot(p.x - last.x, p.y - last.y);
     const sp = Math.hypot(vx, vy);
     st.crumbs.forEach(c => {
@@ -367,12 +373,26 @@ function step(dt) {
   if (st.mode === 'play' && maskT <= 0 && st.wiped) { maskT = .25; maskLeft = countMask() / mask0; if (maskLeft < .05) { mctx.clearRect(0, 0, M.width, M.height); maskLeft = 0; complete('coffee'); } }
   st.shake = Math.max(0, st.shake - dt);
 }
+const LAY = document.createElement('canvas'), TMP = document.createElement('canvas'), main = cx;
 function render(dt) {
-  cx.setTransform(DPR * S, 0, 0, DPR * S, DPR * OX, DPR * OY);
-  if (st.shake || (st.mode === 'play' && st.t < 5)) { const a = st.shake * 14 + (st.mode === 'play' && st.t < 5 ? 1.8 : 0); cx.translate(rnd(-a, a), rnd(-a, a)); }
-  desk();
-  drawSketch(); drawDoc(); drawForms(); drawCoffee(); drawMug(); drawMemo(); drawBin(); drawCrumbs();
-  st.notes.forEach(drawNote); drawFx(dt); drawClock();
+  const T = [DPR * S, 0, 0, DPR * S, DPR * OX, DPR * OY];
+  let jx = 0, jy = 0;
+  if (st.shake || (st.mode === 'play' && st.t < 5)) { const a = st.shake * 14 + (st.mode === 'play' && st.t < 5 ? 1.8 : 0); jx = rnd(-a, a); jy = rnd(-a, a); }
+  const lc = LAY.getContext('2d'); lc.setTransform(1, 0, 0, 1, 0, 0); lc.clearRect(0, 0, LAY.width, LAY.height);
+  cx = lc; cx.setTransform(...T); cx.translate(jx, jy);
+  drawSketch(); drawDoc(); drawForms(); drawCoffee(); drawMemo(); drawBinned(); drawCrumbs(); clockBody();
+  st.notes.forEach(drawNote);
+  if (lmReady) {
+    const tc = TMP.getContext('2d'); tc.setTransform(1, 0, 0, 1, 0, 0); tc.globalCompositeOperation = 'copy';
+    tc.setTransform(...T); tc.translate(jx, jy); tc.drawImage(LM, 0, 0, DW, DH);
+    tc.setTransform(1, 0, 0, 1, 0, 0); tc.globalCompositeOperation = 'destination-in'; tc.drawImage(LAY, 0, 0); tc.globalCompositeOperation = 'source-over';
+    lc.setTransform(1, 0, 0, 1, 0, 0); lc.globalCompositeOperation = 'multiply'; lc.drawImage(TMP, 0, 0); lc.globalCompositeOperation = 'source-over';
+  }
+  cx = main; cx.setTransform(1, 0, 0, 1, 0, 0); cx.fillStyle = '#000'; cx.fillRect(0, 0, cv.width, cv.height);
+  cx.setTransform(...T); cx.translate(jx, jy); desk();
+  cx.setTransform(1, 0, 0, 1, 0, 0); cx.drawImage(LAY, 0, 0);
+  cx.setTransform(...T); cx.translate(jx, jy);
+  drawFx(dt); drawClock();
   if (st.mode === 'play' && st.t < 10) {
     const a = (.18 + .14 * Math.sin(now / 120)) * (1 - st.t / 10);
     const g = cx.createRadialGradient(DW / 2, DH / 2, Math.min(DW, DH) * .35, DW / 2, DH / 2, Math.max(DW, DH) * .75);
@@ -383,10 +403,11 @@ function render(dt) {
 function loop(t) { now = t; const dt = Math.min(.05, (t - prev) / 1000); prev = t; step(dt); render(dt); requestAnimationFrame(loop); }
 
 function resize() {
-  DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight; cv.width = W * DPR; cv.height = H * DPR;
-  S = Math.min(W / DW, H / DH); OX = (W - DW * S) / 2; OY = (H - DH * S) / 2;
+  DPR = Math.min(2, devicePixelRatio || 1); W = innerWidth; H = innerHeight;
+  for (const c of [cv, LAY, TMP]) { c.width = W * DPR; c.height = H * DPR; }
+  S = Math.max(W / DW, H / DH); OX = (W - DW * S) / 2; OY = (H - DH * S) / 2;
 }
-addEventListener('resize', () => { const p = innerWidth < innerHeight; if (p !== port && st.mode !== 'play') newRound(); else resize(); });
+addEventListener('resize', resize);
 function showOv(btn, sub) { $('#go').textContent = btn; $('.sub').textContent = sub; $('#ov').classList.remove('hide'); }
 $('#go').onclick = () => {
   audio();
