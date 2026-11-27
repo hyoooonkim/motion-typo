@@ -5,25 +5,31 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Day 261123 — 따뜻함</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Nanum+Pen+Script&family=Noto+Sans+KR:wght@500;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Nanum+Brush+Script&family=Noto+Serif+KR:wght@500;700&display=swap">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #120a05; font-family: 'Noto Sans KR', sans-serif; user-select: none; -webkit-user-select: none; }
-  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
-  canvas:active { cursor: grabbing; }
-  #top { position: fixed; left: 20px; right: 20px; top: 16px; display: flex; justify-content: space-between; font: 600 12px 'IBM Plex Mono', monospace; letter-spacing: .16em; color: rgba(255,236,214,.8); z-index: 3; pointer-events: none; text-shadow: 0 1px 4px rgba(0,0,0,.5); }
-  #top a { color: inherit; text-decoration: none; pointer-events: auto; }
-  #gauge { position: fixed; right: 22px; top: 48px; z-index: 3; display: flex; gap: 10px; pointer-events: none; }
-  #gauge div { background: rgba(30,16,8,.55); border: 1px solid rgba(255,220,180,.18); border-radius: 12px; padding: 10px 14px; color: #ffe8d2; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); min-width: 74px; }
-  #gauge small { display: block; font-size: 11px; color: rgba(255,232,210,.6); }
-  #gauge b { font: 600 22px 'IBM Plex Mono', monospace; }
-  #pour { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); z-index: 3; background: rgba(40,20,8,.62); color: #ffe8d2; border: 1px solid rgba(255,210,170,.35); padding: 13px 26px; border-radius: 999px; font: 700 15px 'Noto Sans KR', sans-serif; cursor: pointer; backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
-  #pour:hover { background: rgba(70,34,12,.7); }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #2a1f3a; user-select: none; -webkit-user-select: none; }
+  canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  .t { position: fixed; z-index: 3; color: rgba(255,255,255,.92); text-shadow: 0 1px 8px rgba(40,10,60,.4); pointer-events: none; font-family: 'IBM Plex Mono', monospace; }
+  #tl { left: 28px; top: 24px; }
+  #tl b { display: block; font: 700 15px 'Noto Serif KR', serif; letter-spacing: .3em; }
+  #tl small { display: block; font-size: 10px; letter-spacing: .22em; margin-top: 6px; opacity: .8; }
+  #tr { right: 28px; top: 24px; text-align: right; font-size: 11px; letter-spacing: .18em; }
+  #tr a { color: inherit; text-decoration: none; pointer-events: auto; }
+  #bl { left: 28px; bottom: 28px; font: 500 13px 'Noto Serif KR', serif; line-height: 1.9; }
+  #bl i { display: block; width: 60px; height: 1px; background: rgba(255,255,255,.6); margin-bottom: 12px; }
+  #br { right: 28px; bottom: 28px; text-align: right; font-size: 10px; letter-spacing: .16em; line-height: 1.8; }
+  #br b { font: 600 26px 'IBM Plex Mono', monospace; letter-spacing: 0; display: block; }
+  #ctl { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 3; display: flex; gap: 8px; }
+  #ctl button { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.4); padding: 10px 18px; border-radius: 999px; font: 500 13px 'Noto Serif KR', serif; cursor: pointer; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+  #ctl button:hover { background: rgba(255,255,255,.26); }
 </style>
 </head>
 <body>
-<header id="top"><span>따뜻함 · SAUNA</span><a href="../index.html">← INDEX</a></header>
-<div id="gauge"><div><small>온도</small><b id="tc">78°</b></div><div><small>습도</small><b id="hm">40%</b></div></div>
-<button id="pour">♨ 돌에 물 붓기</button>
-<script type="module" src="main.js?v=4"></script>
+<div class="t" id="tl"><b>따 뜻 함</b><small>WARMTH · 2026.11.23</small></div>
+<div class="t" id="tr"><a href="../index.html">← INDEX</a></div>
+<div class="t" id="bl"><i></i>'숨이 닿는 자리마다 김이 서린다.'<br>'손끝으로 닦으면, 그 너머가 따뜻하다.'</div>
+<div class="t" id="br">HUMIDITY<b id="hm">72%</b>TEMP <span id="tc">31.0</span>°C</div>
+<div id="ctl"><button id="breath">후— 입김 불기</button><button id="scene">장면 바꾸기</button></div>
+<script type="module" src="main.js?v=12"></script>
 </body>
 </html>
